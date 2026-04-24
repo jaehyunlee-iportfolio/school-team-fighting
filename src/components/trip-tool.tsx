@@ -8,8 +8,8 @@ import {
   Check,
   CheckCircle2,
   ChevronLeft,
+  Circle,
   FileUp,
-  Info,
   Loader2,
   MapPin,
   Minimize2,
@@ -31,7 +31,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +51,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -122,51 +120,52 @@ type FileFieldProps = {
 
 function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const clear = () => {
+    void onFile(null);
+    if (inputRef.current) inputRef.current.value = "";
+  };
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
         <Label className="text-sm font-medium text-foreground" htmlFor={id}>
           {label}
         </Label>
-        <p className="text-xs text-muted-foreground sm:max-w-[55%] sm:text-right sm:text-sm">
+        <p className="text-xs text-muted-foreground">
           {hint}
         </p>
       </div>
-      <div className="relative">
-        <Input
-          ref={inputRef}
-          id={id}
-          className="h-12 pr-10 text-base file:min-h-10 file:cursor-pointer file:rounded-md file:bg-transparent file:px-0 file:text-muted-foreground sm:min-h-0 sm:h-11 sm:file:h-7"
-          type="file"
-          accept={accept}
-          onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
-        />
-        <FileUp
-          className="pointer-events-none absolute right-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-      </div>
-      {file ? (
-        <div className="flex items-center gap-2">
-          <Check className="size-3.5 shrink-0 text-green-600" aria-hidden />
-          <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={file.name}>
-            {file.name}
-          </p>
-          <button
-            type="button"
+      <input
+        ref={inputRef}
+        id={id}
+        type="file"
+        className="hidden"
+        accept={accept}
+        onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="flex h-11 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 text-sm transition hover:bg-muted/50"
+      >
+        <FileUp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        {file ? (
+          <span className="min-w-0 flex-1 truncate text-left font-medium">{file.name}</span>
+        ) : (
+          <span className="flex-1 text-left text-muted-foreground">파일을 선택하세요</span>
+        )}
+        {file && (
+          <span
+            role="button"
+            tabIndex={0}
             className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="파일 제거"
-            onClick={() => {
-              void onFile(null);
-              if (inputRef.current) inputRef.current.value = "";
-            }}
+            onClick={(e) => { e.stopPropagation(); clear(); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clear(); } }}
           >
             <X className="size-3.5" />
-          </button>
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">파일을 골랐다면 아래에 이름이 보여요</p>
-      )}
+          </span>
+        )}
+      </button>
     </div>
   );
 }
@@ -536,27 +535,17 @@ export function TripTool() {
 
   return (
     <div
-      className="mx-auto min-h-0 w-full min-w-0 max-w-[min(100%,1920px)] overflow-x-hidden px-3 py-6 pb-28 pt-[max(0.5rem,env(safe-area-inset-top,0px))] sm:px-5 sm:py-8 sm:pb-10 lg:px-8 xl:px-10"
+      className="mx-auto min-h-0 w-full min-w-0 max-w-[min(100%,1920px)] overflow-x-hidden px-3 py-6 pt-[max(0.5rem,env(safe-area-inset-top,0px))] sm:px-5 sm:py-8 lg:px-8 xl:px-10"
       data-step={step}
     >
       <div className="mx-auto w-full min-w-0 max-w-4xl space-y-4 sm:space-y-6">
-        <header className="mb-0 flex min-w-0 flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4 sm:pb-6">
-          <h1 className="min-w-0 text-balance text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl lg:text-3xl">
+        <header className="mb-0 border-b border-border pb-5 sm:pb-6">
+          <h1 className="text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl lg:text-3xl">
             출장신청서
           </h1>
-          <Alert className="max-w-none border border-border/80 bg-muted/40 sm:max-w-md sm:shrink-0 sm:self-center">
-            <Info
-              className="size-4 text-muted-foreground"
-              strokeWidth={2}
-              aria-hidden
-            />
-            <AlertDescription className="text-xs sm:text-sm [&_strong]:font-medium">
-              <strong>CSV</strong>는 꼭 필요해요. 결재란엔{" "}
-              <strong>서명 이미지 2장</strong>이 들어갑니다. 기안란(맨 앞)에는{" "}
-              <strong>거래처</strong>에 적힌 이름 중 <strong>맨 앞 사람</strong>의
-              이름(최대 3자)이 손글씨처럼 표시돼요.
-            </AlertDescription>
-          </Alert>
+          <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
+            CSV는 필수, 결재 서명 이미지 2장은 선택이에요.
+          </p>
         </header>
 
         <StepIndicator current={step} onGoTo={goToStep} />
@@ -565,10 +554,8 @@ export function TripTool() {
         <Card>
           <CardHeader className="space-y-1 pb-4 sm:pb-4">
             <CardTitle className="text-lg sm:text-xl">1. 자료</CardTitle>
-            <CardDescription>
-              D-4 «출장비» 시트를 <strong>CSV(UTF-8 권장)</strong>로 저장·내보내
-              주세요. 결재 서명은 <strong>PNG·JPG</strong> — 배경이 투명하면(누끼) 문서에 더
-              잘 맞아요. 기안 서명란은 이미지로 넣지 않아도 됩니다.
+            <CardDescription className="text-xs sm:text-sm">
+              D-4 출장비 시트를 CSV(UTF-8)로 저장하고, 결재 서명(PNG/JPG)을 준비하세요.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 sm:space-y-7">
@@ -576,9 +563,6 @@ export function TripTool() {
               <h2 id="mode-heading" className="text-sm font-medium text-foreground">
                 생성 모드
               </h2>
-              <p className="text-xs text-muted-foreground sm:text-sm">
-                좌·우에서 하나만 고르면 돼요. (모바일은 화면이 좁을 때만 위·아래로 쌓입니다)
-              </p>
               <RadioGroup
                 className="grid w-full grid-cols-1 items-stretch gap-3 sm:grid-cols-2"
                 value={mode}
@@ -600,29 +584,28 @@ export function TripTool() {
                     },
                   ] as const
                 ).map(({ v, id, title, sub }) => (
-                  <div
+                  <label
                     key={v}
+                    htmlFor={id}
                     className={cn(
-                      "flex h-full min-h-[7.5rem] items-start gap-2.5 rounded-lg border p-3 transition-colors sm:gap-3 sm:p-4",
-                      "active:scale-[0.99]",
+                      "flex cursor-pointer items-start gap-3 rounded-xl border-2 p-4 transition-all",
                       mode === v
-                        ? "border-foreground/20 bg-muted"
-                        : "border-border bg-card hover:border-foreground/15 hover:bg-muted/50"
+                        ? "border-foreground bg-muted/60"
+                        : "border-transparent bg-card hover:bg-muted/30"
                     )}
                   >
-                    <RadioGroupItem value={v} id={id} className="mt-0.5" />
+                    <RadioGroupItem value={v} id={id} className="sr-only" />
+                    {mode === v
+                      ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-foreground" />
+                      : <Circle className="mt-0.5 size-5 shrink-0 text-muted-foreground/40" />
+                    }
                     <div className="min-w-0 flex-1">
-                      <Label
-                        className="cursor-pointer text-sm font-medium leading-snug"
-                        htmlFor={id}
-                      >
-                        {title}
-                      </Label>
-                      <p className="mt-1.5 text-pretty text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                      <span className="text-sm font-semibold">{title}</span>
+                      <p className="mt-1 text-xs text-muted-foreground">
                         {sub}
                       </p>
                     </div>
-                  </div>
+                  </label>
                 ))}
               </RadioGroup>
             </section>
@@ -708,11 +691,11 @@ export function TripTool() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="border-t border-border/60 pt-2">
+            <div className="flex justify-end border-t border-border/60 pt-4">
               <Button
                 type="button"
                 size="lg"
-                className="min-h-12 w-full sm:max-w-sm"
+                className="w-full sm:w-auto sm:min-w-48"
                 onClick={async () => {
                   if (!csv) {
                     toast.error("CSV를 선택하세요");
@@ -728,7 +711,7 @@ export function TripTool() {
                     읽는 중…
                   </>
                 ) : (
-                  "2단계로(내용 확인)"
+                  "2단계로(내용 확인) →"
                 )}
               </Button>
             </div>
@@ -740,67 +723,32 @@ export function TripTool() {
         <div className="space-y-3 sm:space-y-4">
           <Card>
             <CardHeader className="pb-3 sm:pb-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                <div className="min-w-0 space-y-2">
-                  <CardTitle className="text-lg sm:text-xl">2. 검토</CardTitle>
-                  <CardDescription className="text-pretty text-xs sm:text-sm">
-                    {rows.length > 0 ? (
-                      <>
-                        <strong className="text-foreground">{rows.length}건</strong>을 읽었어요.{" "}
-                        {headerIdx >= 0 ? (
-                          <span>
-                            {`(사용일자, 거래처… 같은) 표 머리는 `}
-                            <strong>엑셀에서 맨 윗줄로부터 {headerIdx + 1}번째 줄</strong>
-                            {`을 머리로 잡았어요.`}
-                          </span>
-                        ) : null}
-                      </>
-                    ) : (
-                      "읽힌 게 없어요. 머리(사용일자·거래처…)가 있는 D-4인지, CSV 저장이 괜한지 봐 주세요"
-                    )}
-                  </CardDescription>
-                  {rows.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
-                        <Check className="size-3" aria-hidden />
-                        양호 {okCount}건
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-lg sm:text-xl">
+                  {rows.length > 0 ? `${rows.length}건 읽었어요` : "2. 검토"}
+                </CardTitle>
+                {rows.length > 0 && (
+                  <>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
+                      <Check className="size-3" aria-hidden />
+                      {okCount}
+                    </span>
+                    {warnCount > 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                        <AlertTriangle className="size-3" aria-hidden />
+                        {warnCount}
                       </span>
-                      {warnCount > 0 && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                          <AlertTriangle className="size-3" aria-hidden />
-                          경고 {warnCount}건
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {rows.length > 0 && hasAnyEmpty && (
-                  <Alert
-                    className="w-full max-w-md shrink-0 border border-border/80 bg-warning-tint/80 text-warning-tint-foreground"
-                    role="status"
-                  >
-                    <AlertTriangle className="h-4 w-4 opacity-80" aria-hidden />
-                    <AlertDescription>
-                      <p className="text-xs font-medium sm:text-sm">빈 칸·누락 의심 {warnCount}건</p>
-                      <p className="mt-1 text-[11px] leading-relaxed sm:text-sm">
-                        일부 행에 데이터가 비었을 수 있어요. PDF는 그대로 나갈 수 있어요.
-                      </p>
-                    </AlertDescription>
-                  </Alert>
+                    )}
+                  </>
                 )}
               </div>
+              {rows.length === 0 && (
+                <CardDescription className="text-xs sm:text-sm">
+                  읽힌 게 없어요. CSV가 D-4 형식인지 확인해 주세요.
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent className="space-y-4 sm:space-y-5">
-              <details className="group rounded-lg border border-dashed border-border/80 bg-muted/15 px-3 py-2.5 text-sm sm:px-4">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-muted-foreground [&::-webkit-details-marker]:hidden">
-                  <span>열명이 이상하다면 (디버그)</span>
-                  <span className="text-xs">펼치기</span>
-                </summary>
-                <p className="mt-2 break-all text-xs text-muted-foreground sm:text-sm">
-                  {parseKeys.length ? parseKeys.join(" | ") : "—"}
-                </p>
-              </details>
-
               {rows.length > 0 && (
                 <section
                   className="space-y-2"
@@ -997,25 +945,32 @@ export function TripTool() {
                         {previewPending ? " · 만드는 중" : " · 표·위 번호·목록에서 행을 바꿀 수 있어요"}
                       </p>
                     </div>
-                    <div
-                      className="-mx-0.5 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto py-0.5 pb-1 [scrollbar-width:thin]"
-                      role="group"
-                      aria-label="행 번호(미리보기)"
-                    >
-                      {rows.map((_, i) => (
-                        <Button
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                          className="min-h-9 min-w-9 shrink-0 touch-manipulation sm:min-h-9"
-                          key={i}
-                          aria-pressed={previewI === i}
-                          aria-label={`${i + 1}행 미리보기`}
-                          onClick={async () => onPreviewIndex(i)}
-                        >
-                          {i + 1}
-                        </Button>
-                      ))}
+                    <div className="flex items-center gap-2" role="group" aria-label="미리보기 페이지네이터">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        type="button"
+                        disabled={previewI <= 0}
+                        onClick={() => void onPreviewIndex(previewI - 1)}
+                        aria-label="이전 행"
+                      >
+                        <ChevronLeft className="size-4" />
+                        이전
+                      </Button>
+                      <span className="min-w-16 text-center text-sm font-medium tabular-nums">
+                        {previewI + 1} / {rows.length}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        type="button"
+                        disabled={previewI >= rows.length - 1}
+                        onClick={() => void onPreviewIndex(previewI + 1)}
+                        aria-label="다음 행"
+                      >
+                        다음
+                        <ChevronLeft className="size-4 rotate-180" />
+                      </Button>
                     </div>
                     <div className="relative w-full min-h-48 sm:min-h-0">
                       {previewPending && (
@@ -1059,147 +1014,113 @@ export function TripTool() {
                 </section>
               )}
 
+              <details className="group rounded-lg border border-dashed border-border/80 bg-muted/15 px-3 py-2.5 text-sm sm:px-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-muted-foreground [&::-webkit-details-marker]:hidden">
+                  <span>열명이 이상하다면 (디버그)</span>
+                  <span className="text-xs">펼치기</span>
+                </summary>
+                <p className="mt-2 break-all text-xs text-muted-foreground sm:text-sm">
+                  {parseKeys.length ? parseKeys.join(" | ") : "—"}
+                </p>
+              </details>
+
             </CardContent>
           </Card>
-            <div
-            className={cn(
-              "fixed bottom-0 left-0 right-0 z-20 border-t border-border/80 bg-background/95 px-3 py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.05)] backdrop-blur supports-[padding:max(0px)]:pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:mx-auto sm:mb-0 sm:max-w-4xl sm:rounded-xl sm:border sm:shadow"
-            )}
-          >
-            <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-0">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setStep("input");
-                  setPreviewUrl(null);
-                }}
-                type="button"
-                className="min-h-11 w-full sm:w-auto"
-              >
-                <ChevronLeft className="size-4" aria-hidden />
-                이전(자료)
-              </Button>
-              <div className="grid flex-1 gap-2 sm:flex sm:justify-end">
-                {mode === "direct" && (
-                  <Button
-                    className="min-h-12 w-full sm:min-w-40 sm:max-w-xs"
-                    type="button"
-                    disabled={genPending || !rows.length}
-                    onClick={() => askStartGenerate()}
-                  >
-                    {genPending ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        {genProgress
-                          ? `생성 중 ${genProgress.current}/${genProgress.total}`
-                          : "준비 중…"}
-                      </>
-                    ) : (
-                      "ZIP으로 받기"
-                    )}
-                  </Button>
-                )}
-                {mode === "preview" && (
-                  <Button
-                    className="min-h-12 w-full sm:min-w-48"
-                    type="button"
-                    disabled={genPending || !rows.length}
-                    onClick={async () => {
-                      if (!rows.length) return;
-                      if (!previewUrl) await onPreviewIndex(0);
-                      await doGenerate();
-                    }}
-                  >
-                    {genPending ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        {genProgress
-                          ? `생성 중 ${genProgress.current}/${genProgress.total}`
-                          : "준비 중…"}
-                      </>
-                    ) : (
-                      "전부 PDF로 (행마다)"
-                    )}
-                  </Button>
-                )}
-              </div>
+          <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setStep("input");
+                setPreviewUrl(null);
+              }}
+              type="button"
+            >
+              <ChevronLeft className="size-4" aria-hidden />
+              이전
+            </Button>
+            <div className="flex justify-end gap-2">
+              {mode === "direct" && (
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto sm:min-w-40"
+                  type="button"
+                  disabled={genPending || !rows.length}
+                  onClick={() => askStartGenerate()}
+                >
+                  {genPending ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      {genProgress
+                        ? `${genProgress.current}/${genProgress.total}`
+                        : "준비 중…"}
+                    </>
+                  ) : (
+                    "ZIP으로 받기"
+                  )}
+                </Button>
+              )}
+              {mode === "preview" && (
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto sm:min-w-48"
+                  type="button"
+                  disabled={genPending || !rows.length}
+                  onClick={async () => {
+                    if (!rows.length) return;
+                    if (!previewUrl) await onPreviewIndex(0);
+                    await doGenerate();
+                  }}
+                >
+                  {genPending ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      {genProgress
+                        ? `${genProgress.current}/${genProgress.total}`
+                        : "준비 중…"}
+                    </>
+                  ) : (
+                    "전부 PDF로 (행마다)"
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </div>
       )}
 
       {step === "result" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg sm:text-xl">3. 끝</CardTitle>
-            <CardDescription>
-              다운로드는 브라우저 설정에 맞는 폴더로 떨어집니다.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex items-start gap-4 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/50">
-              <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
-              <div className="min-w-0 space-y-1">
-                <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                  출장신청서 {listDone.length}건 생성 완료
-                </p>
-                <p className="text-xs text-green-700 dark:text-green-300">
-                  {mode === "direct" ? "ZIP 파일 1개로 " : `PDF ${listDone.length}개를 `}
-                  다운로드했어요
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground">
-                전체 {listDone.length}건
-              </span>
-              {warnCount > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                  <AlertTriangle className="size-3" aria-hidden />
-                  경고 {warnCount}건 포함
-                </span>
-              )}
-              {okCount > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
-                  <Check className="size-3" aria-hidden />
-                  양호 {okCount}건
-                </span>
-              )}
-            </div>
-
-            <ul className="ml-1 list-outside list-disc space-y-1.5 pl-4 text-sm text-muted-foreground">
-              <li>다운이 안 보이면 팝업·다운로드 권한을 확인해 주세요</li>
-              <li>ZIP이면 압축만 풀면 돼요. 여러 개면 횟수만큼 떨어질 수 있어요</li>
-              {warnCount > 0 && (
-                <li className="text-amber-700 dark:text-amber-300">
-                  경고 {warnCount}건은 빈 칸이 있을 수 있어요 — PDF 출력 후 확인을 권장합니다
-                </li>
-              )}
-            </ul>
-
-            <div className="border-t border-border/60 pt-4">
-              <Button
-                onClick={() => {
-                  setStep("input");
-                  setRows([]);
-                  setListDone([]);
-                  setPreviewUrl(null);
-                  setCsv(null);
-                  setA1(null);
-                  setA2(null);
-                  setA1Data("");
-                  setA2Data("");
-                  previewStart.current = false;
-                }}
-                variant="default"
-                className="h-12 w-full min-[420px]:max-w-xs"
-              >
-                처음으로
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center gap-6 py-8 text-center">
+          <CheckCircle2 className="size-12 text-green-500" aria-hidden />
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">{listDone.length}건 생성 완료</h2>
+            <p className="text-sm text-muted-foreground">
+              {mode === "direct" ? "ZIP 파일 1개로 " : `PDF ${listDone.length}개를 `}
+              다운로드했어요.
+              {warnCount > 0 && ` (경고 ${warnCount}건 포함)`}
+            </p>
+          </div>
+          <div className="flex justify-end w-full border-t border-border/60 pt-4">
+            <Button
+              onClick={() => {
+                setStep("input");
+                setRows([]);
+                setListDone([]);
+                setPreviewUrl(null);
+                setCsv(null);
+                setA1(null);
+                setA2(null);
+                setA1Data("");
+                setA2Data("");
+                previewStart.current = false;
+              }}
+              variant="outline"
+              size="lg"
+              className="w-full sm:w-auto sm:min-w-40"
+            >
+              처음으로
+            </Button>
+          </div>
+        </div>
       )}
 
       <AlertDialog
