@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 42,
   },
-  pageTitle: { fontSize: 25, fontWeight: 900, lineHeight: 1.15 },
+  pageTitle: { fontSize: 25, fontWeight: 700, lineHeight: 1.15 },
   /** 전체: 테두리 한 겹 */
   apTable: { width: 256, borderWidth: b, borderColor: BORDER },
   apRow: { flexDirection: "row" },
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     marginTop: 42,
     textAlign: "center",
     fontSize: 15,
-    fontWeight: 900,
+    fontWeight: 700,
   },
   content: { width: "100%" as const },
 });
