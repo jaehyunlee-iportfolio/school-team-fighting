@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 14,
   },
-  pageTitle: { fontSize: 19, fontWeight: 800, lineHeight: 1.15 },
+  pageTitle: { fontSize: 19, fontWeight: 900, lineHeight: 1.15 },
   /** 전체: 테두리 한 겹 */
   apTable: { width: 256, borderWidth: b, borderColor: BORDER },
   apRow: { flexDirection: "row" },
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: "center",
     fontSize: 11.5,
-    fontWeight: 800,
+    fontWeight: 900,
   },
   pageColumn: { flexDirection: "column" as const, minHeight: "100%" as const },
   flex1: { flex: 1 },
@@ -160,18 +160,12 @@ const DataTableRow = ({ children }: { children: ReactNode }) => (
   <View style={styles.dRow}>{children}</View>
 );
 
-const labelTop = (first: boolean) =>
-  first
-    ? { borderTopWidth: 0 as const }
-    : { borderTopWidth: b, borderTopColor: BORDER };
-const valueTop = labelTop;
-
-const LabelCell = ({ firstRow, children }: { firstRow: boolean; children: ReactNode }) => (
-  <View style={[styles.dLabel, labelTop(firstRow)]}>{children}</View>
+const LabelCell = ({ children }: { children: ReactNode }) => (
+  <View style={styles.dLabel}>{children}</View>
 );
 
-const ValCell = ({ firstRow, children }: { firstRow: boolean; children: ReactNode }) => (
-  <View style={[styles.dValue, valueTop(firstRow)]}>{children}</View>
+const ValCell = ({ children }: { children: ReactNode }) => (
+  <View style={styles.dValue}>{children}</View>
 );
 
 /**
@@ -238,18 +232,18 @@ export function BusinessTripDocument({ row, approver1Src, approver2Src }: Busine
 
         <View style={styles.dataTable}>
           <DataTableRow>
-            <LabelCell firstRow>
+            <LabelCell>
               <Text style={styles.dLabelT}>작성자 소속</Text>
             </LabelCell>
-            <ValCell firstRow>
+            <ValCell>
               <Text style={styles.dValS}>{row.orgName || "—"}</Text>
             </ValCell>
           </DataTableRow>
           <DataTableRow>
-            <LabelCell firstRow={false}>
+            <LabelCell>
               <Text style={styles.dLabelT}>작성자 성명</Text>
             </LabelCell>
-            <ValCell firstRow={false}>
+            <ValCell>
               <Text style={styles.dValS}>{row.writerName || "—"}</Text>
             </ValCell>
           </DataTableRow>
@@ -259,26 +253,26 @@ export function BusinessTripDocument({ row, approver1Src, approver2Src }: Busine
 
         <View style={styles.dataTable}>
           <DataTableRow>
-            <LabelCell firstRow>
+            <LabelCell>
               <Text style={styles.dLabelT}>출장 인원</Text>
             </LabelCell>
-            <ValCell firstRow>
+            <ValCell>
               <Text style={styles.dValS}>{row.memberText || "—"}</Text>
             </ValCell>
           </DataTableRow>
           <DataTableRow>
-            <LabelCell firstRow={false}>
+            <LabelCell>
               <Text style={styles.dLabelT}>출장 기간</Text>
             </LabelCell>
-            <ValCell firstRow={false}>
+            <ValCell>
               <Text style={styles.dValS}>{row.periodText || "—"}</Text>
             </ValCell>
           </DataTableRow>
           <DataTableRow>
-            <LabelCell firstRow={false}>
+            <LabelCell>
               <Text style={styles.dLabelT}>출 장 지</Text>
             </LabelCell>
-            <ValCell firstRow={false}>
+            <ValCell>
               <Text style={styles.dValS}>{row.outPlace || "—"}</Text>
             </ValCell>
           </DataTableRow>
