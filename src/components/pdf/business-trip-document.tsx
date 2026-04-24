@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 84,
+    marginBottom: 42,
   },
   pageTitle: { fontSize: 25, fontWeight: 900, lineHeight: 1.15 },
   /** 전체: 테두리 한 겹 */
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   apSignCLast: { borderRightWidth: 0 },
-  drafter: { fontSize: 14, textAlign: "center" },
+  drafter: { fontSize: 12, textAlign: "center" },
   small: { fontSize: 7.5, color: "#333" },
   apImg: { maxHeight: 23, maxWidth: "100%", objectFit: "contain" as const },
   dataTable: { width: "100%" as const, borderWidth: b, borderColor: BORDER },
@@ -109,8 +109,8 @@ const styles = StyleSheet.create({
   intro: {
     fontSize: 11,
     textAlign: "left",
-    marginTop: 84,
-    marginBottom: 60,
+    marginTop: 42,
+    marginBottom: 42,
   },
   pRow: { flexDirection: "row", width: "100%" as const },
   pLabel: {
@@ -138,9 +138,9 @@ const styles = StyleSheet.create({
   purpose: { fontSize: 11, lineHeight: 1.4, textAlign: "left", whiteSpace: "pre-wrap" as const },
   /** 한 페이지 끝에 띄울 때(높이 흡수는 아래 콘텐츠 View → spacer → 본문 푸터) */
   footer: {
-    marginTop: 60,
+    marginTop: 42,
     textAlign: "center",
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: 900,
   },
   content: { width: "100%" as const },
