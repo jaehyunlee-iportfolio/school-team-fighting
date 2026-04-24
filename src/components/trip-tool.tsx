@@ -593,7 +593,7 @@ export function TripTool() {
                         : "border-transparent bg-card hover:bg-muted/30"
                     )}
                   >
-                    <RadioGroupItem value={v} id={id} className="sr-only" />
+                    <RadioGroupItem value={v} id={id} className="!absolute !size-0 !opacity-0 !overflow-hidden" />
                     {mode === v
                       ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-foreground" />
                       : <Circle className="mt-0.5 size-5 shrink-0 text-muted-foreground/40" />
