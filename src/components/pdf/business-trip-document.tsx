@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 3,
   },
-  dLabelT: { fontSize: 9, textAlign: "center", fontWeight: 500 },
+  dLabelT: { fontSize: 11, textAlign: "center", fontWeight: 500 },
   dValue: {
     flex: 1,
     minHeight: 32,
@@ -105,9 +105,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     justifyContent: "center",
   },
-  dValS: { fontSize: 9.5, textAlign: "left" },
+  dValS: { fontSize: 11, textAlign: "left" },
   intro: {
-    fontSize: 9.5,
+    fontSize: 11,
     textAlign: "left",
     marginTop: 14,
     marginBottom: 10,
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     padding: 6,
   },
-  purpose: { fontSize: 9, lineHeight: 1.4, textAlign: "left", whiteSpace: "pre-wrap" as const },
+  purpose: { fontSize: 11, lineHeight: 1.4, textAlign: "left", whiteSpace: "pre-wrap" as const },
   /** 한 페이지 끝에 띄울 때(높이 흡수는 아래 콘텐츠 View → spacer → 본문 푸터) */
   footer: {
     marginTop: 4,
