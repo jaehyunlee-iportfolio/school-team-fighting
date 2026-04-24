@@ -14,7 +14,7 @@ import type { TripRow } from "@/lib/csv/parseD4";
 const MM_20 = 20 * 2.8346;
 
 const BORDER = "#000000";
-const b = 1;
+const b = 0.75;
 
 const styles = StyleSheet.create({
   page: {
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 8,
+    marginBottom: 14,
   },
   pageTitle: { fontSize: 19, fontWeight: 700, lineHeight: 1.15 },
   /** 전체: 테두리 한 겹 */
@@ -108,9 +108,9 @@ const styles = StyleSheet.create({
   dValS: { fontSize: 9.5, textAlign: "left" },
   intro: {
     fontSize: 9.5,
-    textAlign: "center",
-    marginTop: 8,
-    marginBottom: 6,
+    textAlign: "left",
+    marginTop: 14,
+    marginBottom: 10,
   },
   pRow: { flexDirection: "row", width: "100%" as const },
   pLabel: {
