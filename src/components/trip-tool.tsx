@@ -22,7 +22,7 @@ import {
   parseD4Csv,
   recomputeRowWithOverride,
 } from "@/lib/csv/parseD4";
-import { type ApprovalGroup, getApprovalHeaderLabels } from "@/lib/approval/labels";
+import { type ApprovalGroup, getApprovalHeaderLabels, detectGroupFromFilename } from "@/lib/approval/labels";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -351,7 +351,14 @@ export function TripTool() {
       const p = parseD4Csv(t);
       setHeaderIdx(p.headerLineIndex);
       setParseKeys(p.keys);
-      const m = mapAllRows(p.rows, approvalMode);
+
+      const fileGroup = detectGroupFromFilename(csv.name);
+      const effectiveMode = fileGroup ?? approvalMode;
+      if (fileGroup && approvalMode === "auto") {
+        setApprovalMode(fileGroup);
+        toast.success(`파일명에서 "${fileGroup === "ipf" ? "아이포트폴리오" : "디미"}" 그룹을 감지했어요`);
+      }
+      const m = mapAllRows(p.rows, effectiveMode);
       setRows(m);
       if (a1) {
         const d = await readDataUrl(a1);

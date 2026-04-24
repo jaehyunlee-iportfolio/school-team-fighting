@@ -15,6 +15,20 @@ export function detectApprovalGroup(org: string | undefined | null): ApprovalGro
   return "unknown";
 }
 
+export function detectGroupFromFilename(filename: string): ApprovalGroup | null {
+  const t = filename.replace(/\s+/g, " ").toLowerCase();
+  if (t.includes("디미") || t.includes("dimi") || t.includes("디지털미디어")) return "dimi";
+  if (
+    t.includes("아이포트") ||
+    t.includes("iportfolio") ||
+    t.includes("ipf") ||
+    t.includes("아이포")
+  ) {
+    return "ipf";
+  }
+  return null;
+}
+
 export function getApprovalHeaderLabels(
   org: string | null | undefined,
   override: ApprovalGroup | "auto" = "auto"
