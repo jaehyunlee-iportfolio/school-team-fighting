@@ -12,7 +12,6 @@ import {
   type SignatureMode,
   type GroupLabels,
 } from "@/lib/firebase/firestore";
-import { uploadSignatureImage } from "@/lib/firebase/storage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,7 +48,6 @@ import {
   Type,
 } from "lucide-react";
 import { toast } from "sonner";
-import Image from "next/image";
 
 export default function AdminPage() {
   const { user, isAdmin, adminLoading } = useAuth();
@@ -288,6 +286,15 @@ function ApproverGroupSection({
   );
 }
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result ?? ""));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
 function ApproverRow({
   groupId,
   role,
@@ -302,32 +309,28 @@ function ApproverRow({
   onChange: (s: ApprovalSettings) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const storageKey = `${groupId}_${role}`;
   const approverKey = role as "approver1" | "approver2";
   const approverSettings = settings[approverKey];
+  const currentUrl = approverSettings.imageUrl;
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
+  const handleFile = async (file: File) => {
+    setLoading(true);
     try {
-      const url = await uploadSignatureImage(groupId, role, file);
+      const dataUrl = await readFileAsDataUrl(file);
       onChange({
         ...settings,
-        [approverKey]: { ...approverSettings, mode: "image" as SignatureMode, imageUrl: url },
+        [approverKey]: { ...approverSettings, mode: "image" as SignatureMode, imageUrl: dataUrl },
       });
-      setPreviewUrl(url);
-      toast.success("서명 이미지가 업로드되었어요.");
+      toast.success("서명 이미지가 설정되었어요.");
     } catch {
-      toast.error("업로드에 실패했어요.");
+      toast.error("이미지를 읽는 데 실패했어요.");
     } finally {
-      setUploading(false);
+      setLoading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
   };
-
-  const currentUrl = previewUrl || approverSettings.imageUrl;
 
   return (
     <div className="space-y-3">
@@ -335,13 +338,10 @@ function ApproverRow({
       <div className="flex items-start gap-4">
         <div className="shrink-0 size-20 rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
           {currentUrl ? (
-            <Image
+            <img
               src={currentUrl}
-              alt={`${storageKey} 서명`}
-              width={80}
-              height={80}
-              className="object-contain"
-              unoptimized
+              alt={`${groupId}_${role} 서명`}
+              className="size-full object-contain"
             />
           ) : (
             <ImageIcon className="size-6 text-muted-foreground" />
@@ -355,17 +355,17 @@ function ApproverRow({
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              if (f) handleUpload(f);
+              if (f) handleFile(f);
             }}
           />
           <Button
             variant="outline"
             size="sm"
             className="gap-1.5"
-            disabled={uploading}
+            disabled={loading}
             onClick={() => fileRef.current?.click()}
           >
-            {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+            {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
             {currentUrl ? "교체" : "업로드"}
           </Button>
           {currentUrl && (
@@ -378,7 +378,6 @@ function ApproverRow({
                   ...settings,
                   [approverKey]: { ...approverSettings, imageUrl: "" },
                 });
-                setPreviewUrl(null);
               }}
             >
               <Trash2 className="size-3.5" />
