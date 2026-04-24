@@ -35,15 +35,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
@@ -804,321 +795,136 @@ export function TripTool() {
 
       {step === "validate" && (
         <div className="space-y-3 sm:space-y-4">
-          <Card>
-            <CardHeader className="pb-3 sm:pb-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle className="text-lg sm:text-xl">
-                  {rows.length > 0 ? `${rows.length}건 읽었어요` : "2. 검토"}
-                </CardTitle>
-                {rows.length > 0 && (
-                  <>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
-                      <Check className="size-3" aria-hidden />
-                      {okCount}
-                    </span>
-                    {warnCount > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                        <AlertTriangle className="size-3" aria-hidden />
-                        {warnCount}
-                      </span>
-                    )}
-                  </>
+          {/* Header */}
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold sm:text-xl">
+              {rows.length > 0 ? `${rows.length}건 읽었어요` : "2. 검토"}
+            </h2>
+            {rows.length > 0 && (
+              <>
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
+                  <Check className="size-3" aria-hidden />
+                  {okCount}
+                </span>
+                {warnCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                    <AlertTriangle className="size-3" aria-hidden />
+                    {warnCount}
+                  </span>
                 )}
-              </div>
-              {rows.length === 0 && (
-                <CardDescription className="text-xs sm:text-sm">
-                  읽힌 게 없어요. CSV가 D-4 형식인지 확인해 주세요.
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4 sm:space-y-5">
-              {rows.length > 0 && (
-                <section
-                  className="space-y-2"
-                  aria-labelledby="rows-heading"
-                >
-                  <h2
-                    id="rows-heading"
-                    className="text-sm font-medium text-foreground"
-                  >
-                    행 요약
-                  </h2>
-                  <div
-                    className="max-h-[min(50vh,28rem)] overflow-hidden rounded-lg border border-border/80"
-                    data-rows={rows.length}
-                  >
-                  <div className="md:hidden max-h-[min(45vh,22rem)] overflow-y-auto p-2">
-                    <div
-                      className="grid gap-2"
-                      role="list"
-                      aria-label="행 요약(모바일)"
-                    >
-                      {rows.map((r, i) => (
-                        <div key={i} role="listitem">
-                          {mode === "preview" && (
-                            <MobileRowCard
-                              r={r}
-                              index={i}
-                              approvalMode={approvalMode}
-                              selected={previewI === i}
-                              onSelect={() => void onPreviewIndex(i)}
-                              onRemove={() => removeRow(i)}
-                            />
-                          )}
-                          {mode === "direct" && (
-                            <div className="rounded-lg border bg-card/50 p-3 text-left">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium">
-                                    <span className="text-muted-foreground">
-                                      #{i + 1}
-                                    </span>{" "}
-                                    {r.writerName || "—"}{" "}
-                                    {r.drafter3 && (
-                                      <span className="text-muted-foreground">({r.drafter3})</span>
-                                    )}
-                                  </p>
-                                  <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                                    {r.orgName || "집행기관 없음"}
-                                  </p>
-                                  {r.outPlace && (
-                                    <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                                      <MapPin className="size-3 shrink-0" aria-hidden />
-                                      <span className="line-clamp-1">{r.outPlace}</span>
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  {r.hasEmpty ? (
-                                    <Badge variant="destructive" className="text-[10px] sm:text-xs">
-                                      누락
-                                    </Badge>
-                                  ) : (
-                                    <Badge className="border-0 bg-success-tint text-success-tint-foreground text-[10px] sm:text-xs">
-                                      양호
-                                    </Badge>
-                                  )}
-                                  <button
-                                    type="button"
-                                    className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                                    onClick={() => removeRow(i)}
-                                    aria-label={`${i + 1}번 행 삭제`}
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                              {r.hasEmpty && r.fieldWarnings.length > 0 && (
-                                <ul className="mt-2 list-inside list-disc text-[10px] text-warning-tint-foreground sm:text-xs">
-                                  {r.fieldWarnings.map((w) => (
-                                    <li key={w} className="line-clamp-2">{w}</li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="hidden h-[min(50vh,20rem)] md:block">
-                    <ScrollArea className="h-full w-full pr-1">
-                      <div className="overflow-x-auto pb-1">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="whitespace-nowrap">
-                              <TableHead className="w-8" title="행 번호">
-                                #
-                              </TableHead>
-                              <TableHead title="이름(거래처/내역)">이름</TableHead>
-                              <TableHead title="기안 란에 쓰일 글(최대3자)">
-                                기안(3자)
-                              </TableHead>
-                              <TableHead>출장지</TableHead>
-                              <TableHead>출장기간</TableHead>
-                              <TableHead>집행기관</TableHead>
-                              <TableHead title="결재 머리(팀장 등)">결재 제목</TableHead>
-                              <TableHead>상태</TableHead>
-                              <TableHead className="w-10"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {rows.map((r, i) => {
-                              const lab = getApprovalHeaderLabels(
-                                r.orgName,
-                                approvalMode
-                              );
-                              return (
-                                <TableRow
-                                  key={i}
-                                  className={cn(
-                                    "align-top",
-                                    mode === "preview" && "cursor-pointer hover:bg-muted/40",
-                                    mode === "preview" && previewI === i && "bg-muted/70"
-                                  )}
-                                  onClick={() =>
-                                    mode === "preview"
-                                      ? void onPreviewIndex(i)
-                                      : undefined
-                                  }
-                                >
-                                  <TableCell>{i + 1}</TableCell>
-                                  <TableCell className="min-w-24">
-                                    {r.writerName}
-                                    {r.nameSource === "georae" && (
-                                      <span
-                                        className="ml-0.5 text-xs text-muted-foreground"
-                                        title="거래처 셀에서"
-                                      >
-                                        (거)
-                                      </span>
-                                    )}
-                                    {r.nameSource === "detail" && (
-                                      <span
-                                        className="ml-0.5 text-xs text-muted-foreground"
-                                        title="사용내역에서"
-                                      >
-                                        (내)
-                                      </span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="min-w-12 font-mono text-xs">
-                                    {r.drafter3}
-                                  </TableCell>
-                                  <TableCell className="min-w-20 max-w-36 text-xs">
-                                    <span className="line-clamp-1">{r.outPlace || "—"}</span>
-                                  </TableCell>
-                                  <TableCell className="min-w-28 max-w-44 text-xs">
-                                    <span className="line-clamp-1">{r.periodText || "—"}</span>
-                                  </TableCell>
-                                  <TableCell className="min-w-32 max-w-48 text-xs">
-                                    <span className="line-clamp-1">{r.orgName}</span>
-                                  </TableCell>
-                                  <TableCell className="min-w-28 whitespace-nowrap text-xs">
-                                    {lab.approver1} / {lab.approver2}
-                                  </TableCell>
-                                  <TableCell>
-                                    {r.hasEmpty ? (
-                                      <div className="space-y-1">
-                                        <Badge variant="destructive">누락</Badge>
-                                        <ul className="list-inside list-disc text-[10px] text-muted-foreground leading-tight">
-                                          {r.fieldWarnings.map((w) => (
-                                            <li key={w} className="line-clamp-2 whitespace-normal">{w}</li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    ) : (
-                                      <Badge className="border-0 bg-success-tint text-success-tint-foreground">
-                                        양호
-                                      </Badge>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-7 text-muted-foreground hover:text-destructive"
-                                      onClick={(e) => { e.stopPropagation(); removeRow(i); }}
-                                      aria-label={`${i + 1}번 행 삭제`}
-                                    >
-                                      <Trash2 className="size-3.5" />
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </ScrollArea>
-                    </div>
-                  </div>
-                </section>
-              )}
+              </>
+            )}
+          </div>
 
-              {mode === "preview" && rows[0] && (
-                <section
-                  className="space-y-4 border-t border-border/60 pt-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-5 lg:space-y-0 lg:pt-5"
-                  aria-labelledby="preview-h"
-                >
-                  <div className="min-w-0 space-y-3">
-                    <div>
-                      <h2
-                        id="preview-h"
-                        className="text-sm font-medium text-foreground sm:text-base"
-                      >
-                        PDF 미리보기
-                      </h2>
-                      <p className="text-xs text-muted-foreground sm:text-sm">
+          {rows.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              읽힌 게 없어요. CSV가 D-4 형식인지 확인해 주세요.
+            </p>
+          )}
+
+          {/* Desktop: side-by-side / Mobile: stacked */}
+          {rows.length > 0 && (
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
+              {/* Left: PDF Preview */}
+              {mode === "preview" && (
+                <div className="w-full shrink-0 space-y-3 lg:w-[420px] xl:w-[480px]">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-foreground">
+                      PDF 미리보기
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
                         행 {previewI + 1} / {rows.length}
                         {previewPending ? " · 만드는 중" : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2" role="group" aria-label="미리보기 페이지네이터">
+                      </span>
+                    </p>
+                    <div className="flex items-center gap-1" role="group" aria-label="페이지네이터">
                       <Button
                         size="sm"
                         variant="ghost"
                         type="button"
+                        className="h-7 px-2"
                         disabled={previewI <= 0}
                         onClick={() => void onPreviewIndex(previewI - 1)}
                         aria-label="이전 행"
                       >
                         <ChevronLeft className="size-4" />
-                        이전
                       </Button>
-                      <span className="min-w-16 text-center text-sm font-medium tabular-nums">
+                      <span className="min-w-12 text-center text-xs font-medium tabular-nums">
                         {previewI + 1} / {rows.length}
                       </span>
                       <Button
                         size="sm"
                         variant="ghost"
                         type="button"
+                        className="h-7 px-2"
                         disabled={previewI >= rows.length - 1}
                         onClick={() => void onPreviewIndex(previewI + 1)}
                         aria-label="다음 행"
                       >
-                        다음
                         <ChevronLeft className="size-4 rotate-180" />
                       </Button>
                     </div>
-                    <div className="relative w-full min-h-48 sm:min-h-0">
-                      {previewPending && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border border-dashed bg-background/80 backdrop-blur-sm">
-                          <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2
-                              className="size-6 animate-spin"
-                              aria-hidden
-                            />
-                            <span>PDF 만드는 중</span>
-                          </div>
-                        </div>
-                      )}
-                      {previewUrl ? (
-                        <iframe
-                          className="h-[min(52vh,480px)] w-full rounded-lg border border-border/80 sm:h-96"
-                          title={`행 ${previewI + 1} PDF 미리보기`}
-                          src={previewUrl}
-                        />
-                      ) : (
-                        <p className="text-sm text-muted-foreground">미리보기를 불러옵니다…</p>
-                      )}
-                    </div>
                   </div>
-                </section>
+                  <div className="relative w-full">
+                    {previewPending && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border border-dashed bg-background/80 backdrop-blur-sm">
+                        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="size-6 animate-spin" aria-hidden />
+                          <span>PDF 만드는 중</span>
+                        </div>
+                      </div>
+                    )}
+                    {previewUrl ? (
+                      <iframe
+                        className="aspect-[1/1.414] w-full rounded-xl border border-border/80"
+                        title={`행 ${previewI + 1} PDF 미리보기`}
+                        src={previewUrl}
+                      />
+                    ) : (
+                      <div className="flex aspect-[1/1.414] w-full items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+                        미리보기를 불러옵니다…
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
 
-              <details className="group rounded-lg border border-dashed border-border/80 bg-muted/15 px-3 py-2.5 text-sm sm:px-4">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-muted-foreground [&::-webkit-details-marker]:hidden">
-                  <span>CSV 컬럼 이름 확인</span>
-                  <span className="text-xs">펼치기</span>
-                </summary>
-                <p className="mt-2 break-all text-xs text-muted-foreground sm:text-sm">
-                  {parseKeys.length ? parseKeys.join(" | ") : "—"}
+              {/* Right: Row list */}
+              <div className="min-w-0 flex-1">
+                <p className="mb-2 text-sm font-medium text-foreground">
+                  행 목록
                 </p>
-              </details>
+                <div className="max-h-[min(80vh,56rem)] overflow-y-auto rounded-xl border border-border/80 p-2 lg:max-h-[calc(100vh-14rem)]">
+                  <div className="grid gap-2" role="list" aria-label="행 목록">
+                    {rows.map((r, i) => (
+                      <div key={i} role="listitem">
+                        <MobileRowCard
+                          r={r}
+                          index={i}
+                          approvalMode={approvalMode}
+                          selected={mode === "preview" && previewI === i}
+                          onSelect={() => mode === "preview" ? void onPreviewIndex(i) : undefined}
+                          onRemove={() => removeRow(i)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
-            </CardContent>
-          </Card>
+          {/* CSV columns debug */}
+          <details className="group rounded-xl border border-dashed border-border/80 bg-muted/15 px-3 py-2.5 text-sm sm:px-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-muted-foreground [&::-webkit-details-marker]:hidden">
+              <span>CSV 컬럼 이름 확인</span>
+              <span className="text-xs">펼치기</span>
+            </summary>
+            <p className="mt-2 break-all text-xs text-muted-foreground sm:text-sm">
+              {parseKeys.length ? parseKeys.join(" | ") : "—"}
+            </p>
+          </details>
+
+          {/* Bottom actions */}
           <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <Button
               variant="ghost"
