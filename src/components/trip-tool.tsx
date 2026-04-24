@@ -379,7 +379,7 @@ function RowEditDialog({
               {multiline ? (
                 <textarea
                   id={`edit-${key}`}
-                  className="flex min-h-20 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="flex min-h-20 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
                   value={draft[key]}
                   onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
                 />
