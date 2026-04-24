@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   apSignCLast: { borderRightWidth: 0 },
-  drafter: { fontFamily: "NanumPen", fontSize: 14, textAlign: "center" },
+  drafter: { fontSize: 14, textAlign: "center" },
   small: { fontSize: 7.5, color: "#333" },
   apImg: { maxHeight: 23, maxWidth: "100%", objectFit: "contain" as const },
   dataTable: { width: "100%" as const, borderWidth: b, borderColor: BORDER },

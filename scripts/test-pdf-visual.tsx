@@ -24,12 +24,6 @@ Font.register({
   family: "Pretendard",
   src: resolve(ROOT, "public/fonts/Pretendard-Regular.otf"),
 });
-Font.register({
-  family: "NanumPen",
-  src: resolve(ROOT, "public/fonts/nanum-pen-korean.woff2"),
-  fontWeight: 400,
-});
-
 const mockRow: TripRow = {
   rowIndex: 0,
   usageDate: "2025. 7. 5",

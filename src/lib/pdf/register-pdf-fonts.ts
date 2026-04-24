@@ -16,13 +16,4 @@ export function registerPdfFonts(): void {
   } catch {
     // 다시 눌리면 무시
   }
-  try {
-    Font.register({
-      family: "NanumPen",
-      src: "/fonts/nanum-pen-korean.woff2",
-      fontWeight: 400,
-    });
-  } catch {
-    /* */
-  }
 }
