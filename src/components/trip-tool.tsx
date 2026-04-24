@@ -12,7 +12,6 @@ import {
   FileUp,
   Loader2,
   MapPin,
-  Minimize2,
   X,
 } from "lucide-react";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
@@ -373,10 +372,10 @@ export function TripTool() {
       }
       setStep("validate");
       if (!p.rows.length)
-        toast.error("데이터 행이 0개예요. CSV에 표가 맞는지, D-4(출장비) 머리·저장 방식이 맞는지 확인하세요");
+        toast.error("읽힌 데이터가 없어요. D-4 출장비 시트가 맞는지, CSV로 올바르게 저장했는지 확인해 주세요.");
     } catch (e) {
       console.error(e);
-      toast.error("CSV 읽기에 실패했어요. UTF-8인지, 파일이 꽉 찬 건지 확인하세요");
+      toast.error("CSV 파일을 읽지 못했어요. 파일이 UTF-8로 저장되었는지 확인해 주세요.");
     } finally {
       setParsePending(false);
     }
@@ -411,7 +410,7 @@ export function TripTool() {
   const doGenerate = async () => {
     setShowEmptyWarn(false);
     if (!rows.length) {
-      toast.error("데이터가 없습니다");
+      toast.error("데이터가 없어요.");
       return;
     }
     setGenPending(true);
@@ -435,7 +434,7 @@ export function TripTool() {
         a.click();
         URL.revokeObjectURL(href);
         toast.success(
-          `ZIP(안에 PDF ${rows.length}장)로 저장이 시작돼요. 막힌 경우 브라우저/팝업 설정을 봐 주세요`
+          `PDF ${rows.length}장이 담긴 ZIP 파일을 다운로드합니다.`
         );
         setListDone(
           rows.map((r, i) => ({ n: r.writerName, i: i + 1 }))
@@ -465,12 +464,12 @@ export function TripTool() {
         setListDone((d) => [...d, { n, i: i + 1 }]);
       }
       toast.success(
-        "미리보기: 행마다 PDF를 내려냈어요(여러 개는 폴더/브라우저에 따라 잇달아 저장돼요)"
+        `PDF ${rows.length}장을 각각 다운로드했어요.`
       );
       setStep("result");
     } catch (e) {
       console.error(e);
-      toast.error("PDF 생성에 실패했습니다");
+      toast.error("PDF 생성에 실패했어요.");
     } finally {
       setGenPending(false);
       setGenProgress(null);
@@ -555,7 +554,7 @@ export function TripTool() {
           <CardHeader className="space-y-1 pb-4 sm:pb-4">
             <CardTitle className="text-lg sm:text-xl">1. 자료</CardTitle>
             <CardDescription className="text-xs sm:text-sm">
-              D-4 출장비 시트를 CSV(UTF-8)로 저장하고, 결재 서명(PNG/JPG)을 준비하세요.
+              파일을 올리고 생성 모드를 선택하세요.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 sm:space-y-7">
@@ -663,11 +662,10 @@ export function TripTool() {
                   className="text-sm font-medium text-foreground"
                   htmlFor="approval-override"
                 >
-                  결재란 머리(팀장, 본부장 등) 맞추기
+                  결재자 직위 설정
                 </Label>
                 <p className="text-xs text-muted-foreground sm:text-sm">
-                  집행기관(명)에 맞게 자동으로 씁니다. iPF/디미에 안 맞으면 여기서 고르면
-                  돼요.
+                  CSV의 집행기관명을 보고 자동으로 맞춰요. 안 맞으면 직접 고르세요.
                 </p>
               </div>
               <Select
@@ -907,7 +905,7 @@ export function TripTool() {
                                   </TableCell>
                                   <TableCell>
                                     {r.hasEmpty && (
-                                      <Badge variant="destructive">빈칸</Badge>
+                                      <Badge variant="destructive">누락</Badge>
                                     )}
                                     {!r.hasEmpty && (
                                       <Badge className="border-0 bg-success-tint text-success-tint-foreground">
@@ -942,7 +940,7 @@ export function TripTool() {
                       </h2>
                       <p className="text-xs text-muted-foreground sm:text-sm">
                         행 {previewI + 1} / {rows.length}
-                        {previewPending ? " · 만드는 중" : " · 표·위 번호·목록에서 행을 바꿀 수 있어요"}
+                        {previewPending ? " · 만드는 중" : ""}
                       </p>
                     </div>
                     <div className="flex items-center gap-2" role="group" aria-label="미리보기 페이지네이터">
@@ -994,29 +992,13 @@ export function TripTool() {
                         <p className="text-sm text-muted-foreground">미리보기를 불러옵니다…</p>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      표나 카드의 행을 누르는 것과 번호는 같은 동작이에요.
-                    </p>
                   </div>
-                  <aside
-                    className="rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 sm:p-4"
-                    role="complementary"
-                  >
-                    <p className="flex items-start gap-2 text-sm text-muted-foreground sm:text-pretty">
-                      <Minimize2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-                      <span>
-                        <strong className="text-foreground">전부 PDF로</strong>는 행마다
-                        파일이 내려갑니다. 막힌다면(팝업·권한) 1단계의{" "}
-                        <strong>바로 생성</strong>으로 ZIP 받는 편이 나을 수도 있어요.
-                      </span>
-                    </p>
-                  </aside>
                 </section>
               )}
 
               <details className="group rounded-lg border border-dashed border-border/80 bg-muted/15 px-3 py-2.5 text-sm sm:px-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-muted-foreground [&::-webkit-details-marker]:hidden">
-                  <span>열명이 이상하다면 (디버그)</span>
+                  <span>CSV 컬럼 이름 확인</span>
                   <span className="text-xs">펼치기</span>
                 </summary>
                 <p className="mt-2 break-all text-xs text-muted-foreground sm:text-sm">
