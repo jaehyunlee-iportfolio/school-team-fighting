@@ -10,7 +10,7 @@ import {
   removeAdminEmail,
   type ApprovalSettings,
   type SignatureMode,
-  type GroupLabels,
+  type GroupSettings,
 } from "@/lib/firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -303,7 +303,7 @@ function ApproverRow({
   onChange,
 }: {
   groupId: string;
-  role: string;
+  role: "approver1" | "approver2";
   roleLabel: string;
   settings: ApprovalSettings;
   onChange: (s: ApprovalSettings) => void;
@@ -311,18 +311,25 @@ function ApproverRow({
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
 
-  const approverKey = role as "approver1" | "approver2";
-  const approverSettings = settings[approverKey];
-  const currentUrl = approverSettings.imageUrl;
+  const imageKey = role === "approver1" ? "approver1ImageUrl" : "approver2ImageUrl";
+  const groupSettings = settings.groups[groupId];
+  const currentUrl = groupSettings?.[imageKey] ?? "";
+
+  const updateGroupImage = (url: string) => {
+    onChange({
+      ...settings,
+      groups: {
+        ...settings.groups,
+        [groupId]: { ...groupSettings, [imageKey]: url },
+      },
+    });
+  };
 
   const handleFile = async (file: File) => {
     setLoading(true);
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      onChange({
-        ...settings,
-        [approverKey]: { ...approverSettings, mode: "image" as SignatureMode, imageUrl: dataUrl },
-      });
+      updateGroupImage(dataUrl);
       toast.success("서명 이미지가 설정되었어요.");
     } catch {
       toast.error("이미지를 읽는 데 실패했어요.");
@@ -373,12 +380,7 @@ function ApproverRow({
               variant="ghost"
               size="sm"
               className="gap-1.5 text-destructive hover:text-destructive"
-              onClick={() => {
-                onChange({
-                  ...settings,
-                  [approverKey]: { ...approverSettings, imageUrl: "" },
-                });
-              }}
+              onClick={() => updateGroupImage("")}
             >
               <Trash2 className="size-3.5" />
               삭제
@@ -401,7 +403,7 @@ function GroupLabelsSection({
   settings: ApprovalSettings;
   onChange: (s: ApprovalSettings) => void;
 }) {
-  const setGroup = (gid: string, patch: Partial<GroupLabels>) => {
+  const setGroup = (gid: string, patch: Partial<GroupSettings>) => {
     onChange({
       ...settings,
       groups: {

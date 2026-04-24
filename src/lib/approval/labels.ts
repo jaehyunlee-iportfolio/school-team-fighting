@@ -29,6 +29,13 @@ export function detectGroupFromFilename(filename: string): ApprovalGroup | null 
   return null;
 }
 
+export function resolveGroup(
+  org: string | null | undefined,
+  override: ApprovalGroup | "auto" = "auto"
+): ApprovalGroup {
+  return override === "auto" ? detectApprovalGroup(org ?? undefined) : override;
+}
+
 export function getApprovalHeaderLabels(
   org: string | null | undefined,
   override: ApprovalGroup | "auto" = "auto"

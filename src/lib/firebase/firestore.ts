@@ -53,25 +53,27 @@ export type ApproverSettings = {
   label: string;
 };
 
-export type GroupLabels = {
+export type GroupSettings = {
   approver1Label: string;
   approver2Label: string;
+  approver1ImageUrl: string;
+  approver2ImageUrl: string;
 };
 
 export type ApprovalSettings = {
   drafter: DrafterSettings;
-  approver1: ApproverSettings;
-  approver2: ApproverSettings;
-  groups: Record<string, GroupLabels>;
+  /** @deprecated 하위 호환용. 새 구조는 groups[gid].approver{1,2}ImageUrl */
+  approver1?: ApproverSettings;
+  /** @deprecated */
+  approver2?: ApproverSettings;
+  groups: Record<string, GroupSettings>;
 };
 
 const DEFAULT_SETTINGS: ApprovalSettings = {
   drafter: { mode: "text", fontFamily: "NanumPen", maxChars: 3 },
-  approver1: { mode: "image", imageUrl: "", label: "팀장" },
-  approver2: { mode: "image", imageUrl: "", label: "본부장" },
   groups: {
-    ipf: { approver1Label: "팀장", approver2Label: "본부장" },
-    dimi: { approver1Label: "사무국장", approver2Label: "대표이사" },
+    ipf: { approver1Label: "팀장", approver2Label: "본부장", approver1ImageUrl: "", approver2ImageUrl: "" },
+    dimi: { approver1Label: "사무국장", approver2Label: "대표이사", approver1ImageUrl: "", approver2ImageUrl: "" },
   },
 };
 
@@ -79,11 +81,26 @@ export async function getApprovalSettings(): Promise<ApprovalSettings> {
   const snap = await getDoc(doc(getFirebaseDb(), "settings", "approval"));
   if (!snap.exists()) return DEFAULT_SETTINGS;
   const data = snap.data() as DocumentData;
+
+  const rawGroups = data.groups ?? {};
+  const mergedGroups: Record<string, GroupSettings> = {};
+  for (const [gid, def] of Object.entries(DEFAULT_SETTINGS.groups)) {
+    const saved = rawGroups[gid] ?? {};
+    mergedGroups[gid] = { ...def, ...saved };
+  }
+
+  // Migrate: if old top-level approver1/approver2 imageUrl exists but groups don't have images,
+  // copy them to all groups that have empty images
+  const oldA1Url = (data.approver1 as Record<string, unknown>)?.imageUrl as string | undefined;
+  const oldA2Url = (data.approver2 as Record<string, unknown>)?.imageUrl as string | undefined;
+  for (const g of Object.values(mergedGroups)) {
+    if (!g.approver1ImageUrl && oldA1Url) g.approver1ImageUrl = oldA1Url;
+    if (!g.approver2ImageUrl && oldA2Url) g.approver2ImageUrl = oldA2Url;
+  }
+
   return {
     drafter: { ...DEFAULT_SETTINGS.drafter, ...(data.drafter ?? {}) },
-    approver1: { ...DEFAULT_SETTINGS.approver1, ...(data.approver1 ?? {}) },
-    approver2: { ...DEFAULT_SETTINGS.approver2, ...(data.approver2 ?? {}) },
-    groups: { ...DEFAULT_SETTINGS.groups, ...(data.groups ?? {}) },
+    groups: mergedGroups,
   };
 }
 

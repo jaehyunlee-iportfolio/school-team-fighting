@@ -21,7 +21,7 @@ import {
   parseD4Csv,
   recomputeRowWithOverride,
 } from "@/lib/csv/parseD4";
-import { type ApprovalGroup, getApprovalHeaderLabels, detectGroupFromFilename } from "@/lib/approval/labels";
+import { type ApprovalGroup, getApprovalHeaderLabels, detectGroupFromFilename, resolveGroup } from "@/lib/approval/labels";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -42,13 +42,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
@@ -325,13 +318,15 @@ export function TripTool() {
     getApprovalSettings()
       .then((s) => {
         setAdminSettings(s);
-        if (s.approver1.imageUrl && !a1Data) setA1Data(s.approver1.imageUrl);
-        if (s.approver2.imageUrl && !a2Data) setA2Data(s.approver2.imageUrl);
         setAdminSigLoaded(true);
       })
       .catch(() => setAdminSigLoaded(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const hasAdminSig = (key: "approver1ImageUrl" | "approver2ImageUrl") =>
+    adminSettings
+      ? Object.values(adminSettings.groups).some((g) => !!g[key])
+      : false;
 
   const reapplyApproval = (m: ApprovalGroup | "auto") => {
     setApprovalMode(m);
@@ -392,19 +387,31 @@ export function TripTool() {
     }
   };
 
+  const resolveSignatures = useCallback(
+    (r: TripRow) => {
+      const resolvedGroup = resolveGroup(r.orgName, approvalMode);
+      const groupSigs = adminSettings?.groups[resolvedGroup];
+      const src1 = a1Data || groupSigs?.approver1ImageUrl || undefined;
+      const src2 = a2Data || groupSigs?.approver2ImageUrl || undefined;
+      return { src1, src2 };
+    },
+    [a1Data, a2Data, approvalMode, adminSettings]
+  );
+
   const makeBlobFor = useCallback(
     async (r: TripRow) => {
       registerPdfFonts();
       const d = recomputeRowWithOverride(r, approvalMode);
+      const { src1, src2 } = resolveSignatures(r);
       return pdf(
         <BusinessTripDocument
           row={d}
-          approver1Src={a1Data || undefined}
-          approver2Src={a2Data || undefined}
+          approver1Src={src1}
+          approver2Src={src2}
         />
       ).toBlob();
     },
-    [a1Data, a2Data, approvalMode]
+    [approvalMode, resolveSignatures]
   );
 
   const doGenerate = async () => {
@@ -632,11 +639,11 @@ export function TripTool() {
                     onFile={async (f) => {
                       setA1(f);
                       if (f) setA1Data(await readDataUrl(f));
-                      else setA1Data(adminSettings?.approver1.imageUrl ?? "");
+                      else setA1Data("");
                     }}
                   />
-                  {!a1 && adminSigLoaded && adminSettings?.approver1.imageUrl && (
-                    <p className="text-xs text-primary">어드민에서 설정된 서명 사용 중</p>
+                  {!a1 && adminSigLoaded && hasAdminSig("approver1ImageUrl") && (
+                    <p className="text-xs text-primary">어드민에서 설정된 그룹별 서명 사용 중</p>
                   )}
                 </div>
                 <div className="space-y-1">
@@ -649,11 +656,11 @@ export function TripTool() {
                     onFile={async (f) => {
                       setA2(f);
                       if (f) setA2Data(await readDataUrl(f));
-                      else setA2Data(adminSettings?.approver2.imageUrl ?? "");
+                      else setA2Data("");
                     }}
                   />
-                  {!a2 && adminSigLoaded && adminSettings?.approver2.imageUrl && (
-                    <p className="text-xs text-primary">어드민에서 설정된 서명 사용 중</p>
+                  {!a2 && adminSigLoaded && hasAdminSig("approver2ImageUrl") && (
+                    <p className="text-xs text-primary">어드민에서 설정된 그룹별 서명 사용 중</p>
                   )}
                 </div>
               </div>
@@ -670,26 +677,23 @@ export function TripTool() {
                   CSV의 집행기관명을 보고 자동으로 맞춰요. 안 맞으면 직접 고르세요.
                 </p>
               </div>
-              <Select
-                value={approvalMode}
-                onValueChange={(v) =>
-                  reapplyApproval(v as ApprovalGroup | "auto")
-                }
-              >
-                <SelectTrigger
-                  id="approval-override"
-                  className="h-11 w-full touch-manipulation text-base sm:h-10 sm:text-sm"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-w-[min(100vw-2rem,20rem)]">
-                  {ALL_APPROVAL.map((a) => (
-                    <SelectItem key={a.id} value={a.id} className="min-h-11 sm:min-h-0">
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-3 gap-2">
+                {ALL_APPROVAL.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => reapplyApproval(a.id as ApprovalGroup | "auto")}
+                    className={cn(
+                      "rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition-all touch-manipulation",
+                      approvalMode === a.id
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:bg-muted/40"
+                    )}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex justify-end border-t border-border/60 pt-4">
               <Button
