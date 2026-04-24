@@ -123,7 +123,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="signature" className="space-y-4">
+      <Tabs defaultValue="signature" className="flex flex-col space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="signature">서명 정책</TabsTrigger>
           <TabsTrigger value="groups">결재 그룹</TabsTrigger>

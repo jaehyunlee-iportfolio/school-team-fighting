@@ -136,7 +136,7 @@ function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
         <Input
           ref={inputRef}
           id={id}
-          className="h-12 pr-10 text-base file:min-h-10 file:px-0 sm:min-h-0 sm:h-11 sm:file:h-7"
+          className="h-12 pr-10 text-base file:min-h-10 file:cursor-pointer file:rounded-md file:bg-transparent file:px-0 file:text-muted-foreground sm:min-h-0 sm:h-11 sm:file:h-7"
           type="file"
           accept={accept}
           onChange={(e) => void onFile(e.target.files?.[0] ?? null)}
@@ -542,7 +542,7 @@ export function TripTool() {
       <div className="mx-auto w-full min-w-0 max-w-4xl space-y-4 sm:space-y-6">
         <header className="mb-0 flex min-w-0 flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4 sm:pb-6">
           <h1 className="min-w-0 text-balance text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl lg:text-3xl">
-            출장신청서 (D-4) → PDF
+            출장신청서
           </h1>
           <Alert className="max-w-none border border-border/80 bg-muted/40 sm:max-w-md sm:shrink-0 sm:self-center">
             <Info
