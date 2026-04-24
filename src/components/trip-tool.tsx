@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import JSZip from "jszip";
 import {
   AlertTriangle,
+  Calendar,
   Check,
   CheckCircle2,
   ChevronLeft,
@@ -17,6 +18,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { DayPicker } from "react-day-picker";
+import { ko } from "date-fns/locale";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import {
@@ -295,10 +298,151 @@ const EDITABLE_FIELD_META: { key: keyof EditableFields; label: string; multiline
   { key: "writerName", label: "작성자 성명" },
   { key: "orgName", label: "작성자 소속 (집행기관)" },
   { key: "memberText", label: "출장 인원" },
-  { key: "periodText", label: "출장 기간" },
   { key: "outPlace", label: "출장지" },
   { key: "purposeText", label: "출장 목적", multiline: true },
 ];
+
+function formatDateKr(d: Date): string {
+  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}`;
+}
+
+function parseDateKr(s: string): Date | null {
+  const m = s.trim().match(/^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parsePeriodDates(period: string): { start: Date | null; end: Date | null } {
+  if (!period || !period.includes("~")) return { start: null, end: null };
+  const [left, right] = period.split("~").map((s) => s.trim());
+  return {
+    start: parseDateKr(left),
+    end: right?.includes("YYYY") ? null : parseDateKr(right),
+  };
+}
+
+const dayPickerClassNames = {
+  root: "text-sm",
+  months: "flex flex-col",
+  month_caption: "flex justify-center items-center h-8 font-medium text-foreground",
+  nav: "flex items-center gap-1",
+  button_previous: "absolute left-1 top-1 inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted",
+  button_next: "absolute right-1 top-1 inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted",
+  weekdays: "flex",
+  weekday: "w-8 text-center text-xs font-medium text-muted-foreground",
+  week: "flex",
+  day: "size-8 text-center text-sm p-0",
+  day_button: "inline-flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted",
+  selected: "!bg-foreground !text-background rounded-lg",
+  today: "font-bold",
+  outside: "text-muted-foreground/40",
+  disabled: "text-muted-foreground/30",
+};
+
+function DateRangeField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const parsed = parsePeriodDates(value);
+  const [startDate, setStartDate] = useState<Date | undefined>(parsed.start ?? undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(parsed.end ?? undefined);
+  const [showStart, setShowStart] = useState(false);
+  const [showEnd, setShowEnd] = useState(false);
+  const startRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const p = parsePeriodDates(value);
+    setStartDate(p.start ?? undefined);
+    setEndDate(p.end ?? undefined);
+  }, [value]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (startRef.current && !startRef.current.contains(e.target as Node)) setShowStart(false);
+      if (endRef.current && !endRef.current.contains(e.target as Node)) setShowEnd(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const updatePeriod = (s: Date | undefined, e: Date | undefined) => {
+    if (s && e) onChange(`${formatDateKr(s)} ~ ${formatDateKr(e)}`);
+    else if (s) onChange(`${formatDateKr(s)} ~ YYYY. MM. DD`);
+    else onChange("");
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm font-medium">출장 기간</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <div ref={startRef} className="relative">
+          <button
+            type="button"
+            onClick={() => { setShowStart(!showStart); setShowEnd(false); }}
+            className="flex h-10 w-full items-center gap-2 rounded-xl border border-input bg-card px-3 text-sm transition-colors outline-none hover:bg-muted/50 focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
+          >
+            <Calendar className="size-4 shrink-0 text-muted-foreground" />
+            <span className={startDate ? "text-foreground" : "text-muted-foreground"}>
+              {startDate ? formatDateKr(startDate) : "시작일"}
+            </span>
+          </button>
+          {showStart && (
+            <div className="absolute left-0 top-12 z-50 rounded-xl border border-border bg-card p-2 shadow-lg">
+              <DayPicker
+                mode="single"
+                locale={ko}
+                selected={startDate}
+                defaultMonth={startDate}
+                onSelect={(d) => {
+                  setStartDate(d ?? undefined);
+                  updatePeriod(d ?? undefined, endDate);
+                  setShowStart(false);
+                }}
+                classNames={dayPickerClassNames}
+              />
+            </div>
+          )}
+        </div>
+        <div ref={endRef} className="relative">
+          <button
+            type="button"
+            onClick={() => { setShowEnd(!showEnd); setShowStart(false); }}
+            className="flex h-10 w-full items-center gap-2 rounded-xl border border-input bg-card px-3 text-sm transition-colors outline-none hover:bg-muted/50 focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
+          >
+            <Calendar className="size-4 shrink-0 text-muted-foreground" />
+            <span className={endDate ? "text-foreground" : "text-muted-foreground"}>
+              {endDate ? formatDateKr(endDate) : "종료일"}
+            </span>
+          </button>
+          {showEnd && (
+            <div className="absolute right-0 top-12 z-50 rounded-xl border border-border bg-card p-2 shadow-lg">
+              <DayPicker
+                mode="single"
+                locale={ko}
+                selected={endDate}
+                defaultMonth={endDate ?? startDate}
+                onSelect={(d) => {
+                  setEndDate(d ?? undefined);
+                  updatePeriod(startDate, d ?? undefined);
+                  setShowEnd(false);
+                }}
+                classNames={dayPickerClassNames}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+      {value && (
+        <p className="text-xs text-muted-foreground">{value}</p>
+      )}
+    </div>
+  );
+}
 
 function recomputeWarnings(r: TripRow): TripRow {
   const wlist: string[] = [];
@@ -372,25 +516,33 @@ function RowEditDialog({
         </DialogHeader>
         <div className="space-y-4 py-2">
           {EDITABLE_FIELD_META.map(({ key, label, multiline }) => (
-            <div key={key} className="space-y-1.5">
-              <Label className="text-sm font-medium" htmlFor={`edit-${key}`}>
-                {label}
-              </Label>
-              {multiline ? (
-                <textarea
-                  id={`edit-${key}`}
-                  className="flex min-h-20 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
-                  value={draft[key]}
-                  onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
-                />
-              ) : (
-                <Input
-                  id={`edit-${key}`}
-                  value={draft[key]}
-                  onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+            <Fragment key={key}>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium" htmlFor={`edit-${key}`}>
+                  {label}
+                </Label>
+                {multiline ? (
+                  <textarea
+                    id={`edit-${key}`}
+                    className="flex min-h-20 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
+                    value={draft[key]}
+                    onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+                  />
+                ) : (
+                  <Input
+                    id={`edit-${key}`}
+                    value={draft[key]}
+                    onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+                  />
+                )}
+              </div>
+              {key === "memberText" && (
+                <DateRangeField
+                  value={draft.periodText}
+                  onChange={(v) => setDraft((d) => ({ ...d, periodText: v }))}
                 />
               )}
-            </div>
+            </Fragment>
           ))}
         </div>
         <DialogFooter>
