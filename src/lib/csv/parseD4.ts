@@ -102,20 +102,38 @@ function toKoreanDateFormat(raw: string): string {
   return s;
 }
 
-/**
- * "2025. 7. 1 ~ 2025. 7. 31" → 그대로 사용.
- * "2025-07-05" / "2025. 7. 5" (단일) → "2025. 7. 5 ~ 2025. 7. 5" + singleDate 경고.
- */
-function normalizeUsageDate(raw: string): { periodText: string; singleDate: boolean } {
+const LOOKS_LIKE_DATE = /\d{4}[\s.\-/]+\d{1,2}[\s.\-/]+\d{1,2}/;
+
+function normalizeUsageDate(raw: string): {
+  periodText: string;
+  singleDate: boolean;
+  invalidDate: boolean;
+} {
   const trimmed = norm(raw);
-  if (!trimmed) return { periodText: "", singleDate: false };
+  if (!trimmed) return { periodText: "", singleDate: false, invalidDate: false };
 
   if (trimmed.includes("~")) {
-    return { periodText: trimmed, singleDate: false };
+    const [left, right] = trimmed.split("~").map((s) => s.trim());
+    const leftOk = LOOKS_LIKE_DATE.test(left);
+    const rightOk = LOOKS_LIKE_DATE.test(right);
+    if (leftOk && rightOk) return { periodText: trimmed, singleDate: false, invalidDate: false };
+    if (leftOk && !rightOk) {
+      const formatted = toKoreanDateFormat(left);
+      return {
+        periodText: `${formatted} ~ YYYY. MM. DD`,
+        singleDate: true,
+        invalidDate: false,
+      };
+    }
+    return { periodText: "날짜 확인 불가", singleDate: false, invalidDate: true };
+  }
+
+  if (!LOOKS_LIKE_DATE.test(trimmed)) {
+    return { periodText: "날짜 확인 불가", singleDate: false, invalidDate: true };
   }
 
   const formatted = toKoreanDateFormat(trimmed);
-  return { periodText: `${formatted} ~ ${formatted}`, singleDate: true };
+  return { periodText: `${formatted} ~ YYYY. MM. DD`, singleDate: true, invalidDate: false };
 }
 
 function isDataRow(row: string[]): boolean {
@@ -177,7 +195,7 @@ function rowToTrip(
   const u = getByRe(row, kcols, /사용일자/);
   const labels = getApprovalHeaderLabels(o, "auto");
 
-  const { periodText, singleDate } = normalizeUsageDate(u);
+  const { periodText, singleDate, invalidDate } = normalizeUsageDate(u);
 
   const wlist: string[] = [];
   if (w.from === "none")
@@ -186,8 +204,10 @@ function rowToTrip(
   if (!norm(getByRe(row, kcols, /출장지/))) wlist.push("「출장지」가 비어 있어요");
   if (!norm(o)) wlist.push("「집행기관(명)」이 비어 있어요");
   if (!norm(u)) wlist.push("「사용일자」가 비어 있어요");
+  else if (invalidDate)
+    wlist.push("「사용일자」가 날짜 형식이 아니에요 — 직접 확인해 주세요");
   else if (singleDate)
-    wlist.push("「사용일자」에 날짜가 하나뿐이에요 — 종료일을 동일 날짜로 채웠어요");
+    wlist.push("「사용일자」에 날짜가 하나뿐이에요 — 종료일을 직접 입력해 주세요");
 
   return {
     rowIndex: i,

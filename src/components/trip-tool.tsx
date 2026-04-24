@@ -13,6 +13,7 @@ import {
   ImageIcon,
   Loader2,
   MapPin,
+  Trash2,
   X,
 } from "lucide-react";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
@@ -289,26 +290,32 @@ function MobileRowCard({
   approvalMode,
   selected,
   onSelect,
+  onRemove,
 }: {
   r: TripRow;
   index: number;
   approvalMode: ApprovalGroup | "auto";
   selected: boolean;
   onSelect: () => void;
+  onRemove: () => void;
 }) {
   const lab = getApprovalHeaderLabels(r.orgName, approvalMode);
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <div
       className={cn(
-        "w-full max-w-full rounded-lg border p-3 text-left transition",
-        "min-h-14 touch-manipulation",
+        "relative w-full max-w-full rounded-lg border p-3 text-left transition",
+        "min-h-14",
         selected
           ? "border-foreground/20 bg-muted shadow-sm"
           : "border-border bg-card hover:bg-muted/50"
       )}
     >
+      <button
+        type="button"
+        className="absolute inset-0 touch-manipulation"
+        onClick={onSelect}
+        aria-label={`${index + 1}번 행 선택`}
+      />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-medium">
@@ -325,31 +332,36 @@ function MobileRowCard({
             {lab.approver1} · {lab.approver2}
           </p>
         </div>
-        <div className="shrink-0">
+        <div className="relative z-10 flex items-center gap-1.5 shrink-0">
           {r.hasEmpty ? (
             <Badge variant="destructive" className="text-[10px] sm:text-xs">
               누락
             </Badge>
           ) : (
-            <Badge
-              className="border-0 bg-success-tint text-success-tint-foreground text-[10px] sm:text-xs"
-            >
+            <Badge className="border-0 bg-success-tint text-success-tint-foreground text-[10px] sm:text-xs">
               양호
             </Badge>
           )}
+          <button
+            type="button"
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            aria-label={`${index + 1}번 행 삭제`}
+          >
+            <Trash2 className="size-3.5" />
+          </button>
         </div>
       </div>
       {r.hasEmpty && r.fieldWarnings.length > 0 && (
-        <ul className="mt-2 list-inside list-disc text-[10px] text-warning-tint-foreground sm:text-xs">
-          {r.fieldWarnings.slice(0, 2).map((w) => (
-            <li key={w} className="line-clamp-1">
+        <ul className="relative z-10 mt-2 list-inside list-disc text-[10px] text-warning-tint-foreground sm:text-xs">
+          {r.fieldWarnings.map((w) => (
+            <li key={w} className="line-clamp-2">
               {w}
             </li>
           ))}
-          {r.fieldWarnings.length > 2 && <li>…</li>}
         </ul>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -390,6 +402,16 @@ export function TripTool() {
     adminSettings
       ? Object.values(adminSettings.groups).some((g) => !!g[key])
       : false;
+
+  const removeRow = (index: number) => {
+    setRows((cur) => {
+      const next = cur.filter((_, i) => i !== index);
+      if (previewI >= next.length && next.length > 0) setPreviewI(next.length - 1);
+      if (next.length === 0) setPreviewI(0);
+      return next;
+    });
+    toast("행을 삭제했어요", { description: `#${index + 1}번 행이 제거되었어요.` });
+  };
 
   const reapplyApproval = (m: ApprovalGroup | "auto") => {
     setApprovalMode(m);
@@ -840,6 +862,7 @@ export function TripTool() {
                               approvalMode={approvalMode}
                               selected={previewI === i}
                               onSelect={() => void onPreviewIndex(i)}
+                              onRemove={() => removeRow(i)}
                             />
                           )}
                           {mode === "direct" && (
@@ -865,7 +888,7 @@ export function TripTool() {
                                     </p>
                                   )}
                                 </div>
-                                <div className="shrink-0">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                   {r.hasEmpty ? (
                                     <Badge variant="destructive" className="text-[10px] sm:text-xs">
                                       누락
@@ -875,14 +898,21 @@ export function TripTool() {
                                       양호
                                     </Badge>
                                   )}
+                                  <button
+                                    type="button"
+                                    className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                                    onClick={() => removeRow(i)}
+                                    aria-label={`${i + 1}번 행 삭제`}
+                                  >
+                                    <Trash2 className="size-3.5" />
+                                  </button>
                                 </div>
                               </div>
                               {r.hasEmpty && r.fieldWarnings.length > 0 && (
                                 <ul className="mt-2 list-inside list-disc text-[10px] text-warning-tint-foreground sm:text-xs">
-                                  {r.fieldWarnings.slice(0, 2).map((w) => (
-                                    <li key={w} className="line-clamp-1">{w}</li>
+                                  {r.fieldWarnings.map((w) => (
+                                    <li key={w} className="line-clamp-2">{w}</li>
                                   ))}
-                                  {r.fieldWarnings.length > 2 && <li>외 {r.fieldWarnings.length - 2}건…</li>}
                                 </ul>
                               )}
                             </div>
@@ -909,6 +939,7 @@ export function TripTool() {
                               <TableHead>집행기관</TableHead>
                               <TableHead title="결재 머리(팀장 등)">결재 제목</TableHead>
                               <TableHead>상태</TableHead>
+                              <TableHead className="w-10"></TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -967,14 +998,31 @@ export function TripTool() {
                                     {lab.approver1} / {lab.approver2}
                                   </TableCell>
                                   <TableCell>
-                                    {r.hasEmpty && (
-                                      <Badge variant="destructive">누락</Badge>
-                                    )}
-                                    {!r.hasEmpty && (
+                                    {r.hasEmpty ? (
+                                      <div className="space-y-1">
+                                        <Badge variant="destructive">누락</Badge>
+                                        <ul className="list-inside list-disc text-[10px] text-muted-foreground leading-tight">
+                                          {r.fieldWarnings.map((w) => (
+                                            <li key={w} className="line-clamp-2 whitespace-normal">{w}</li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    ) : (
                                       <Badge className="border-0 bg-success-tint text-success-tint-foreground">
                                         양호
                                       </Badge>
                                     )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="size-7 text-muted-foreground hover:text-destructive"
+                                      onClick={(e) => { e.stopPropagation(); removeRow(i); }}
+                                      aria-label={`${i + 1}번 행 삭제`}
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </Button>
                                   </TableCell>
                                 </TableRow>
                               );
