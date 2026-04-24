@@ -22,7 +22,14 @@ const ROOT = resolve(__dirname, "..");
 
 Font.register({
   family: "Pretendard",
-  src: resolve(ROOT, "public/fonts/Pretendard-Regular.otf"),
+  fonts: [
+    { src: resolve(ROOT, "public/fonts/Pretendard-Regular.otf"), fontWeight: 400 },
+    { src: resolve(ROOT, "public/fonts/Pretendard-Medium.otf"), fontWeight: 500 },
+    { src: resolve(ROOT, "public/fonts/Pretendard-SemiBold.otf"), fontWeight: 600 },
+    { src: resolve(ROOT, "public/fonts/Pretendard-Bold.otf"), fontWeight: 700 },
+    { src: resolve(ROOT, "public/fonts/Pretendard-ExtraBold.otf"), fontWeight: 800 },
+    { src: resolve(ROOT, "public/fonts/Pretendard-Black.otf"), fontWeight: 900 },
+  ],
 });
 const mockRow: TripRow = {
   rowIndex: 0,
