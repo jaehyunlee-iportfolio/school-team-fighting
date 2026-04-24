@@ -617,11 +617,11 @@ export function TripTool() {
 
   return (
     <div
-      className="mx-auto min-h-0 w-full min-w-0 max-w-[min(100%,1920px)] overflow-x-hidden px-3 py-6 pt-[max(0.5rem,env(safe-area-inset-top,0px))] sm:px-5 sm:py-8 lg:px-8 xl:px-10"
+      className="mx-auto min-h-0 w-full min-w-0 overflow-x-hidden px-3 py-6 pt-[max(0.5rem,env(safe-area-inset-top,0px))] sm:px-5 sm:py-8 lg:px-8 xl:px-10"
       data-step={step}
     >
-      <div className="mx-auto w-full min-w-0 max-w-4xl space-y-4 sm:space-y-6">
-        <header className="mb-0 border-b border-border pb-5 sm:pb-6">
+      <div className="mx-auto w-full min-w-0 space-y-4 sm:space-y-6">
+        <header className="mx-auto mb-0 w-full max-w-4xl border-b border-border pb-5 sm:pb-6">
           <h1 className="text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl lg:text-3xl">
             출장신청서
           </h1>
@@ -630,10 +630,12 @@ export function TripTool() {
           </p>
         </header>
 
-        <StepIndicator current={step} onGoTo={goToStep} />
+        <div className="mx-auto w-full max-w-4xl">
+          <StepIndicator current={step} onGoTo={goToStep} />
+        </div>
 
       {step === "input" && (
-        <Card>
+        <Card className="mx-auto max-w-4xl">
           <CardHeader className="space-y-1 pb-4 sm:pb-4">
             <CardTitle className="text-lg sm:text-xl">1. 자료</CardTitle>
             <CardDescription className="text-xs sm:text-sm">
@@ -827,7 +829,7 @@ export function TripTool() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
               {/* Left: PDF Preview */}
               {mode === "preview" && (
-                <div className="w-full shrink-0 space-y-3 lg:w-[420px] xl:w-[480px]">
+                <div className="w-full shrink-0 space-y-3 lg:w-[480px] xl:w-[560px] 2xl:w-[640px]">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium text-foreground">
                       PDF 미리보기
@@ -988,7 +990,7 @@ export function TripTool() {
       )}
 
       {step === "result" && (
-        <div className="flex flex-col items-center gap-6 py-8 text-center">
+        <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 py-8 text-center">
           <CheckCircle2 className="size-12 text-green-500" aria-hidden />
           <div className="space-y-1">
             <h2 className="text-xl font-semibold">{listDone.length}건 생성 완료</h2>
