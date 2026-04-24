@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   Circle,
   FileUp,
+  ImageIcon,
   Loader2,
   MapPin,
   X,
@@ -158,6 +159,68 @@ function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
           </span>
         )}
       </button>
+    </div>
+  );
+}
+
+const GROUP_DISPLAY: Record<string, string> = {
+  ipf: "iPF (아이포트폴리오)",
+  dimi: "디미",
+};
+
+function AdminSignaturePreview({ settings }: { settings: ApprovalSettings }) {
+  const groups = Object.entries(settings.groups).filter(
+    ([, g]) => g.approver1ImageUrl || g.approver2ImageUrl
+  );
+  if (!groups.length) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium text-foreground">결재 서명 이미지</p>
+        <p className="text-xs text-muted-foreground">
+          어드민이 설정한 서명이에요. 그룹에 맞게 자동 적용돼요.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {groups.map(([gid, g]) => (
+          <div
+            key={gid}
+            className="rounded-xl border bg-card p-3 space-y-2.5"
+          >
+            <p className="text-xs font-semibold text-muted-foreground">
+              {GROUP_DISPLAY[gid] ?? gid}
+            </p>
+            <div className="flex gap-3">
+              <SigThumb
+                src={g.approver1ImageUrl}
+                label={`결재자 1 (${g.approver1Label})`}
+              />
+              <SigThumb
+                src={g.approver2ImageUrl}
+                label={`결재자 2 (${g.approver2Label})`}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SigThumb({ src, label }: { src: string; label: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center gap-1.5">
+      <div className="flex size-14 items-center justify-center rounded-lg border bg-muted overflow-hidden">
+        {src ? (
+          <img src={src} alt={label} className="size-full object-contain" />
+        ) : (
+          <ImageIcon className="size-5 text-muted-foreground/40" />
+        )}
+      </div>
+      <span className="text-[11px] leading-tight text-muted-foreground text-center">
+        {label}
+      </span>
     </div>
   );
 }
@@ -628,8 +691,10 @@ export function TripTool() {
                 accept=".csv,text/csv"
                 onFile={setCsv}
               />
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-4 sm:gap-y-6">
-                <div className="space-y-1">
+              {adminSigLoaded && adminSettings && (hasAdminSig("approver1ImageUrl") || hasAdminSig("approver2ImageUrl")) ? (
+                <AdminSignaturePreview settings={adminSettings} />
+              ) : (
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-4 sm:gap-y-6">
                   <FileField
                     id="f-a1"
                     label="결재 1·서명(이미지)"
@@ -642,11 +707,6 @@ export function TripTool() {
                       else setA1Data("");
                     }}
                   />
-                  {!a1 && adminSigLoaded && hasAdminSig("approver1ImageUrl") && (
-                    <p className="text-xs text-primary">어드민에서 설정된 그룹별 서명 사용 중</p>
-                  )}
-                </div>
-                <div className="space-y-1">
                   <FileField
                     id="f-a2"
                     label="결재 2·서명(이미지)"
@@ -659,11 +719,8 @@ export function TripTool() {
                       else setA2Data("");
                     }}
                   />
-                  {!a2 && adminSigLoaded && hasAdminSig("approver2ImageUrl") && (
-                    <p className="text-xs text-primary">어드민에서 설정된 그룹별 서명 사용 중</p>
-                  )}
                 </div>
-              </div>
+              )}
             </div>
             <div className="space-y-2 sm:max-w-2xl">
               <div className="space-y-1">
