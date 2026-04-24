@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    alignItems: "center",
     marginBottom: 42,
   },
   pageTitle: { fontSize: 25, fontWeight: 900, lineHeight: 1.15 },
