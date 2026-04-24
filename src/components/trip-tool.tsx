@@ -299,7 +299,7 @@ function MobileRowCard({
 
 export function TripTool() {
   const [step, setStep] = useState<AppStep>("input");
-  const [mode, setMode] = useState<Mode>("direct");
+  const [mode, setMode] = useState<Mode>("preview");
   const [csv, setCsv] = useState<File | null>(null);
   const [a1, setA1] = useState<File | null>(null);
   const [a2, setA2] = useState<File | null>(null);
@@ -570,16 +570,16 @@ export function TripTool() {
                 {(
                   [
                     {
-                      v: "direct" as const,
-                      id: "d",
-                      title: "바로 생성(추천)",
-                      sub: "2단계에서 확인 후 ZIP 한 개로 전부 받기",
-                    },
-                    {
                       v: "preview" as const,
                       id: "p",
-                      title: "미리보기",
-                      sub: "2단계에서 PDF로 확인 후, 행마다 나눠 받기",
+                      title: "미리보기(추천)",
+                      sub: "2단계에서 PDF로 확인 후 다운로드",
+                    },
+                    {
+                      v: "direct" as const,
+                      id: "d",
+                      title: "바로 생성",
+                      sub: "확인 후 ZIP 한 개로 전부 받기",
                     },
                   ] as const
                 ).map(({ v, id, title, sub }) => (
@@ -593,7 +593,9 @@ export function TripTool() {
                         : "border-transparent bg-card hover:bg-muted/30"
                     )}
                   >
-                    <RadioGroupItem value={v} id={id} className="!absolute !size-0 !opacity-0 !overflow-hidden" />
+                    <div className="pointer-events-none absolute h-0 w-0 overflow-hidden opacity-0">
+                      <RadioGroupItem value={v} id={id} />
+                    </div>
                     {mode === v
                       ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-foreground" />
                       : <Circle className="mt-0.5 size-5 shrink-0 text-muted-foreground/40" />

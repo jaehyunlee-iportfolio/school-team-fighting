@@ -1,0 +1,178 @@
+---
+description: UI 디자인 시스템 — 토스 스타일 컴포넌트/페이지 작성 규칙
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# 디자인 시스템 (Simple Modern / 토스 스타일)
+
+## 핵심 원칙
+
+1. **한 화면, 하나의 행동** — 사용자가 지금 뭘 해야 하는지 즉시 알 수 있어야 함
+2. **넉넉한 터치 타겟** — 모든 인터랙티브 요소 최소 44px (h-11)
+3. **시각 계층** — 제목 > 설명 > 보조 정보 순으로 명확한 크기/색상 차이
+4. **기본값 제공** — 라디오 기본 선택, 자동 감지 등 사용자 입력을 최소화
+5. **정보 최소화** — 불필요한 설명·Alert 제거, 칩/한줄 힌트로 압축
+
+## 컬러 토큰
+
+| 용도 | Light | Dark | CSS Variable |
+|---|---|---|---|
+| 배경 | `#fafafa` | `#0a0a0a` | `--background` |
+| 전경/CTA | `#18181b` | `#fafafa` | `--primary` |
+| 카드 | `#ffffff` | `#18181b` | `--card` |
+| 보조 텍스트 | `#71717a` | `#a1a1aa` | `--muted-foreground` |
+| 테두리 | `#e4e4e7` | `#3f3f46` | `--border` |
+| 성공 | green-50/green-700 | green-950/green-300 | `--success-tint-*` |
+| 경고 | amber-50/amber-700 | amber-950/amber-300 | `--warning-tint-*` |
+
+포인트 컬러 없이 뉴트럴(zinc 계열)만 사용. 오렌지/블루 등 과한 색 금지.
+
+## 타이포그래피
+
+- **본문 폰트**: Pretendard (400–700), `font-family: "Pretendard", system-ui, sans-serif`
+- **제목**: `text-xl font-semibold` (sm: `text-2xl`, lg: `text-3xl`)
+- **설명**: `text-xs text-muted-foreground` (sm: `text-sm`)
+- **힌트**: `text-xs text-muted-foreground`
+- **라벨**: `text-sm font-medium text-foreground`
+
+## 컴포넌트 토큰
+
+### Button
+
+| Size | 높이 | 패딩 | 비고 |
+|---|---|---|---|
+| `default` | `h-10` | `px-4` | 일반 버튼 |
+| `sm` | `h-7` | `px-2.5` | 보조/칩 |
+| `lg` | `h-12` | `px-6 text-base` | CTA·주요 액션 |
+| `icon` | `size-10` | — | 아이콘 전용 |
+
+- 모든 사이즈 공통: `rounded-xl`
+- CTA는 항상 `size="lg"` 사용
+- "이전" 같은 보조 동작은 `variant="ghost"`
+- "처음으로" 같은 리셋은 `variant="outline"`
+
+### Input
+
+- 높이: `h-10`, 둥글기: `rounded-xl`
+- 패딩: `px-3 py-2`, 텍스트: `text-sm`
+- 포커스: `focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10`
+
+### 파일 입력 (FileField 패턴)
+
+브라우저 기본 "Choose File" 사용 금지. 커스텀 패턴:
+
+```tsx
+<input ref={inputRef} type="file" className="hidden" accept={accept}
+  onChange={(e) => void onFile(e.target.files?.[0] ?? null)} />
+<button onClick={() => inputRef.current?.click()}
+  className="flex h-11 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 text-sm transition hover:bg-muted/50">
+  <FileUp className="size-4 text-muted-foreground" />
+  {file
+    ? <span className="flex-1 truncate font-medium">{file.name}</span>
+    : <span className="flex-1 text-muted-foreground">파일을 선택하세요</span>}
+  {file && <X onClick={clear} className="size-4" />}
+</button>
+```
+
+### 선택 카드 (라디오/체크 패턴)
+
+라디오 원형 UI 숨기고 카드 전체를 클릭 영역으로:
+
+```tsx
+<label htmlFor={id} className={cn(
+  "flex cursor-pointer items-start gap-3 rounded-xl border-2 p-4 transition-all",
+  selected ? "border-foreground bg-muted/60" : "border-transparent bg-card hover:bg-muted/30"
+)}>
+  <RadioGroupItem value={v} id={id} className="sr-only" />
+  {selected
+    ? <CheckCircle2 className="mt-0.5 size-5 text-foreground" />
+    : <Circle className="mt-0.5 size-5 text-muted-foreground/40" />}
+  <div>
+    <span className="text-sm font-semibold">{title}</span>
+    <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
+  </div>
+</label>
+```
+
+### 상태 칩 (인라인 Badge)
+
+```tsx
+// 성공
+<span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+  <Check className="size-3" /> {count}
+</span>
+// 경고
+<span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+  <AlertTriangle className="size-3" /> {count}
+</span>
+```
+
+## 레이아웃 패턴
+
+### 페이지 컨테이너
+
+```tsx
+<div className="mx-auto w-full max-w-4xl px-3 py-6 sm:px-5 sm:py-8 lg:px-8">
+```
+
+### CTA 버튼 정렬
+
+항상 우측 정렬, border-top 구분선 포함:
+
+```tsx
+<div className="flex justify-end border-t border-border/60 pt-4">
+  <Button size="lg" className="w-full sm:w-auto sm:min-w-48">
+    다음 →
+  </Button>
+</div>
+```
+
+### 액션 바 (이전/다음)
+
+fixed 금지, 인라인 배치:
+
+```tsx
+<div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+  <Button variant="ghost">← 이전</Button>
+  <Button size="lg">주요 액션</Button>
+</div>
+```
+
+### 페이지네이터 (미니)
+
+행 번호 버튼 나열 금지. 간결한 이전/다음:
+
+```tsx
+<div className="flex items-center gap-2">
+  <Button size="sm" variant="ghost" disabled={i <= 0}>← 이전</Button>
+  <span className="min-w-16 text-center text-sm font-medium tabular-nums">
+    {i + 1} / {total}
+  </span>
+  <Button size="sm" variant="ghost" disabled={i >= total - 1}>다음 →</Button>
+</div>
+```
+
+### 결과/완료 화면
+
+정보 과다 금지. 아이콘 + 한줄 요약 + 부가 한줄:
+
+```tsx
+<div className="flex flex-col items-center gap-6 py-8 text-center">
+  <CheckCircle2 className="size-12 text-green-500" />
+  <div className="space-y-1">
+    <h2 className="text-xl font-semibold">{n}건 생성 완료</h2>
+    <p className="text-sm text-muted-foreground">부가 설명 한 줄</p>
+  </div>
+</div>
+```
+
+## 금지 사항
+
+- ❌ `position: fixed` 하단 바 — 콘텐츠를 가림
+- ❌ 브라우저 기본 `<input type="file">` 노출
+- ❌ 라디오 원형(RadioGroupItem) 직접 노출
+- ❌ 여러 줄 Alert 박스로 설명 — 한줄 힌트 `text-xs text-muted-foreground`로 대체
+- ❌ 수십 개의 행 번호 버튼 횡스크롤 — 미니 페이지네이터 사용
+- ❌ 포인트 컬러(오렌지, 블루 등) — 뉴트럴(zinc) + green/amber 상태색만
+- ❌ `rounded-lg` on Button/Input — 항상 `rounded-xl`
