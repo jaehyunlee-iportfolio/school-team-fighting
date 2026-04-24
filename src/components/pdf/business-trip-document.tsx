@@ -30,9 +30,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 14,
+    marginBottom: 84,
   },
-  pageTitle: { fontSize: 19, fontWeight: 900, lineHeight: 1.15 },
+  pageTitle: { fontSize: 25, fontWeight: 900, lineHeight: 1.15 },
   /** 전체: 테두리 한 겹 */
   apTable: { width: 256, borderWidth: b, borderColor: BORDER },
   apRow: { flexDirection: "row" },
@@ -109,8 +109,8 @@ const styles = StyleSheet.create({
   intro: {
     fontSize: 11,
     textAlign: "left",
-    marginTop: 14,
-    marginBottom: 10,
+    marginTop: 84,
+    marginBottom: 60,
   },
   pRow: { flexDirection: "row", width: "100%" as const },
   pLabel: {
@@ -138,13 +138,11 @@ const styles = StyleSheet.create({
   purpose: { fontSize: 11, lineHeight: 1.4, textAlign: "left", whiteSpace: "pre-wrap" as const },
   /** 한 페이지 끝에 띄울 때(높이 흡수는 아래 콘텐츠 View → spacer → 본문 푸터) */
   footer: {
-    marginTop: 4,
+    marginTop: 60,
     textAlign: "center",
-    fontSize: 11.5,
+    fontSize: 20,
     fontWeight: 900,
   },
-  pageColumn: { flexDirection: "column" as const, minHeight: "100%" as const },
-  flex1: { flex: 1 },
   content: { width: "100%" as const },
 });
 
@@ -175,7 +173,7 @@ const ValCell = ({ children }: { children: ReactNode }) => (
 export function BusinessTripDocument({ row, approver1Src, approver2Src }: BusinessTripDocumentProps) {
   return (
     <Document>
-      <Page size="A4" style={[styles.page, styles.pageColumn]}>
+        <Page size="A4" style={styles.page}>
         <View style={styles.content}>
         <View style={styles.topBar}>
           <Text style={styles.pageTitle}>출장신청서</Text>
@@ -285,11 +283,11 @@ export function BusinessTripDocument({ row, approver1Src, approver2Src }: Busine
             </View>
           </View>
         </View>
-        </View>
-        <View style={styles.flex1} minPresenceAhead={120} />
-        <Text style={styles.footer} wrap={false} minPresenceAhead={80}>
+
+        <Text style={styles.footer}>
           {row.orgName || "—"}
         </Text>
+        </View>
       </Page>
     </Document>
   );
