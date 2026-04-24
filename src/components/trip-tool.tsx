@@ -13,6 +13,7 @@ import {
   ImageIcon,
   Loader2,
   MapPin,
+  Pencil,
   Trash2,
   X,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import {
   parseD4Csv,
   recomputeRowWithOverride,
 } from "@/lib/csv/parseD4";
+import { drafterSignatureGraphemes } from "@/lib/names/parseName";
 import { type ApprovalGroup, getApprovalHeaderLabels, detectGroupFromFilename, resolveGroup } from "@/lib/approval/labels";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +48,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -275,12 +286,131 @@ function StepIndicator({
   );
 }
 
+type EditableFields = Pick<
+  TripRow,
+  "writerName" | "orgName" | "memberText" | "periodText" | "outPlace" | "purposeText"
+>;
+
+const EDITABLE_FIELD_META: { key: keyof EditableFields; label: string; multiline?: boolean }[] = [
+  { key: "writerName", label: "작성자 성명" },
+  { key: "orgName", label: "작성자 소속 (집행기관)" },
+  { key: "memberText", label: "출장 인원" },
+  { key: "periodText", label: "출장 기간" },
+  { key: "outPlace", label: "출장지" },
+  { key: "purposeText", label: "출장 목적", multiline: true },
+];
+
+function recomputeWarnings(r: TripRow): TripRow {
+  const wlist: string[] = [];
+  if (!r.writerName) wlist.push("이름: 거래처 또는 사용내역(출장자명)을 찾지 못함");
+  if (!r.purposeText) wlist.push("「사용내역(수령인)」이 비어 있어요");
+  if (!r.outPlace) wlist.push("「출장지」가 비어 있어요");
+  if (!r.orgName) wlist.push("「집행기관(명)」이 비어 있어요");
+  if (!r.periodText) wlist.push("「사용일자」가 비어 있어요");
+  else if (r.periodText === "날짜 확인 불가")
+    wlist.push("「사용일자」가 날짜 형식이 아니에요 — 직접 확인해 주세요");
+  else if (r.periodText.includes("YYYY"))
+    wlist.push("「사용일자」에 날짜가 하나뿐이에요 — 종료일을 직접 입력해 주세요");
+  return { ...r, hasEmpty: wlist.length > 0, fieldWarnings: wlist };
+}
+
+function RowEditDialog({
+  row,
+  index,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  row: TripRow;
+  index: number;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (updated: TripRow) => void;
+}) {
+  const [draft, setDraft] = useState<EditableFields>({
+    writerName: row.writerName,
+    orgName: row.orgName,
+    memberText: row.memberText,
+    periodText: row.periodText,
+    outPlace: row.outPlace,
+    purposeText: row.purposeText,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setDraft({
+        writerName: row.writerName,
+        orgName: row.orgName,
+        memberText: row.memberText,
+        periodText: row.periodText,
+        outPlace: row.outPlace,
+        purposeText: row.purposeText,
+      });
+    }
+  }, [open, row]);
+
+  const handleSave = () => {
+    const updated: TripRow = {
+      ...row,
+      ...draft,
+      drafter3: drafterSignatureGraphemes(draft.writerName, 3),
+      detail: draft.purposeText,
+    };
+    onSave(recomputeWarnings(updated));
+    onOpenChange(false);
+    toast.success(`#${index + 1}번 행을 수정했어요`);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>#{index + 1}번 행 수정</DialogTitle>
+          <DialogDescription>
+            내용을 직접 수정할 수 있어요. 수정하면 PDF에 바로 반영돼요.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {EDITABLE_FIELD_META.map(({ key, label, multiline }) => (
+            <div key={key} className="space-y-1.5">
+              <Label className="text-sm font-medium" htmlFor={`edit-${key}`}>
+                {label}
+              </Label>
+              {multiline ? (
+                <textarea
+                  id={`edit-${key}`}
+                  className="flex min-h-20 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm transition focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={draft[key]}
+                  onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+                />
+              ) : (
+                <Input
+                  id={`edit-${key}`}
+                  value={draft[key]}
+                  onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            취소
+          </Button>
+          <Button onClick={handleSave}>저장</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MobileRowCard({
   r,
   index,
   approvalMode,
   selected,
   onSelect,
+  onEdit,
   onRemove,
 }: {
   r: TripRow;
@@ -288,6 +418,7 @@ function MobileRowCard({
   approvalMode: ApprovalGroup | "auto";
   selected: boolean;
   onSelect: () => void;
+  onEdit: () => void;
   onRemove: () => void;
 }) {
   const lab = getApprovalHeaderLabels(r.orgName, approvalMode);
@@ -335,6 +466,14 @@ function MobileRowCard({
           )}
           <button
             type="button"
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            aria-label={`${index + 1}번 행 수정`}
+          >
+            <Pencil className="size-3.5" />
+          </button>
+          <button
+            type="button"
             className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
             aria-label={`${index + 1}번 행 삭제`}
@@ -379,6 +518,7 @@ export function TripTool() {
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
   const [adminSettings, setAdminSettings] = useState<ApprovalSettings | null>(null);
   const [adminSigLoaded, setAdminSigLoaded] = useState(false);
+  const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
 
   useEffect(() => {
     getApprovalSettings()
@@ -402,6 +542,10 @@ export function TripTool() {
       return next;
     });
     toast("행을 삭제했어요", { description: `#${index + 1}번 행이 제거되었어요.` });
+  };
+
+  const updateRow = (index: number, updated: TripRow) => {
+    setRows((cur) => cur.map((r, i) => (i === index ? recomputeRowWithOverride(updated, approvalMode) : r)));
   };
 
   const reapplyApproval = (m: ApprovalGroup | "auto") => {
@@ -905,6 +1049,7 @@ export function TripTool() {
                           approvalMode={approvalMode}
                           selected={mode === "preview" && previewI === i}
                           onSelect={() => mode === "preview" ? void onPreviewIndex(i) : undefined}
+                          onEdit={() => setEditingRowIdx(i)}
                           onRemove={() => removeRow(i)}
                         />
                       </div>
@@ -1022,6 +1167,19 @@ export function TripTool() {
             </Button>
           </div>
         </div>
+      )}
+
+      {editingRowIdx !== null && rows[editingRowIdx] && (
+        <RowEditDialog
+          row={rows[editingRowIdx]}
+          index={editingRowIdx}
+          open
+          onOpenChange={(v) => { if (!v) setEditingRowIdx(null); }}
+          onSave={(updated) => {
+            updateRow(editingRowIdx, updated);
+            if (mode === "preview") void onPreviewIndex(editingRowIdx);
+          }}
+        />
       )}
 
       <AlertDialog
