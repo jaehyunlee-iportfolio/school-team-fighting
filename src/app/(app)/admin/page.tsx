@@ -16,6 +16,7 @@ import {
   type PdfLayoutSettings,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
+import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
 import { pdf } from "@react-pdf/renderer";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import type { TripRow } from "@/lib/csv/parseD4";
@@ -137,24 +138,13 @@ export default function AdminPage() {
 
   if (!settings || !pdfLayout) return null;
 
-  const firebaseErrorDescription = (e: unknown) => {
-    if (e && typeof e === "object" && "code" in e && "message" in e) {
-      const { code, message } = e as { code: string; message: string };
-      return `${code}: ${message}`;
-    }
-    if (e instanceof Error) return e.message;
-    return String(e);
-  };
-
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
       await saveApprovalSettings(settings);
       toast.success("설정이 저장되었어요.");
-    } catch (e) {
-      toast.error("저장에 실패했어요.", {
-        description: firebaseErrorDescription(e),
-      });
+    } catch {
+      toast.error("저장에 실패했어요.");
     } finally {
       setSaving(false);
     }
@@ -165,10 +155,8 @@ export default function AdminPage() {
     try {
       await savePdfLayoutSettings(pdfLayout);
       toast.success("PDF 레이아웃이 저장되었어요.");
-    } catch (e) {
-      toast.error("저장에 실패했어요.", {
-        description: firebaseErrorDescription(e),
-      });
+    } catch {
+      toast.error("저장에 실패했어요.");
     } finally {
       setSavingPdf(false);
     }
@@ -228,7 +216,7 @@ export default function AdminPage() {
           <div className="flex flex-col gap-6 lg:flex-row">
             <div className="w-full shrink-0 lg:w-[420px]">
               <div className="sticky top-4">
-                <PdfPreview layout={pdfLayout} approvalSettings={settings} />
+                <PdfPreview layout={pdfLayout} />
               </div>
             </div>
             <div className="min-w-0 flex-1 space-y-4">
@@ -293,14 +281,12 @@ const MOCK_TRIP_ROW: TripRow = {
   approvalGroupOverride: "auto",
 };
 
-function PdfPreview({ layout, approvalSettings }: { layout: PdfLayoutSettings; approvalSettings: ApprovalSettings | null }) {
+function PdfPreview({ layout }: { layout: PdfLayoutSettings }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const prevUrl = useRef<string | null>(null);
   const generation = useRef(0);
-
-  const mockLogoSrc = approvalSettings?.groups[MOCK_TRIP_ROW.orgGroup ?? "ipf"]?.logoImageUrl || undefined;
 
   useEffect(() => {
     const gen = ++generation.current;
@@ -309,6 +295,7 @@ function PdfPreview({ layout, approvalSettings }: { layout: PdfLayoutSettings; a
       setError(null);
       try {
         registerPdfFonts();
+        const mockLogoSrc = resolveHardcodedPdfLogoSrc(MOCK_TRIP_ROW.orgGroup);
         const blob = await pdf(
           <BusinessTripDocument row={MOCK_TRIP_ROW} layout={layout} logoSrc={mockLogoSrc} />,
         ).toBlob();
@@ -325,7 +312,7 @@ function PdfPreview({ layout, approvalSettings }: { layout: PdfLayoutSettings; a
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [layout, mockLogoSrc]);
+  }, [layout]);
 
   useEffect(() => {
     return () => {
@@ -745,6 +732,13 @@ const GROUP_LABELS: Record<string, string> = {
   dimi: "디미교연 (디지털미디어교육콘텐츠)",
 };
 
+/**
+ * 로고는 `public/logos/ipf.jpg`, `public/logos/dimi.png` 하드코딩 사용.
+ * Firestore에 data URL 저장 시 문서 크기 제한으로 저장이 실패할 수 있어 업로드 UI는 끕니다.
+ * 다시 쓰려면 true로 바꾸고 `trip-tool`에서 `logoImageUrl`을 우선하도록 되돌리면 됩니다.
+ */
+const SHOW_ADMIN_LOGO_IMAGE_UPLOAD = false;
+
 function ApproverGroupSection({
   groupId,
   settings,
@@ -760,12 +754,16 @@ function ApproverGroupSection({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          {GROUP_LABELS[groupId] ?? groupId} — 결재자 서명 / 로고
+          {GROUP_LABELS[groupId] ?? groupId} — 결재자 서명
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <LogoRow groupId={groupId} settings={settings} onChange={onChange} />
-        <Separator />
+        {SHOW_ADMIN_LOGO_IMAGE_UPLOAD && (
+          <>
+            <LogoRow groupId={groupId} settings={settings} onChange={onChange} />
+            <Separator />
+          </>
+        )}
         <ApproverRow
           groupId={groupId}
           role="approver1"

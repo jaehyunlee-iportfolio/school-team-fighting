@@ -30,6 +30,7 @@ import {
 } from "@/lib/csv/parseD4";
 import { drafterSignatureGraphemes } from "@/lib/names/parseName";
 import { type ApprovalGroup, getApprovalHeaderLabels, detectGroupFromFilename, resolveGroup } from "@/lib/approval/labels";
+import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -773,7 +774,7 @@ export function TripTool() {
       const groupSigs = adminSettings?.groups[resolvedGroup];
       const src1 = a1Data || groupSigs?.approver1ImageUrl || undefined;
       const src2 = a2Data || groupSigs?.approver2ImageUrl || undefined;
-      const logo = groupSigs?.logoImageUrl || undefined;
+      const logo = resolveHardcodedPdfLogoSrc(resolvedGroup);
       return { src1, src2, logo };
     },
     [a1Data, a2Data, approvalMode, adminSettings]
