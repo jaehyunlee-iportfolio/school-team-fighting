@@ -50,6 +50,7 @@ export function recomputeSomyeongWarnings(r: Omit<SomyeongRow, "hasEmpty" | "fie
   else if (r.folders.length === 0) w.push("「증빙폴더번호」를 폴더로 인식하지 못했어요");
   if (!r.title.trim()) w.push("「건명」이 비어 있어요");
   if (!r.detail.trim()) w.push("「상세내용」이 비어 있어요");
+  if (!r.attachments.trim()) w.push("「첨부서류」가 비어 있어요");
   if (!r.seomok.trim()) w.push("「세목」이 비어 있어요 — N=0이 적용돼요");
   else if (!(SEOMOK_LIST as readonly string[]).includes(r.seomok))
     w.push(`알 수 없는 세목: "${r.seomok}" — N=0이 적용돼요`);
