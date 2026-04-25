@@ -10,10 +10,19 @@ import {
   removeAdminEmail,
   getPdfLayoutSettings,
   savePdfLayoutSettings,
+  getSomyeongSettings,
+  saveSomyeongSettings,
+  getSomyeongLayoutSettings,
+  saveSomyeongLayoutSettings,
   DEFAULT_PDF_LAYOUT,
+  DEFAULT_SOMYEONG_SETTINGS,
+  DEFAULT_SOMYEONG_LAYOUT,
+  SEOMOK_LIST,
   type ApprovalSettings,
   type GroupSettings,
   type PdfLayoutSettings,
+  type SomyeongSettings,
+  type SomyeongLayoutSettings,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -87,23 +96,31 @@ export default function AdminPage() {
   const { user, isAdmin, adminLoading } = useAuth();
   const [settings, setSettings] = useState<ApprovalSettings | null>(null);
   const [pdfLayout, setPdfLayout] = useState<PdfLayoutSettings | null>(null);
+  const [somyeongSettings, setSomyeongSettings] = useState<SomyeongSettings | null>(null);
+  const [somyeongLayout, setSomyeongLayout] = useState<SomyeongLayoutSettings | null>(null);
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingPdf, setSavingPdf] = useState(false);
+  const [savingSomyeong, setSavingSomyeong] = useState(false);
+  const [savingSomyeongLayout, setSavingSomyeongLayout] = useState(false);
   const [activeTab, setActiveTab] = useState("signature");
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, emails, pdf] = await Promise.all([
+      const [s, emails, pdf, somyeong, somyeongLay] = await Promise.all([
         getApprovalSettings(),
         getAdminEmails(),
         getPdfLayoutSettings(),
+        getSomyeongSettings(),
+        getSomyeongLayoutSettings(),
       ]);
       setSettings(s);
       setAdminEmails(emails);
       setPdfLayout(pdf);
+      setSomyeongSettings(somyeong);
+      setSomyeongLayout(somyeongLay);
     } catch (err) {
       toast.error("설정을 불러오는 데 실패했어요.");
       console.error(err);
@@ -136,7 +153,31 @@ export default function AdminPage() {
     );
   }
 
-  if (!settings || !pdfLayout) return null;
+  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout) return null;
+
+  const handleSaveSomyeong = async () => {
+    setSavingSomyeong(true);
+    try {
+      await saveSomyeongSettings(somyeongSettings);
+      toast.success("소명서 설정이 저장되었어요.");
+    } catch {
+      toast.error("저장에 실패했어요.");
+    } finally {
+      setSavingSomyeong(false);
+    }
+  };
+
+  const handleSaveSomyeongLayout = async () => {
+    setSavingSomyeongLayout(true);
+    try {
+      await saveSomyeongLayoutSettings(somyeongLayout);
+      toast.success("소명서 레이아웃이 저장되었어요.");
+    } catch {
+      toast.error("저장에 실패했어요.");
+    } finally {
+      setSavingSomyeongLayout(false);
+    }
+  };
 
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -175,10 +216,11 @@ export default function AdminPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="signature">서명 정책</TabsTrigger>
           <TabsTrigger value="groups">결재 그룹</TabsTrigger>
           <TabsTrigger value="pdfLayout">PDF 레이아웃</TabsTrigger>
+          <TabsTrigger value="somyeong">소명서 설정</TabsTrigger>
           <TabsTrigger value="users">어드민 사용자</TabsTrigger>
         </TabsList>
 
@@ -238,6 +280,51 @@ export default function AdminPage() {
                   저장
                 </Button>
               </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* --- 소명서 설정 --- */}
+        <TabsContent value="somyeong" className="space-y-6">
+          {/* 소명자 정보 + 서명 + 세목별 N */}
+          <div className="space-y-4">
+            <SomyeongSettingsSection
+              settings={somyeongSettings}
+              onChange={setSomyeongSettings}
+            />
+            <div className="flex justify-end">
+              <Button onClick={handleSaveSomyeong} disabled={savingSomyeong} className="gap-2">
+                {savingSomyeong ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                소명자 정보 저장
+              </Button>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* 레이아웃 */}
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-base font-semibold">PDF 레이아웃</h2>
+              <p className="text-sm text-muted-foreground">글씨 크기·굵기·정렬·여백·테이블 크기를 조절해요.</p>
+            </div>
+            <SomyeongLayoutSection layout={somyeongLayout} onChange={setSomyeongLayout} />
+            <div className="flex items-center justify-between border-t pt-4">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  setSomyeongLayout(DEFAULT_SOMYEONG_LAYOUT);
+                  toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                }}
+              >
+                <RotateCcw className="size-4" />
+                기본값 초기화
+              </Button>
+              <Button onClick={handleSaveSomyeongLayout} disabled={savingSomyeongLayout} className="gap-2">
+                {savingSomyeongLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                레이아웃 저장
+              </Button>
             </div>
           </div>
         </TabsContent>
@@ -1233,6 +1320,436 @@ function GroupLabelsSection({
         </Card>
       ))}
     </>
+  );
+}
+
+/* ===================================================================
+   Somyeong Layout Section
+   =================================================================== */
+
+const TEXT_ALIGN_OPTIONS = ["left", "center", "right"] as const;
+
+function AlignField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: "left" | "center" | "right";
+  onChange: (v: "left" | "center" | "right") => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Select value={value} onValueChange={(v) => { if (v) onChange(v as "left" | "center" | "right"); }}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {TEXT_ALIGN_OPTIONS.map((a) => (
+            <SelectItem key={a} value={a}>{a}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function SomyeongLayoutSection({
+  layout,
+  onChange,
+}: {
+  layout: SomyeongLayoutSettings;
+  onChange: (l: SomyeongLayoutSettings) => void;
+}) {
+  const set = <K extends keyof SomyeongLayoutSettings>(
+    section: K,
+    patch: Partial<SomyeongLayoutSettings[K]>
+  ) => onChange({ ...layout, [section]: { ...layout[section], ...patch } });
+
+  return (
+    <div className="space-y-4">
+      {/* 페이지 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">페이지</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">폰트</Label>
+              <Select
+                value={layout.page.fontFamily}
+                onValueChange={(v) => { if (v) set("page", { fontFamily: v }); }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PDF_FONT_FAMILIES.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <NumField label="기본 크기" value={layout.page.baseFontSize} onChange={(v) => set("page", { baseFontSize: v })} step={0.5} unit="pt" />
+            <NumField label="줄 높이" value={layout.page.baseLineHeight} onChange={(v) => set("page", { baseLineHeight: v })} step={0.1} />
+            <NumField label="여백" value={layout.page.marginMm} onChange={(v) => set("page", { marginMm: v })} unit="mm" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 테두리 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">테두리 선</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <NumField label="두께" value={layout.border.width} onChange={(v) => set("border", { width: v })} step={0.25} unit="pt" />
+            <ColorField label="색상" value={layout.border.color} onChange={(v) => set("border", { color: v })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 제목 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">제목 (소명서)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="크기" value={layout.title.fontSize} onChange={(v) => set("title", { fontSize: v })} unit="pt" />
+            <NumField label="굵기" value={layout.title.fontWeight} onChange={(v) => set("title", { fontWeight: v })} step={100} min={100} />
+            <AlignField label="정렬" value={layout.title.textAlign} onChange={(v) => set("title", { textAlign: v })} />
+            <NumField label="하단 여백" value={layout.title.marginBottom} onChange={(v) => set("title", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 섹션 헤더 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">섹션 헤더</CardTitle>
+          <CardDescription>소명자 정보 / 소명서 상세 내용 헤더 행</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="크기" value={layout.sectionHeader.fontSize} onChange={(v) => set("sectionHeader", { fontSize: v })} unit="pt" />
+            <NumField label="굵기" value={layout.sectionHeader.fontWeight} onChange={(v) => set("sectionHeader", { fontWeight: v })} step={100} min={100} />
+            <NumField label="최소 높이" value={layout.sectionHeader.minHeight} onChange={(v) => set("sectionHeader", { minHeight: v })} unit="pt" />
+            <ColorField label="배경색" value={layout.sectionHeader.bgColor} onChange={(v) => set("sectionHeader", { bgColor: v })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 소명자 정보 테이블 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">소명자 정보 테이블</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="라벨 칸 가로" value={layout.infoTable.labelWidth} onChange={(v) => set("infoTable", { labelWidth: v })} unit="pt" />
+            <NumField label="행 최소 높이" value={layout.infoTable.rowMinHeight} onChange={(v) => set("infoTable", { rowMinHeight: v })} unit="pt" />
+            <NumField label="테이블 하단 여백" value={layout.infoTable.marginBottom} onChange={(v) => set("infoTable", { marginBottom: v })} unit="pt" />
+          </div>
+          <Separator />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <ColorField label="라벨 배경색" value={layout.infoTable.labelBgColor} onChange={(v) => set("infoTable", { labelBgColor: v })} />
+            <NumField label="라벨 패딩 세로" value={layout.infoTable.labelPaddingV} onChange={(v) => set("infoTable", { labelPaddingV: v })} unit="pt" />
+            <NumField label="라벨 패딩 가로" value={layout.infoTable.labelPaddingH} onChange={(v) => set("infoTable", { labelPaddingH: v })} unit="pt" />
+            <NumField label="라벨 크기" value={layout.infoTable.labelFontSize} onChange={(v) => set("infoTable", { labelFontSize: v })} unit="pt" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="라벨 굵기" value={layout.infoTable.labelFontWeight} onChange={(v) => set("infoTable", { labelFontWeight: v })} step={100} min={100} />
+            <NumField label="값 패딩 세로" value={layout.infoTable.valuePaddingV} onChange={(v) => set("infoTable", { valuePaddingV: v })} unit="pt" />
+            <NumField label="값 패딩 가로" value={layout.infoTable.valuePaddingH} onChange={(v) => set("infoTable", { valuePaddingH: v })} unit="pt" />
+            <NumField label="값 크기" value={layout.infoTable.valueFontSize} onChange={(v) => set("infoTable", { valueFontSize: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 상세 내용 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">소명서 상세 내용</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <NumField label="패딩 세로" value={layout.detailSection.paddingV} onChange={(v) => set("detailSection", { paddingV: v })} unit="pt" />
+            <NumField label="패딩 가로" value={layout.detailSection.paddingH} onChange={(v) => set("detailSection", { paddingH: v })} unit="pt" />
+            <NumField label="크기" value={layout.detailSection.fontSize} onChange={(v) => set("detailSection", { fontSize: v })} unit="pt" />
+            <NumField label="줄 높이" value={layout.detailSection.lineHeight} onChange={(v) => set("detailSection", { lineHeight: v })} step={0.1} />
+            <NumField label="하단 여백" value={layout.detailSection.marginBottom} onChange={(v) => set("detailSection", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 구분선 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">구분선</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <NumField label="상단 여백" value={layout.divider.marginTop} onChange={(v) => set("divider", { marginTop: v })} unit="pt" />
+            <NumField label="하단 여백" value={layout.divider.marginBottom} onChange={(v) => set("divider", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 첨부서류 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">첨부서류</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="제목 크기" value={layout.attachSection.titleFontSize} onChange={(v) => set("attachSection", { titleFontSize: v })} unit="pt" />
+            <NumField label="제목 굵기" value={layout.attachSection.titleFontWeight} onChange={(v) => set("attachSection", { titleFontWeight: v })} step={100} min={100} />
+            <NumField label="제목 하단 여백" value={layout.attachSection.titleMarginBottom} onChange={(v) => set("attachSection", { titleMarginBottom: v })} unit="pt" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="내용 크기" value={layout.attachSection.fontSize} onChange={(v) => set("attachSection", { fontSize: v })} unit="pt" />
+            <NumField label="줄 높이" value={layout.attachSection.lineHeight} onChange={(v) => set("attachSection", { lineHeight: v })} step={0.1} />
+            <NumField label="하단 여백" value={layout.attachSection.marginBottom} onChange={(v) => set("attachSection", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 문구 / 날짜 / 서명 / 수신처 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">서명 영역</CardTitle>
+          <CardDescription>소명 문구, 날짜, 서명, 수신처</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs font-medium text-muted-foreground">소명 문구</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="크기" value={layout.closingText.fontSize} onChange={(v) => set("closingText", { fontSize: v })} unit="pt" />
+            <AlignField label="정렬" value={layout.closingText.textAlign} onChange={(v) => set("closingText", { textAlign: v })} />
+            <NumField label="상단 여백" value={layout.closingText.marginTop} onChange={(v) => set("closingText", { marginTop: v })} unit="pt" />
+            <NumField label="하단 여백" value={layout.closingText.marginBottom} onChange={(v) => set("closingText", { marginBottom: v })} unit="pt" />
+          </div>
+          <Separator />
+          <p className="text-xs font-medium text-muted-foreground">날짜</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="크기" value={layout.dateText.fontSize} onChange={(v) => set("dateText", { fontSize: v })} unit="pt" />
+            <AlignField label="정렬" value={layout.dateText.textAlign} onChange={(v) => set("dateText", { textAlign: v })} />
+            <NumField label="자간" value={layout.dateText.letterSpacing} onChange={(v) => set("dateText", { letterSpacing: v })} unit="pt" />
+            <NumField label="하단 여백" value={layout.dateText.marginBottom} onChange={(v) => set("dateText", { marginBottom: v })} unit="pt" />
+          </div>
+          <Separator />
+          <p className="text-xs font-medium text-muted-foreground">서명 행 (작성자)</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="글자 크기" value={layout.signature.fontSize} onChange={(v) => set("signature", { fontSize: v })} unit="pt" />
+            <NumField label="서명 이미지 최대 높이" value={layout.signature.signImageMaxHeight} onChange={(v) => set("signature", { signImageMaxHeight: v })} unit="pt" />
+            <NumField label="하단 여백" value={layout.signature.marginBottom} onChange={(v) => set("signature", { marginBottom: v })} unit="pt" />
+          </div>
+          <Separator />
+          <p className="text-xs font-medium text-muted-foreground">수신처</p>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="크기" value={layout.recipient.fontSize} onChange={(v) => set("recipient", { fontSize: v })} unit="pt" />
+            <NumField label="굵기" value={layout.recipient.fontWeight} onChange={(v) => set("recipient", { fontWeight: v })} step={100} min={100} />
+            <AlignField label="정렬" value={layout.recipient.textAlign} onChange={(v) => set("recipient", { textAlign: v })} />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ===================================================================
+   Somyeong Settings Section
+   =================================================================== */
+
+function SomyeongSettingsSection({
+  settings,
+  onChange,
+}: {
+  settings: SomyeongSettings;
+  onChange: (s: SomyeongSettings) => void;
+}) {
+  const set = (patch: Partial<SomyeongSettings>) => onChange({ ...settings, ...patch });
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [rawDataUrl, setRawDataUrl] = useState("");
+
+  const handleSignatureFile = async (file: File) => {
+    setLoading(true);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setRawDataUrl(dataUrl);
+      setCropDialogOpen(true);
+    } catch {
+      toast.error("이미지를 읽는 데 실패했어요.");
+    } finally {
+      setLoading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const FIELDS: { key: keyof SomyeongSettings; label: string; placeholder?: string }[] = [
+    { key: "name", label: "성명", placeholder: "채영지" },
+    { key: "orgPosition", label: "소속/직위", placeholder: "(주)아이포트폴리오 / 팀장" },
+    { key: "phone", label: "연락처", placeholder: "010-0000-0000" },
+    { key: "birthdate", label: "생년월일", placeholder: "1985. 06. 26." },
+    { key: "address", label: "사업장 주소", placeholder: "서울특별시 강서구 마곡중앙8로 57, B동 8층" },
+    { key: "date", label: "날짜", placeholder: "2026년 4월 28일" },
+    { key: "writerName", label: "작성자 이름", placeholder: "채영지" },
+    { key: "recipient", label: "수신처", placeholder: "한국과학창의재단 귀하" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* 소명자 정보 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">소명자 정보</CardTitle>
+          <CardDescription>소명서 PDF에 고정으로 들어가는 인적사항이에요.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {FIELDS.map(({ key, label, placeholder }) => (
+            <div key={key} className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{label}</Label>
+              <Input
+                value={settings[key] as string}
+                placeholder={placeholder}
+                onChange={(e) => set({ [key]: e.target.value })}
+              />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* 서명 이미지 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">서명 이미지</CardTitle>
+          <CardDescription>작성자 서명 이미지를 업로드해요. 배경 제거 + 크롭 기능이 제공돼요.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-start gap-4">
+            <div
+              className="size-20 shrink-0 rounded-lg border flex items-center justify-center overflow-hidden"
+              style={{
+                backgroundImage: settings.signatureImageUrl
+                  ? "linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)"
+                  : undefined,
+                backgroundSize: "12px 12px",
+                backgroundPosition: "0 0, 0 6px, 6px -6px, -6px 0px",
+                backgroundColor: settings.signatureImageUrl ? undefined : "hsl(var(--muted))",
+              }}
+            >
+              {settings.signatureImageUrl ? (
+                <img src={settings.signatureImageUrl} alt="서명" className="size-full object-contain" />
+              ) : (
+                <ImageIcon className="size-6 text-muted-foreground" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleSignatureFile(f);
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={loading}
+                onClick={() => fileRef.current?.click()}
+              >
+                {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                {settings.signatureImageUrl ? "교체" : "업로드"}
+              </Button>
+              {settings.signatureImageUrl && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => {
+                      setRawDataUrl(settings.signatureImageUrl);
+                      setCropDialogOpen(true);
+                    }}
+                  >
+                    <Scissors className="size-3.5" />
+                    편집
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-destructive hover:text-destructive"
+                    onClick={() => set({ signatureImageUrl: "" })}
+                  >
+                    <Trash2 className="size-3.5" />
+                    삭제
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+          <SignatureCropDialog
+            open={cropDialogOpen}
+            rawDataUrl={rawDataUrl}
+            onConfirm={(dataUrl) => {
+              set({ signatureImageUrl: dataUrl });
+              setCropDialogOpen(false);
+              toast.success("서명 이미지가 설정되었어요.");
+            }}
+            onCancel={() => setCropDialogOpen(false)}
+          />
+        </CardContent>
+      </Card>
+
+      {/* 세목별 N값 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">세목별 N값</CardTitle>
+          <CardDescription>
+            파일명 형식: <code className="rounded bg-muted px-1 text-xs">폴더명_N.소명서_건명.pdf</code>
+            <br />세목별로 N을 다르게 설정할 수 있어요. 기본값은 0이에요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {SEOMOK_LIST.map((s) => (
+            <div key={s} className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{s}</Label>
+              <Input
+                type="number"
+                min={0}
+                value={settings.seomokN[s] ?? 0}
+                onChange={(e) =>
+                  set({
+                    seomokN: { ...settings.seomokN, [s]: Number(e.target.value) || 0 },
+                  })
+                }
+              />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* 기본값 초기화 */}
+      <div className="flex">
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => {
+            onChange(DEFAULT_SOMYEONG_SETTINGS);
+            toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+          }}
+        >
+          <RotateCcw className="size-4" />
+          기본값 초기화
+        </Button>
+      </div>
+    </div>
   );
 }
 

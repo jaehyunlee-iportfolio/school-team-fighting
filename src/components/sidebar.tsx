@@ -27,6 +27,11 @@ const NAV_ITEMS = [
     label: "출장신청서",
     icon: FileText,
   },
+  {
+    href: "/somyeong",
+    label: "소명서",
+    icon: FileText,
+  },
 ];
 
 const ADMIN_ITEM = {

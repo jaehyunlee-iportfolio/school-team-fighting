@@ -255,3 +255,189 @@ export async function savePdfLayoutSettings(
 ): Promise<void> {
   await setDoc(doc(getFirebaseDb(), "settings", "pdfLayout"), settings);
 }
+
+/* ---------- 소명서 settings ---------- */
+
+export const SEOMOK_LIST = [
+  "인건비",
+  "사업수당",
+  "사업시설장비비",
+  "사업활동비",
+  "기타운영비",
+  "일반관리비(간접비)",
+] as const;
+
+export type Seomok = (typeof SEOMOK_LIST)[number];
+
+export type SomyeongSettings = {
+  name: string;
+  orgPosition: string;
+  phone: string;
+  birthdate: string;
+  address: string;
+  date: string;
+  writerName: string;
+  signatureImageUrl: string;
+  recipient: string;
+  seomokN: Record<string, number>;
+};
+
+export const DEFAULT_SOMYEONG_SETTINGS: SomyeongSettings = {
+  name: "",
+  orgPosition: "",
+  phone: "",
+  birthdate: "",
+  address: "",
+  date: "",
+  writerName: "",
+  signatureImageUrl: "",
+  recipient: "한국과학창의재단 귀하",
+  seomokN: Object.fromEntries(SEOMOK_LIST.map((s) => [s, 0])),
+};
+
+export async function getSomyeongSettings(): Promise<SomyeongSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "somyeong"));
+  if (!snap.exists()) return DEFAULT_SOMYEONG_SETTINGS;
+  const data = snap.data() as Record<string, unknown>;
+  return {
+    ...DEFAULT_SOMYEONG_SETTINGS,
+    ...(data as Partial<SomyeongSettings>),
+    seomokN: {
+      ...DEFAULT_SOMYEONG_SETTINGS.seomokN,
+      ...((data.seomokN as Record<string, number>) ?? {}),
+    },
+  };
+}
+
+export async function saveSomyeongSettings(
+  settings: SomyeongSettings
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "somyeong"), settings);
+}
+
+/* ---------- 소명서 layout settings ---------- */
+
+export type SomyeongLayoutSettings = {
+  page: {
+    fontFamily: string;
+    baseFontSize: number;
+    baseLineHeight: number;
+    marginMm: number;
+  };
+  border: {
+    width: number;
+    color: string;
+  };
+  title: {
+    fontSize: number;
+    fontWeight: number;
+    textAlign: "left" | "center" | "right";
+    marginBottom: number;
+  };
+  sectionHeader: {
+    fontSize: number;
+    fontWeight: number;
+    minHeight: number;
+    bgColor: string;
+  };
+  infoTable: {
+    labelWidth: number;
+    rowMinHeight: number;
+    labelBgColor: string;
+    labelPaddingV: number;
+    labelPaddingH: number;
+    labelFontSize: number;
+    labelFontWeight: number;
+    valuePaddingV: number;
+    valuePaddingH: number;
+    valueFontSize: number;
+    marginBottom: number;
+  };
+  detailSection: {
+    paddingV: number;
+    paddingH: number;
+    fontSize: number;
+    lineHeight: number;
+    marginBottom: number;
+  };
+  divider: {
+    marginTop: number;
+    marginBottom: number;
+  };
+  attachSection: {
+    titleFontSize: number;
+    titleFontWeight: number;
+    titleMarginBottom: number;
+    fontSize: number;
+    lineHeight: number;
+    marginBottom: number;
+  };
+  closingText: {
+    fontSize: number;
+    textAlign: "left" | "center" | "right";
+    marginTop: number;
+    marginBottom: number;
+  };
+  dateText: {
+    fontSize: number;
+    textAlign: "left" | "center" | "right";
+    marginBottom: number;
+    letterSpacing: number;
+  };
+  signature: {
+    fontSize: number;
+    signImageMaxHeight: number;
+    marginBottom: number;
+  };
+  recipient: {
+    fontSize: number;
+    fontWeight: number;
+    textAlign: "left" | "center" | "right";
+  };
+};
+
+export const DEFAULT_SOMYEONG_LAYOUT: SomyeongLayoutSettings = {
+  page: { fontFamily: "Pretendard", baseFontSize: 10, baseLineHeight: 1.4, marginMm: 20 },
+  border: { width: 0.75, color: "#000000" },
+  title: { fontSize: 26, fontWeight: 700, textAlign: "center", marginBottom: 24 },
+  sectionHeader: { fontSize: 10, fontWeight: 600, minHeight: 22, bgColor: "#E6E6E6" },
+  infoTable: {
+    labelWidth: 80,
+    rowMinHeight: 26,
+    labelBgColor: "#E6E6E6",
+    labelPaddingV: 4,
+    labelPaddingH: 4,
+    labelFontSize: 9.5,
+    labelFontWeight: 500,
+    valuePaddingV: 4,
+    valuePaddingH: 7,
+    valueFontSize: 10,
+    marginBottom: 16,
+  },
+  detailSection: { paddingV: 10, paddingH: 10, fontSize: 10, lineHeight: 1.6, marginBottom: 16 },
+  divider: { marginTop: 0, marginBottom: 14 },
+  attachSection: {
+    titleFontSize: 10,
+    titleFontWeight: 700,
+    titleMarginBottom: 6,
+    fontSize: 10,
+    lineHeight: 1.6,
+    marginBottom: 20,
+  },
+  closingText: { fontSize: 10, textAlign: "center", marginTop: 0, marginBottom: 20 },
+  dateText: { fontSize: 11, textAlign: "center", marginBottom: 16, letterSpacing: 4 },
+  signature: { fontSize: 10, signImageMaxHeight: 28, marginBottom: 10 },
+  recipient: { fontSize: 11, fontWeight: 600, textAlign: "right" },
+};
+
+export async function getSomyeongLayoutSettings(): Promise<SomyeongLayoutSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "somyeongLayout"));
+  if (!snap.exists()) return DEFAULT_SOMYEONG_LAYOUT;
+  return deepMerge(DEFAULT_SOMYEONG_LAYOUT, snap.data() as Record<string, unknown>);
+}
+
+export async function saveSomyeongLayoutSettings(
+  settings: SomyeongLayoutSettings
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "somyeongLayout"), settings);
+}
