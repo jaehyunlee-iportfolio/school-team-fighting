@@ -363,7 +363,7 @@ type NumFieldProps = {
   unit?: string;
 };
 
-function NumField({ label, value, onChange, step = 1, min = 0, unit }: NumFieldProps) {
+function NumField({ label, value, onChange, step = 1, min, unit }: NumFieldProps) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground">
@@ -372,7 +372,7 @@ function NumField({ label, value, onChange, step = 1, min = 0, unit }: NumFieldP
       <Input
         type="number"
         step={step}
-        min={min}
+        {...(min !== undefined ? { min } : {})}
         value={value}
         onChange={(e) => onChange(Number(e.target.value) || 0)}
       />
@@ -496,12 +496,12 @@ function PdfLayoutSection({
         <CardHeader className="pb-3">
           <CardTitle className="text-base">로고</CardTitle>
           <CardDescription>
-            PDF 좌측 상단에 표시되는 로고의 크기와 간격이에요.
+            PDF 좌측 상단에 표시되는 로고의 크기, 간격, 위치(오프셋)를 조절해요.
             로고 이미지는 &quot;서명 정책&quot; 탭에서 그룹별로 업로드하세요.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">표시</Label>
               <div className="flex h-10 items-center">
@@ -514,7 +514,12 @@ function PdfLayoutSection({
             <NumField label="가로" value={layout.logo.width} onChange={(v) => set("logo", { width: v })} unit="pt" />
             <NumField label="세로" value={layout.logo.height} onChange={(v) => set("logo", { height: v })} unit="pt" />
             <NumField label="우측 여백" value={layout.logo.marginRight} onChange={(v) => set("logo", { marginRight: v })} unit="pt" />
+            <NumField label="좌우 위치" value={layout.logo.offsetX} onChange={(v) => set("logo", { offsetX: v })} step={1} unit="pt" />
+            <NumField label="상하 위치" value={layout.logo.offsetY} onChange={(v) => set("logo", { offsetY: v })} step={1} unit="pt" />
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            좌우·상하 위치는 pt 단위 오프셋이에요. 양수면 각각 오른쪽·아래로, 음수면 왼쪽·위로 이동합니다.
+          </p>
         </CardContent>
       </Card>
 

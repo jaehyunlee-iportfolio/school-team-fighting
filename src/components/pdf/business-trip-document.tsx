@@ -43,6 +43,8 @@ function buildStyles(cfg: PdfLayoutSettings) {
       width: cfg.logo.width,
       height: cfg.logo.height,
       marginRight: cfg.logo.marginRight,
+      marginLeft: cfg.logo.offsetX,
+      marginTop: cfg.logo.offsetY,
       objectFit: "contain" as const,
     },
     pageTitle: {

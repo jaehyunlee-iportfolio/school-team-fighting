@@ -154,6 +154,10 @@ export type PdfLayoutSettings = {
     width: number;
     height: number;
     marginRight: number;
+    /** 좌우 오프셋(pt). 양수면 오른쪽으로 이동 */
+    offsetX: number;
+    /** 상하 오프셋(pt). 양수면 아래로 이동 */
+    offsetY: number;
   };
   footer: {
     fontSize: number;
@@ -209,7 +213,7 @@ export const DEFAULT_PDF_LAYOUT: PdfLayoutSettings = {
   },
   intro: { fontSize: 11, marginTop: 42, marginBottom: 42 },
   purpose: { minHeight: 112, padding: 6, fontSize: 11, lineHeight: 1.4 },
-  logo: { enabled: true, width: 60, height: 60, marginRight: 8 },
+  logo: { enabled: true, width: 60, height: 60, marginRight: 8, offsetX: 0, offsetY: 0 },
   footer: { fontSize: 15, fontWeight: 700, marginTop: 42 },
   placeholders: {
     emptyField: "—",
