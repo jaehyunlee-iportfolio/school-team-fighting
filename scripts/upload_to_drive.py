@@ -2,55 +2,44 @@
 """
 출장신청서 PDF를 Drive Desktop 동기화 폴더의 증빙번호별 하위 폴더로 이동/복사한다.
 
-파일명 규칙:
-    <증빙번호>_<원본파일명>.pdf
-    예) D-4-1_1. 내부결재문서_출장신청서_이영규_제주_250624.pdf
-
-처리:
-    - prefix(D-4-1) 파싱
-    - <drive>/<prefix>/ 폴더 존재 확인
-    - prefix 제거한 이름으로 이동/복사
-    - 결과 CSV 보고서 생성
-
 사용법:
-    python scripts/upload_to_drive.py \\
-        --src ~/Downloads/출장신청서_PDFs/ \\
-        --drive "~/Library/CloudStorage/GoogleDrive-isprofound@iportfolio.co.kr/My Drive/D-4.출장비"
+    python3 scripts/upload_to_drive.py --src <PDF폴더> --drive <Drive 경로> [--dry-run]
 
-옵션:
-    --mode {move,copy}     기본 move
-    --report PATH          CSV 보고서 출력 경로 (기본 자동 생성)
-    --dry-run              실제 이동 없이 시뮬레이션
-    --overwrite            대상에 동명 파일 있으면 덮어쓰기 (기본은 _dup1, _dup2 suffix)
+자세한 설명은 scripts/README_upload.md 참조.
+
+GUI 버전: scripts/upload_to_drive_gui.py
 """
 from __future__ import annotations
 
 import argparse
-import csv
-import re
-import shutil
+import os
 import sys
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+
+# 모듈 경로 추가 (스크립트 직접 실행 대응)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from _drive_lib import (
+    TaskResult,
+    make_report_paths,
+    process_all,
+    rollback_from_json,
+    summarize,
+    write_csv_report,
+    write_json_report,
+)
 
 try:
     from tqdm import tqdm
 except ImportError:
-    print("⚠️  tqdm 모듈이 없어요. 설치: pip3 install tqdm", file=sys.stderr)
+    print("⚠️  tqdm 모듈이 없어요. 설치: pip3 install --user --break-system-packages tqdm", file=sys.stderr)
     print("   진행률 표시 없이 계속할게요.\n", file=sys.stderr)
 
-    def tqdm(iterable: Iterable, **kwargs):  # type: ignore[no-redef]
+    def tqdm(iterable, **kwargs):  # type: ignore[no-redef]
         return iterable
 
 
-PREFIX_RE = re.compile(r"^([A-Za-z]-\d+(?:-\d+)*)_(.+\.pdf)$", re.IGNORECASE)
-
-
-# ─────────────────────────────────────────────────────────────────────────
-# ANSI 컬러 (Windows에서도 대부분 동작)
-# ─────────────────────────────────────────────────────────────────────────
+# ANSI 컬러
 class C:
     RESET = "\033[0m"
     BOLD = "\033[1m"
@@ -62,139 +51,24 @@ class C:
     CYAN = "\033[36m"
 
 
-@dataclass
-class TaskResult:
-    status: str           # OK / MISSING_PREFIX / FOLDER_NOT_FOUND / ERROR
-    src_filename: str
-    evidence_no: str
-    target_folder: str
-    target_filename: str
-    reason: str
-
-
-def parse_prefix(filename: str) -> tuple[str | None, str | None]:
-    """파일명 → (증빙번호, prefix 제거된 파일명) 또는 (None, None)."""
-    m = PREFIX_RE.match(filename)
-    if not m:
-        return None, None
-    return m.group(1), m.group(2)
-
-
-def resolve_dup_name(target_dir: Path, name: str) -> Path:
-    """대상 폴더에 동명 파일이 있으면 _dup1, _dup2 ... suffix 부여."""
-    base, ext = (name.rsplit(".", 1) + [""])[:2]
-    ext = f".{ext}" if ext else ""
-    candidate = target_dir / name
-    i = 1
-    while candidate.exists():
-        candidate = target_dir / f"{base}_dup{i}{ext}"
-        i += 1
-    return candidate
-
-
-def process_one(
-    src_file: Path,
-    drive_root: Path,
-    *,
-    mode: str,
-    overwrite: bool,
-    dry_run: bool,
-) -> TaskResult:
-    name = src_file.name
-    evidence_no, stripped = parse_prefix(name)
-
-    if evidence_no is None or stripped is None:
-        return TaskResult(
-            status="MISSING_PREFIX",
-            src_filename=name,
-            evidence_no="",
-            target_folder="",
-            target_filename="",
-            reason="파일명에 증빙번호 prefix 없음 (예: D-4-1_파일명.pdf)",
-        )
-
-    target_folder = drive_root / evidence_no
-    if not target_folder.is_dir():
-        return TaskResult(
-            status="FOLDER_NOT_FOUND",
-            src_filename=name,
-            evidence_no=evidence_no,
-            target_folder=str(target_folder),
-            target_filename=stripped,
-            reason=f"Drive에 {evidence_no} 폴더 없음",
-        )
-
-    if overwrite:
-        target_path = target_folder / stripped
-    else:
-        target_path = resolve_dup_name(target_folder, stripped)
-
-    if dry_run:
-        return TaskResult(
-            status="OK",
-            src_filename=name,
-            evidence_no=evidence_no,
-            target_folder=str(target_folder),
-            target_filename=target_path.name,
-            reason=f"[dry-run] {mode} 예정",
-        )
-
-    try:
-        if mode == "move":
-            shutil.move(str(src_file), str(target_path))
-        else:
-            shutil.copy2(str(src_file), str(target_path))
-    except Exception as e:
-        return TaskResult(
-            status="ERROR",
-            src_filename=name,
-            evidence_no=evidence_no,
-            target_folder=str(target_folder),
-            target_filename=target_path.name,
-            reason=f"{type(e).__name__}: {e}",
-        )
-
-    return TaskResult(
-        status="OK",
-        src_filename=name,
-        evidence_no=evidence_no,
-        target_folder=str(target_folder),
-        target_filename=target_path.name,
-        reason=f"{mode} 완료",
-    )
-
-
-def write_report(results: list[TaskResult], path: Path) -> None:
-    with path.open("w", encoding="utf-8-sig", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["status", "filename", "evidence_no", "target_folder", "target_filename", "reason"])
-        for r in results:
-            w.writerow([r.status, r.src_filename, r.evidence_no, r.target_folder, r.target_filename, r.reason])
-
-
 def print_summary(results: list[TaskResult]) -> None:
     by_status: dict[str, list[TaskResult]] = {}
     for r in results:
         by_status.setdefault(r.status, []).append(r)
 
-    total = len(results)
-    ok = len(by_status.get("OK", []))
-    miss = len(by_status.get("MISSING_PREFIX", []))
-    nofld = len(by_status.get("FOLDER_NOT_FOUND", []))
-    err = len(by_status.get("ERROR", []))
-
+    s = summarize(results)
     print()
-    print(f"{C.BOLD}처리 결과 요약{C.RESET}  (총 {total}건)")
-    print(f"  {C.GREEN}✅ 성공         {ok}{C.RESET}")
-    if miss:
-        print(f"  {C.YELLOW}⚠️  증빙번호 누락 {miss}{C.RESET}")
-    if nofld:
-        print(f"  {C.YELLOW}⚠️  폴더 없음     {nofld}{C.RESET}")
-    if err:
-        print(f"  {C.RED}❌ 오류         {err}{C.RESET}")
+    print(f"{C.BOLD}처리 결과 요약{C.RESET}  (총 {s['total']}건)")
+    print(f"  {C.GREEN}✅ 성공         {s['ok']}{C.RESET}")
+    if s["missing_prefix"]:
+        print(f"  {C.YELLOW}⚠️  증빙번호 누락 {s['missing_prefix']}{C.RESET}")
+    if s["folder_not_found"]:
+        print(f"  {C.YELLOW}⚠️  폴더 없음     {s['folder_not_found']}{C.RESET}")
+    if s["error"]:
+        print(f"  {C.RED}❌ 오류         {s['error']}{C.RESET}")
 
-    # 실패 항목 상세
-    if miss + nofld + err:
+    fail_total = s["missing_prefix"] + s["folder_not_found"] + s["error"]
+    if fail_total:
         print()
         print(f"{C.BOLD}실패 항목 상세{C.RESET}")
         for status, color, label in [
@@ -212,69 +86,118 @@ def print_summary(results: list[TaskResult]) -> None:
                 print(f"    {C.DIM}... 외 {len(items) - 20}건 (CSV 보고서 참조){C.RESET}")
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(
-        description="출장신청서 PDF를 증빙번호 prefix에 따라 Drive Desktop 동기화 폴더로 정리합니다.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
-    ap.add_argument("--src", required=True, type=Path, help="PDF가 있는 원본 폴더")
-    ap.add_argument("--drive", required=True, type=Path, help="Drive Desktop 마운트 D-4.출장비 폴더 경로")
-    ap.add_argument("--mode", choices=["move", "copy"], default="move", help="기본: move")
-    ap.add_argument("--report", type=Path, help="CSV 보고서 경로 (기본: <src>/upload_report_<timestamp>.csv)")
-    ap.add_argument("--dry-run", action="store_true", help="실제 이동 없이 시뮬레이션만")
-    ap.add_argument("--overwrite", action="store_true", help="대상에 동명 파일 있으면 덮어쓰기")
-    args = ap.parse_args()
-
-    src: Path = args.src.expanduser().resolve()
-    drive: Path = args.drive.expanduser().resolve()
+def cmd_organize(args: argparse.Namespace) -> int:
+    src = Path(args.src).expanduser().resolve()
+    drive = Path(args.drive).expanduser().resolve()
 
     if not src.is_dir():
         print(f"{C.RED}❌ --src 폴더를 찾을 수 없어요: {src}{C.RESET}", file=sys.stderr)
         return 1
     if not drive.is_dir():
         print(f"{C.RED}❌ --drive 폴더를 찾을 수 없어요: {drive}{C.RESET}", file=sys.stderr)
-        print(f"   Drive Desktop이 동기화한 D-4.출장비 폴더 경로를 정확히 입력해주세요.", file=sys.stderr)
         return 1
-
-    pdf_files = sorted([p for p in src.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"])
-    if not pdf_files:
-        print(f"{C.YELLOW}⚠️  --src 폴더에 PDF가 없어요: {src}{C.RESET}")
-        return 0
 
     print(f"{C.CYAN}── 출장신청서 PDF 정리 ──{C.RESET}")
     print(f"  src:    {src}")
     print(f"  drive:  {drive}")
     print(f"  mode:   {args.mode}{' (dry-run)' if args.dry_run else ''}")
-    print(f"  files:  {len(pdf_files)}개")
-    print()
 
-    results: list[TaskResult] = []
-    for f in tqdm(pdf_files, desc="처리 중", unit="개"):
-        res = process_one(
-            f,
-            drive,
-            mode=args.mode,
-            overwrite=args.overwrite,
-            dry_run=args.dry_run,
-        )
-        results.append(res)
+    # 진행률 표시
+    pbar: object | None = None
 
-    # 보고서 저장
+    def on_progress(cur: int, total: int, _res: TaskResult) -> None:
+        nonlocal pbar
+        if pbar is None:
+            pbar = tqdm(total=total, desc="처리 중", unit="개")
+        pbar.update(1)  # type: ignore[union-attr]
+
+    results = process_all(
+        src,
+        drive,
+        mode=args.mode,
+        overwrite=args.overwrite,
+        dry_run=args.dry_run,
+        on_progress=on_progress,
+    )
+    if pbar is not None:
+        pbar.close()  # type: ignore[union-attr]
+
+    csv_path, json_path = make_report_paths(src)
     if args.report:
-        report_path = args.report.expanduser().resolve()
-    else:
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = src / f"upload_report_{ts}.csv"
-    write_report(results, report_path)
+        csv_path = Path(args.report).expanduser().resolve()
+        json_path = csv_path.with_suffix(".json")
+    write_csv_report(results, csv_path)
+    write_json_report(results, src=src, drive=drive, mode=args.mode, dry_run=args.dry_run, path=json_path)
 
     print_summary(results)
     print()
-    print(f"📄 CSV 보고서: {C.BLUE}{report_path}{C.RESET}")
+    print(f"📄 CSV 보고서: {C.BLUE}{csv_path}{C.RESET}")
+    print(f"📄 JSON (롤백용): {C.BLUE}{json_path}{C.RESET}")
 
-    # 실패가 있으면 비-0 exit code (자동화 파이프라인용)
     failed = sum(1 for r in results if r.status != "OK")
     return 0 if failed == 0 else 2
+
+
+def cmd_rollback(args: argparse.Namespace) -> int:
+    json_path = Path(args.json).expanduser().resolve()
+    if not json_path.is_file():
+        print(f"{C.RED}❌ JSON 보고서를 찾을 수 없어요: {json_path}{C.RESET}", file=sys.stderr)
+        return 1
+
+    print(f"{C.CYAN}── 롤백 ──{C.RESET}")
+    print(f"  보고서: {json_path}")
+
+    pbar: object | None = None
+
+    def on_progress(cur: int, total: int, _res) -> None:
+        nonlocal pbar
+        if pbar is None:
+            pbar = tqdm(total=total, desc="원복 중", unit="개")
+        pbar.update(1)  # type: ignore[union-attr]
+
+    results, meta = rollback_from_json(json_path, on_progress=on_progress)
+    if pbar is not None:
+        pbar.close()  # type: ignore[union-attr]
+
+    ok = sum(1 for r in results if r.status == "OK")
+    skip = sum(1 for r in results if r.status == "SKIPPED")
+    err = sum(1 for r in results if r.status == "ERROR")
+    print()
+    print(f"{C.BOLD}롤백 결과{C.RESET}  (총 {len(results)}건)")
+    print(f"  {C.GREEN}✅ 원복         {ok}{C.RESET}")
+    if skip:
+        print(f"  {C.DIM}⏭  건너뜀       {skip}{C.RESET}")
+    if err:
+        print(f"  {C.RED}❌ 오류         {err}{C.RESET}")
+
+    return 0 if err == 0 else 2
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="출장신청서 PDF 정리 / 롤백")
+    sub = ap.add_subparsers(dest="cmd")
+
+    # 기본 (정리)
+    org = sub.add_parser("organize", help="PDF를 증빙번호 폴더로 이동/복사")
+    org.add_argument("--src", required=True, help="PDF가 있는 원본 폴더")
+    org.add_argument("--drive", required=True, help="Drive Desktop D-4.출장비 경로")
+    org.add_argument("--mode", choices=["move", "copy"], default="move")
+    org.add_argument("--report", help="CSV 보고서 경로 (기본 자동)")
+    org.add_argument("--dry-run", action="store_true")
+    org.add_argument("--overwrite", action="store_true")
+    org.set_defaults(func=cmd_organize)
+
+    # 롤백
+    rb = sub.add_parser("rollback", help="JSON 보고서로 이전 작업 원복")
+    rb.add_argument("--json", required=True, help="이전 작업의 JSON 보고서 경로")
+    rb.set_defaults(func=cmd_rollback)
+
+    # 하위명령 없으면 organize 동작 (하위호환)
+    args, remaining = ap.parse_known_args()
+    if args.cmd is None:
+        # 기본은 organize: 인자를 organize에 전달
+        return cmd_organize(org.parse_args(remaining))
+    return args.func(args)
 
 
 if __name__ == "__main__":

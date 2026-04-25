@@ -1,6 +1,10 @@
 # 출장신청서 PDF → Drive Desktop 자동 정리
 
-웹 앱(`/trip`)에서 생성한 출장신청서 PDF들을 증빙번호별 Google Drive 폴더로 자동 이동/복사하는 CLI 스크립트.
+웹 앱(`/trip`)에서 생성한 출장신청서 PDF들을 증빙번호별 Google Drive 폴더로 자동 이동/복사하는 도구.
+
+**두 가지 사용 방식:**
+- **GUI** (`upload_to_drive_gui.py`) — 더블클릭 / 터미널에서 한 줄로 실행, 폴더 선택·진행률·롤백 모두 GUI로
+- **CLI** (`upload_to_drive.py`) — 자동화 / 스크립트 통합용
 
 ## 동작 원리
 
@@ -13,17 +17,21 @@
 
 ## 준비
 
-### 1. Python (3.9+)
+### 1. Python (3.9+) + Tk
 ```bash
 python3 --version
 ```
-macOS에는 기본 탑재되어 있어요.
+- macOS Homebrew Python을 쓰면 Tk가 따로 설치 필요:
+  ```bash
+  brew install python-tk@3.12
+  ```
+- 시스템 Python(`/usr/bin/python3`)은 보통 Tk 포함되어 있음
 
-### 2. tqdm 설치 (진행률 표시용, 선택)
+### 2. tqdm 설치 (CLI 진행률 표시용, 선택)
 ```bash
-pip3 install tqdm
+pip3 install --user --break-system-packages tqdm
 ```
-없어도 동작합니다 (진행률만 안 보임).
+없어도 동작합니다 (CLI 진행률만 안 보임). GUI는 tqdm 불필요.
 
 ### 3. Google Drive Desktop
 - https://www.google.com/drive/download/ 에서 설치
@@ -35,7 +43,21 @@ pip3 install tqdm
 
 ## 사용법
 
-### 기본 (이동 + dry-run으로 먼저 확인 권장)
+### GUI 버전 (권장)
+```bash
+python3 scripts/upload_to_drive_gui.py
+```
+탭 두 개가 있어요:
+- **📁 정리:** PDF 폴더 + Drive 폴더 선택 → 모드 선택(이동/복사) → 실행
+- **↩️ 롤백:** 이전 작업의 `upload_report_*.json` 선택 → 원복 실행
+  - move 모드: Drive 폴더의 파일을 원본 폴더로 다시 이동하면서 prefix 재부착
+  - copy 모드: Drive 폴더의 복사본만 삭제 (원본은 그대로)
+
+매 실행마다 PDF 폴더 안에 `upload_report_<timestamp>.csv`(사람용)와 `.json`(롤백용)이 생성돼요.
+
+### CLI 버전 (자동화용)
+
+#### 기본 (이동 + dry-run으로 먼저 확인 권장)
 ```bash
 python3 scripts/upload_to_drive.py \
   --src ~/Downloads/출장신청서_PDFs \
@@ -50,7 +72,7 @@ python3 scripts/upload_to_drive.py \
   --drive "~/Library/CloudStorage/GoogleDrive-isprofound@iportfolio.co.kr/My Drive/D-4.출장비"
 ```
 
-### 옵션
+#### 옵션 (organize 명령)
 
 | 옵션 | 기본 | 설명 |
 |---|---|---|
@@ -60,6 +82,12 @@ python3 scripts/upload_to_drive.py \
 | `--report PATH` | 자동 | CSV 결과 보고서 경로 (기본: `<src>/upload_report_<timestamp>.csv`) |
 | `--dry-run` | off | 실제 이동 없이 시뮬레이션만 |
 | `--overwrite` | off | 대상에 동명 파일 있으면 덮어쓰기 (기본은 `_dup1`, `_dup2` suffix) |
+
+#### 롤백 (CLI)
+```bash
+python3 scripts/upload_to_drive.py rollback --json <PDF폴더>/upload_report_<timestamp>.json
+```
+이전 작업의 JSON 보고서를 받아 그대로 원복.
 
 ## 결과
 
