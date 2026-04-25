@@ -149,7 +149,7 @@ function normalizeUsageDate(raw: string, ph: DatePlaceholders = DEFAULT_DATE_PH)
   }
 
   const formatted = toKoreanDateFormat(trimmed);
-  return { periodText: formatted, singleDate: true, invalidDate: false };
+  return { periodText: `${formatted} ~ ${formatted}`, singleDate: true, invalidDate: false };
 }
 
 function isDataRow(row: string[]): boolean {
