@@ -102,6 +102,29 @@ function fileSafe(s: string) {
   return s.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60);
 }
 
+function orgLabel(orgGroup: TripRow["orgGroup"]) {
+  if (orgGroup === "ipf") return "iPF";
+  if (orgGroup === "dimi") return "디미교연";
+  return "기타";
+}
+
+function pdfName(r: TripRow) {
+  const date = r.usageDate.replace(/\D/g, "").slice(0, 8);
+  const place = fileSafe(r.outPlace || "UNKNOWN").slice(0, 10);
+  const name = fileSafe(r.writerName || "이름");
+  const org = orgLabel(r.orgGroup);
+  return `출장신청서_${name}_${date}_${place}_${org}.pdf`;
+}
+
+function zipName() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const date = kst.toISOString().slice(0, 10);
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mm = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `출장신청서_모음_${date}_${hh}시${mm}분.zip`;
+}
+
 const ALL_APPROVAL: { id: ApprovalGroup | "auto"; label: string }[] = [
   { id: "auto", label: "자동(집행기관명)" },
   { id: "ipf", label: "iPF / (주)아이포트폴리오" },
@@ -816,14 +839,14 @@ export function TripTool() {
           setGenProgress({ current: i + 1, total: rows.length });
           const r = rows[i];
           const b = await makeBlobFor(r);
-          const n = `출장신청서_r${i + 1}_${fileSafe(r.writerName || "이름")}.pdf`;
+          const n = pdfName(r);
           z.file(n, b);
         }
         const zipB = await z.generateAsync({ type: "blob" });
         const href = URL.createObjectURL(zipB);
         const a = document.createElement("a");
         a.href = href;
-        a.download = `출장신청서_${new Date().toISOString().slice(0, 10)}.zip`;
+        a.download = zipName();
         a.click();
         URL.revokeObjectURL(href);
         toast.success(
@@ -840,7 +863,7 @@ export function TripTool() {
       for (let i = 0; i < rows.length; i++) {
         setGenProgress({ current: i + 1, total: rows.length });
         const b = await makeBlobFor(rows[i]);
-        const n = `출장신청서_r${i + 1}_${fileSafe(rows[i].writerName || "x")}.pdf`;
+        const n = pdfName(rows[i]);
         z2.file(n, b);
         setListDone((d) => [...d, { n, i: i + 1 }]);
       }
@@ -848,7 +871,7 @@ export function TripTool() {
       const href2 = URL.createObjectURL(zipB2);
       const a2Elem = document.createElement("a");
       a2Elem.href = href2;
-      a2Elem.download = `출장신청서_${new Date().toISOString().slice(0, 10)}.zip`;
+      a2Elem.download = zipName();
       a2Elem.click();
       URL.revokeObjectURL(href2);
       toast.success(
