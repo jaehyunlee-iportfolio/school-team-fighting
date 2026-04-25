@@ -282,21 +282,27 @@ export function BusinessTripDocument({
                         <Text style={[styles.small, { color: ph.drafterEmptyColor }]}>{ph.drafterEmpty}</Text>
                       )}
                     </View>
-                    <View style={styles.apSignC}>
+                    <View style={[styles.apSignC, { position: "relative" }]}>
                       {skipApprover1 ? (
+                        // 셀 전체를 덮는 absolute SVG로 정확히 모서리(꼭짓점) → 모서리 대각선 그리기
                         <Svg
-                          style={{ width: "100%", height: cfg.approval.signImageMaxHeight }}
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                          }}
                           viewBox="0 0 100 100"
                           preserveAspectRatio="none"
                         >
-                          {/* 좌하단(0,100) → 우상단(100,0) 대각선 — 셀 모서리에 정확히 닿도록 */}
                           <Line
                             x1="0"
                             y1="100"
                             x2="100"
                             y2="0"
                             stroke={cfg.border.color}
-                            strokeWidth={cfg.border.width}
+                            strokeWidth={1}
                           />
                         </Svg>
                       ) : approver1Src ? (
