@@ -148,7 +148,6 @@ function buildStyles(cfg: SomyeongLayoutSettings) {
       fontSize: cfg.dateText.fontSize,
       textAlign: cfg.dateText.textAlign,
       marginBottom: cfg.dateText.marginBottom,
-      letterSpacing: cfg.dateText.letterSpacing,
     },
     signatureRow: {
       flexDirection: "row" as const,

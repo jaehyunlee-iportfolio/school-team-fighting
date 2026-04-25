@@ -382,7 +382,6 @@ export type SomyeongLayoutSettings = {
     fontSize: number;
     textAlign: "left" | "center" | "right";
     marginBottom: number;
-    letterSpacing: number;
   };
   signature: {
     fontSize: number;
@@ -431,7 +430,7 @@ export const DEFAULT_SOMYEONG_LAYOUT: SomyeongLayoutSettings = {
     marginBottom: 20,
   },
   closingText: { fontSize: 10, textAlign: "center", marginTop: 0, marginBottom: 20 },
-  dateText: { fontSize: 11, textAlign: "center", marginBottom: 16, letterSpacing: 0 },
+  dateText: { fontSize: 11, textAlign: "center", marginBottom: 16 },
   signature: { fontSize: 10, signImageMaxHeight: 28, marginBottom: 10 },
   recipient: { fontSize: 11, fontWeight: 600, textAlign: "right" },
   placeholders: {

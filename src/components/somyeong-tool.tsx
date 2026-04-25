@@ -668,15 +668,18 @@ export function SomyeongTool() {
                   {/* 세목별 N값 */}
                   <div className="rounded-xl border bg-card p-4">
                     <p className="mb-3 text-xs font-semibold text-muted-foreground">
-                      세목별 N값 (파일명: 폴더명_<span className="font-mono">N</span>.소명서_건명.pdf)
+                      세목별 번호 (파일명: 폴더명_<span className="font-mono font-semibold">번호</span>.소명서_건명.pdf)
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {SEOMOK_LIST.map((s) => (
-                        <div key={s} className="rounded-md border bg-muted/30 px-3 py-1.5 text-xs">
-                          <span className="font-medium">{s}</span>
-                          <span className="ml-2 font-mono text-muted-foreground">
-                            N={settings.seomokN[s] ?? 0}
+                        <div
+                          key={s}
+                          className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-xs"
+                        >
+                          <span className="flex size-5 shrink-0 items-center justify-center rounded bg-primary font-mono text-[10px] font-bold text-primary-foreground tabular-nums">
+                            {settings.seomokN[s] ?? 0}
                           </span>
+                          <span className="font-medium">{s}</span>
                         </div>
                       ))}
                     </div>

@@ -1708,10 +1708,9 @@ function SomyeongLayoutSection({
           </div>
           <Separator />
           <p className="text-xs font-medium text-muted-foreground">날짜</p>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <NumField label="크기" value={layout.dateText.fontSize} onChange={(v) => set("dateText", { fontSize: v })} unit="pt" />
             <AlignField label="정렬" value={layout.dateText.textAlign} onChange={(v) => set("dateText", { textAlign: v })} />
-            <NumField label="자간" value={layout.dateText.letterSpacing} onChange={(v) => set("dateText", { letterSpacing: v })} unit="pt" />
             <NumField label="하단 여백" value={layout.dateText.marginBottom} onChange={(v) => set("dateText", { marginBottom: v })} unit="pt" />
           </div>
           <Separator />
