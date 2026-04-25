@@ -102,18 +102,14 @@ function fileSafe(s: string) {
   return s.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60);
 }
 
-function orgLabel(orgGroup: TripRow["orgGroup"]) {
-  if (orgGroup === "ipf") return "iPF";
-  if (orgGroup === "dimi") return "디미교연";
-  return "기타";
-}
-
 function pdfName(r: TripRow) {
-  const date = r.usageDate.replace(/\D/g, "").slice(0, 8);
-  const place = fileSafe(r.outPlace || "UNKNOWN").slice(0, 10);
-  const name = fileSafe(r.writerName || "이름");
-  const org = orgLabel(r.orgGroup);
-  return `출장신청서_${name}_${date}_${place}_${org}.pdf`;
+  const digits = r.usageDate.replace(/\D/g, "");
+  // YYMMDD 6자리: YYYYMMDD면 앞 2자리(세기) 떼고, 6자리면 그대로, 그 외엔 UNKNOWN
+  const date =
+    digits.length >= 8 ? digits.slice(2, 8) : digits.length === 6 ? digits : "UNKNOWN";
+  const name = r.writerName?.trim() ? fileSafe(r.writerName) : "UNKNOWN";
+  const place = r.outPlace?.trim() ? fileSafe(r.outPlace).slice(0, 20) : "UNKNOWN";
+  return `1. 내부결재문서_출장신청서_${name}_${place}_${date}.pdf`;
 }
 
 function zipName() {
