@@ -126,7 +126,13 @@ function normalizeUsageDate(raw: string, ph: DatePlaceholders = DEFAULT_DATE_PH)
     const [left, right] = trimmed.split("~").map((s) => s.trim());
     const leftOk = LOOKS_LIKE_DATE.test(left);
     const rightOk = LOOKS_LIKE_DATE.test(right);
-    if (leftOk && rightOk) return { periodText: trimmed, singleDate: false, invalidDate: false };
+    if (leftOk && rightOk) {
+      return {
+        periodText: `${toKoreanDateFormat(left)} ~ ${toKoreanDateFormat(right)}`,
+        singleDate: false,
+        invalidDate: false,
+      };
+    }
     if (leftOk && !rightOk) {
       const formatted = toKoreanDateFormat(left);
       return {
@@ -143,7 +149,7 @@ function normalizeUsageDate(raw: string, ph: DatePlaceholders = DEFAULT_DATE_PH)
   }
 
   const formatted = toKoreanDateFormat(trimmed);
-  return { periodText: `${formatted} ~ ${ph.dateFallback}`, singleDate: true, invalidDate: false };
+  return { periodText: formatted, singleDate: true, invalidDate: false };
 }
 
 function isDataRow(row: string[]): boolean {
@@ -217,8 +223,6 @@ function rowToTrip(
   if (!norm(u)) wlist.push("「사용일자」가 비어 있어요");
   else if (invalidDate)
     wlist.push("「사용일자」가 날짜 형식이 아니에요 — 직접 확인해 주세요");
-  else if (singleDate)
-    wlist.push("「사용일자」에 날짜가 하나뿐이에요 — 종료일을 직접 입력해 주세요");
 
   return {
     rowIndex: i,
