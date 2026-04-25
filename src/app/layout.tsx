@@ -10,7 +10,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "school-team",
+  title: "school-team-fighting",
   description: "자동화 도구 모음",
 };
 

@@ -45,7 +45,7 @@ export default function LoginPage() {
     <div className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight">school-team</h1>
+          <h1 className="text-2xl font-bold tracking-tight">school-team-fighting</h1>
           <p className="text-sm text-muted-foreground">
             @iportfolio.co.kr 계정으로 로그인하세요
           </p>
