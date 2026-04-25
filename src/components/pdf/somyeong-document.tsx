@@ -188,6 +188,10 @@ export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProp
       ? { text: value, color: undefined as string | undefined }
       : { text: ph.emptyField, color: ph.emptyFieldColor };
 
+  // 날짜 표기에서 숫자와 년/월/일 사이에 얇은 공백 삽입 (예: "2026년 4월 28일" → "2026 년 4 월 28 일")
+  const spaceDateUnits = (s: string) =>
+    s.replace(/(\d)\s*(년|월|일)/g, "$1 $2");
+
   const nameFb = fb(settings.name);
   const orgPosFb = fb(settings.orgPosition);
   const phoneFb = fb(settings.phone);
@@ -272,7 +276,9 @@ export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProp
         </Text>
 
         {/* 날짜 */}
-        <Text style={[styles.dateText, dateFb.color ? { color: dateFb.color } : {}]}>{dateFb.text}</Text>
+        <Text style={[styles.dateText, dateFb.color ? { color: dateFb.color } : {}]}>
+          {dateFb.color ? dateFb.text : spaceDateUnits(dateFb.text)}
+        </Text>
 
         {/* 작성자 + 서명 */}
         <View style={styles.signatureRow}>
