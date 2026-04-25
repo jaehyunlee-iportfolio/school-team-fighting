@@ -35,6 +35,38 @@ def parse_prefix(filename: str) -> tuple[str | None, str | None]:
     return m.group(1), m.group(2)
 
 
+def find_target_folder(
+    drive_root: Path,
+    evidence_no: str,
+    *,
+    max_depth: int = 2,
+) -> Path | None:
+    """drive_root 아래에서 evidence_no와 정확히 일치하는 폴더 탐색.
+
+    - max_depth=1: drive_root/{evidence_no} 만 확인 (부모 폴더를 직접 지정한 경우)
+    - max_depth=2: drive_root/{어떤폴더}/{evidence_no} 도 확인 (조부모 폴더 지정한 경우)
+
+    예) drive_root="(주)아이포트폴리오", evidence_no="A-1-1"
+        → "(주)아이포트폴리오/A-1.내부인건비/A-1-1" 찾음
+    """
+    direct = drive_root / evidence_no
+    if direct.is_dir():
+        return direct
+
+    if max_depth >= 2:
+        try:
+            for parent in drive_root.iterdir():
+                if not parent.is_dir():
+                    continue
+                candidate = parent / evidence_no
+                if candidate.is_dir():
+                    return candidate
+        except OSError:
+            return None
+
+    return None
+
+
 def resolve_dup_name(target_dir: Path, name: str) -> Path:
     """대상 폴더에 동명 파일이 있으면 _dup1, _dup2 ... suffix 부여."""
     base, _, ext = name.rpartition(".")
@@ -71,15 +103,15 @@ def process_one(
             reason="파일명에 증빙번호 prefix 없음 (예: D-4-1_파일명.pdf)",
         )
 
-    target_folder = drive_root / evidence_no
-    if not target_folder.is_dir():
+    target_folder = find_target_folder(drive_root, evidence_no, max_depth=2)
+    if target_folder is None:
         return TaskResult(
             status="FOLDER_NOT_FOUND",
             src_filename=name,
             evidence_no=evidence_no,
-            target_folder=str(target_folder),
+            target_folder=str(drive_root / evidence_no),
             target_filename=stripped,
-            reason=f"Drive에 {evidence_no} 폴더 없음",
+            reason=f"Drive 트리에서 {evidence_no} 폴더를 찾지 못함 (2단계까지 검색)",
         )
 
     target_path = target_folder / stripped if overwrite else resolve_dup_name(target_folder, stripped)

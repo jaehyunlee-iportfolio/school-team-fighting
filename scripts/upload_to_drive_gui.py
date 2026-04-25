@@ -99,9 +99,16 @@ class App:
         ttk.Entry(frm, textvariable=self.drive_var, width=60).grid(row=1, column=1, sticky="ew", padx=6)
         ttk.Button(frm, text="폴더 선택", command=self._pick_drive).grid(row=1, column=2)
 
+        # 안내문
+        ttk.Label(
+            frm,
+            text="부모(D-4.출장비) 또는 조부모((주)아이포트폴리오) 모두 OK — 2단계까지 자동 탐색",
+            foreground="#666",
+        ).grid(row=2, column=1, columnspan=2, sticky="w")
+
         # 모드 + dry-run
         opt_frm = ttk.Frame(frm)
-        opt_frm.grid(row=2, column=0, columnspan=3, sticky="w", pady=(8, 0))
+        opt_frm.grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 0))
         self.mode_var = tk.StringVar(value="move")
         ttk.Label(opt_frm, text="모드:").pack(side="left", padx=(0, 6))
         ttk.Radiobutton(opt_frm, text="이동 (move)", variable=self.mode_var, value="move").pack(side="left")
@@ -196,7 +203,7 @@ class App:
             self.src_var.set(p)
 
     def _pick_drive(self) -> None:
-        p = filedialog.askdirectory(title="Drive Desktop의 D-4.출장비 폴더 선택")
+        p = filedialog.askdirectory(title="Drive 폴더 선택 (부모 또는 조부모)")
         if p:
             self.drive_var.set(p)
 
