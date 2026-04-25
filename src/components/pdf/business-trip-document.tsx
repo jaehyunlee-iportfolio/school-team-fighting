@@ -3,6 +3,8 @@ import {
   Document,
   Image,
   Page,
+  Svg,
+  Line,
   Text,
   View,
   StyleSheet,
@@ -227,6 +229,10 @@ export function BusinessTripDocument({
 
   const orgFb = fb(row.orgName);
   const writerFb = fb(row.writerName);
+
+  // 기안자가 결재자1(팀장/사무국장)을 겸하면 그 칸은 건너뛰고 대각선(/)으로 표시
+  const SKIP_APPROVER1_NAMES = new Set(["장인선", "박준호"]);
+  const skipApprover1 = SKIP_APPROVER1_NAMES.has(row.writerName?.trim() ?? "");
   const memberFb = fb(row.memberText);
   const periodFb = row.periodText
     ? { text: row.periodText, color: periodColor }
@@ -277,7 +283,23 @@ export function BusinessTripDocument({
                       )}
                     </View>
                     <View style={styles.apSignC}>
-                      {approver1Src ? (
+                      {skipApprover1 ? (
+                        <Svg
+                          style={{ width: "100%", height: "100%" }}
+                          viewBox="0 0 100 100"
+                          preserveAspectRatio="none"
+                        >
+                          {/* 좌하단 → 우상단 대각선 (해당 결재자 건너뜀 표시) */}
+                          <Line
+                            x1="2"
+                            y1="98"
+                            x2="98"
+                            y2="2"
+                            stroke={cfg.border.color}
+                            strokeWidth={cfg.border.width}
+                          />
+                        </Svg>
+                      ) : approver1Src ? (
                         <Image src={approver1Src} style={styles.apImg} />
                       ) : (
                         <Text style={[styles.small, { color: ph.signEmptyColor }]}>{ph.signEmpty}</Text>
