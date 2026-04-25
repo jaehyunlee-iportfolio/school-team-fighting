@@ -285,16 +285,16 @@ export function BusinessTripDocument({
                     <View style={styles.apSignC}>
                       {skipApprover1 ? (
                         <Svg
-                          style={{ width: "100%", height: "100%" }}
+                          style={{ width: "100%", height: cfg.approval.signImageMaxHeight }}
                           viewBox="0 0 100 100"
                           preserveAspectRatio="none"
                         >
-                          {/* 좌하단 → 우상단 대각선 (해당 결재자 건너뜀 표시) */}
+                          {/* 좌하단(0,100) → 우상단(100,0) 대각선 — 셀 모서리에 정확히 닿도록 */}
                           <Line
-                            x1="2"
-                            y1="98"
-                            x2="98"
-                            y2="2"
+                            x1="0"
+                            y1="100"
+                            x2="100"
+                            y2="0"
                             stroke={cfg.border.color}
                             strokeWidth={cfg.border.width}
                           />
