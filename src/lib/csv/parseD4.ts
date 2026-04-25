@@ -196,6 +196,7 @@ export type TripRow = {
   memberText: string;
   periodText: string;
   purposeText: string;
+  evidenceNo: string;
   orgGroup: "ipf" | "dimi" | "unknown";
   approver1: string;
   approver2: string;
@@ -215,6 +216,10 @@ function rowToTrip(
   const w = resolveWriterName(p, d);
   const o = getByRe(row, kcols, /집행.*기관/);
   const u = getByRe(row, kcols, /사용일자/);
+  const evidenceRaw = getByRe(row, kcols, /비고|증빙/);
+  // "D-4-1" 같은 토큰만 추출 (앞뒤 공백/주석 제거)
+  const evidenceMatch = evidenceRaw.match(/[A-Za-z]-\d+(?:-\d+)*/);
+  const evidenceNo = evidenceMatch ? evidenceMatch[0] : "";
   const labels = getApprovalHeaderLabels(o, "auto");
 
   const { periodText, singleDate, invalidDate } = normalizeUsageDate(u, datePh);
@@ -228,6 +233,7 @@ function rowToTrip(
   if (!norm(u)) wlist.push("「사용일자」가 비어 있어요");
   else if (invalidDate)
     wlist.push("「사용일자」가 날짜 형식이 아니에요 — 직접 확인해 주세요");
+  if (!evidenceNo) wlist.push("「비고(증빙번호)」가 비어 있어요");
 
   return {
     rowIndex: i,
@@ -243,6 +249,7 @@ function rowToTrip(
     memberText: norm(p) || w.name,
     periodText: periodText.trim(),
     purposeText: d,
+    evidenceNo,
     orgGroup: labels.group,
     approver1: labels.approver1,
     approver2: labels.approver2,

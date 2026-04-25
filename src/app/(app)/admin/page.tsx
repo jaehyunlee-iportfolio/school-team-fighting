@@ -402,6 +402,7 @@ const MOCK_TRIP_ROW: TripRow = {
   memberText: "홍길동 외 2명",
   periodText: "2026. 04. 01 ~ 2026. 04. 03",
   purposeText: "신규 프로젝트 킥오프 미팅 참석 및 현장 조사",
+  evidenceNo: "D-4-1",
   orgGroup: "ipf",
   approver1: "팀장",
   approver2: "대표이사",

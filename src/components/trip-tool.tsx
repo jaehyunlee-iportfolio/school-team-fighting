@@ -109,7 +109,8 @@ function pdfName(r: TripRow) {
     digits.length >= 8 ? digits.slice(2, 8) : digits.length === 6 ? digits : "UNKNOWN";
   const name = r.writerName?.trim() ? fileSafe(r.writerName) : "UNKNOWN";
   const place = r.outPlace?.trim() ? fileSafe(r.outPlace).slice(0, 20) : "UNKNOWN";
-  return `1. 내부결재문서_출장신청서_${name}_${place}_${date}.pdf`;
+  const ev = r.evidenceNo?.trim() ? fileSafe(r.evidenceNo) : "UNKNOWN";
+  return `${ev}_1. 내부결재문서_출장신청서_${name}_${place}_${date}.pdf`;
 }
 
 function zipName() {
@@ -630,6 +631,15 @@ function MobileRowCard({
           </p>
         </div>
         <div className="relative z-10 flex items-center gap-1.5 shrink-0">
+          {r.evidenceNo ? (
+            <Badge variant="secondary" className="font-mono text-[10px] sm:text-xs">
+              {r.evidenceNo}
+            </Badge>
+          ) : (
+            <Badge variant="destructive" className="font-mono text-[10px] sm:text-xs">
+              증빙번호 없음
+            </Badge>
+          )}
           {r.hasEmpty ? (
             <Badge variant="destructive" className="text-[10px] sm:text-xs">
               누락

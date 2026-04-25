@@ -45,6 +45,7 @@ const mockRow: TripRow = {
   memberText: "채영지",
   periodText: "2025. 7. 5 ~ 2025. 7. 5",
   purposeText: "건국대사업단 디지털교육 콘텐츠 개발 출장",
+  evidenceNo: "D-4-1",
   orgGroup: "ipf",
   approver1: "팀장",
   approver2: "본부장",
