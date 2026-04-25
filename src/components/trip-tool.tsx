@@ -104,8 +104,8 @@ function fileSafe(s: string) {
 
 const ALL_APPROVAL: { id: ApprovalGroup | "auto"; label: string }[] = [
   { id: "auto", label: "자동(집행기관명)" },
-  { id: "ipf", label: "iPF / 아이포트폴리오" },
-  { id: "dimi", label: "디미교연" },
+  { id: "ipf", label: "iPF / (주)아이포트폴리오" },
+  { id: "dimi", label: "디미교연 / (사)디지털미디어교육콘텐츠 교사연구협회" },
 ];
 
 function mapAllRows(list: TripRow[], m: ApprovalGroup | "auto"): TripRow[] {
@@ -174,8 +174,8 @@ function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
 }
 
 const GROUP_DISPLAY: Record<string, string> = {
-  ipf: "iPF (아이포트폴리오)",
-  dimi: "디미교연",
+  ipf: "iPF ((주)아이포트폴리오)",
+  dimi: "디미교연 ((사)디지털미디어교육콘텐츠 교사연구협회)",
 };
 
 function AdminSignaturePreview({ settings }: { settings: ApprovalSettings }) {
@@ -730,7 +730,9 @@ export function TripTool() {
       const effectiveMode = fileGroup ?? approvalMode;
       if (fileGroup && approvalMode === "auto") {
         setApprovalMode(fileGroup);
-        toast.success(`파일명에서 "${fileGroup === "ipf" ? "아이포트폴리오" : "디미교연"}" 그룹을 감지했어요`);
+        toast.success(
+          `파일명에서 "${fileGroup === "ipf" ? "(주)아이포트폴리오" : "(사)디지털미디어교육콘텐츠 교사연구협회"}" 그룹을 감지했어요`
+        );
       }
       const m = mapAllRows(p.rows, effectiveMode);
       setRows(m);

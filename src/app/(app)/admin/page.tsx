@@ -263,7 +263,7 @@ const MOCK_TRIP_ROW: TripRow = {
   rowIndex: 0,
   usageDate: "2026.04.01",
   partnerRaw: "홍길동",
-  orgName: "아이포트폴리오",
+  orgName: "(주)아이포트폴리오",
   outPlace: "서울특별시 강남구",
   payMethod: "법인카드",
   detail: "출장자명: 홍길동 / 프로젝트 미팅",
@@ -728,8 +728,8 @@ function PdfLayoutSection({
    =================================================================== */
 
 const GROUP_LABELS: Record<string, string> = {
-  ipf: "iPF (아이포트폴리오)",
-  dimi: "디미교연 (디지털미디어교육콘텐츠)",
+  ipf: "iPF ((주)아이포트폴리오)",
+  dimi: "디미교연 ((사)디지털미디어교육콘텐츠 교사연구협회)",
 };
 
 /**
