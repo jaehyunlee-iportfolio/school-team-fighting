@@ -8,10 +8,14 @@ import {
   getAdminEmails,
   addAdminEmail,
   removeAdminEmail,
+  getPdfLayoutSettings,
+  savePdfLayoutSettings,
+  DEFAULT_PDF_LAYOUT,
   type ApprovalSettings,
-  type SignatureMode,
   type GroupSettings,
+  type PdfLayoutSettings,
 } from "@/lib/firebase/firestore";
+import { PDF_FONT_FAMILIES } from "@/lib/pdf/register-pdf-fonts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,8 +27,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,26 +55,30 @@ import {
   ShieldAlert,
   Save,
   ImageIcon,
-  Type,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AdminPage() {
   const { user, isAdmin, adminLoading } = useAuth();
   const [settings, setSettings] = useState<ApprovalSettings | null>(null);
+  const [pdfLayout, setPdfLayout] = useState<PdfLayoutSettings | null>(null);
   const [adminEmails, setAdminEmails] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingPdf, setSavingPdf] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, emails] = await Promise.all([
+      const [s, emails, pdf] = await Promise.all([
         getApprovalSettings(),
         getAdminEmails(),
+        getPdfLayoutSettings(),
       ]);
       setSettings(s);
       setAdminEmails(emails);
+      setPdfLayout(pdf);
     } catch (err) {
       toast.error("설정을 불러오는 데 실패했어요.");
       console.error(err);
@@ -97,7 +111,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!settings) return null;
+  if (!settings || !pdfLayout) return null;
 
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -111,6 +125,18 @@ export default function AdminPage() {
     }
   };
 
+  const handleSavePdfLayout = async () => {
+    setSavingPdf(true);
+    try {
+      await savePdfLayoutSettings(pdfLayout);
+      toast.success("PDF 레이아웃이 저장되었어요.");
+    } catch {
+      toast.error("저장에 실패했어요.");
+    } finally {
+      setSavingPdf(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-8">
       <div className="flex items-center gap-3">
@@ -118,22 +144,21 @@ export default function AdminPage() {
         <div>
           <h1 className="text-xl font-bold tracking-tight">어드민 설정</h1>
           <p className="text-sm text-muted-foreground">
-            서명 정책, 결재 그룹, 사용자 관리
+            서명 정책, 결재 그룹, PDF 레이아웃, 사용자 관리
           </p>
         </div>
       </div>
 
       <Tabs defaultValue="signature" className="flex flex-col space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="signature">서명 정책</TabsTrigger>
           <TabsTrigger value="groups">결재 그룹</TabsTrigger>
+          <TabsTrigger value="pdfLayout">PDF 레이아웃</TabsTrigger>
           <TabsTrigger value="users">어드민 사용자</TabsTrigger>
         </TabsList>
 
         {/* --- 서명 정책 --- */}
         <TabsContent value="signature" className="space-y-4">
-          <DrafterSection settings={settings} onChange={setSettings} />
-          <Separator />
           {(["ipf", "dimi"] as const).map((gid) => (
             <ApproverGroupSection
               key={gid}
@@ -161,6 +186,28 @@ export default function AdminPage() {
           </div>
         </TabsContent>
 
+        {/* --- PDF 레이아웃 --- */}
+        <TabsContent value="pdfLayout" className="space-y-4">
+          <PdfLayoutSection layout={pdfLayout} onChange={setPdfLayout} />
+          <div className="flex items-center justify-between border-t pt-4">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                setPdfLayout(DEFAULT_PDF_LAYOUT);
+                toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+              }}
+            >
+              <RotateCcw className="size-4" />
+              기본값 초기화
+            </Button>
+            <Button onClick={handleSavePdfLayout} disabled={savingPdf} className="gap-2">
+              {savingPdf ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              저장
+            </Button>
+          </div>
+        </TabsContent>
+
         {/* --- 어드민 사용자 --- */}
         <TabsContent value="users" className="space-y-4">
           <AdminUsersSection
@@ -175,76 +222,353 @@ export default function AdminPage() {
 }
 
 /* ===================================================================
-   Drafter Section
+   PDF Layout Section
    =================================================================== */
 
-function DrafterSection({
-  settings,
+type NumFieldProps = {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  min?: number;
+  unit?: string;
+};
+
+function NumField({ label, value, onChange, step = 1, min = 0, unit }: NumFieldProps) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">
+        {label}{unit ? ` (${unit})` : ""}
+      </Label>
+      <Input
+        type="number"
+        step={step}
+        min={min}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value) || 0)}
+      />
+    </div>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex gap-2">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="size-9 shrink-0 cursor-pointer rounded-lg border bg-card p-0.5"
+        />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="font-mono text-xs"
+        />
+      </div>
+    </div>
+  );
+}
+
+function PlaceholderRow({
+  label,
+  desc,
+  text,
+  color,
+  onTextChange,
+  onColorChange,
+}: {
+  label: string;
+  desc: string;
+  text: string;
+  color: string;
+  onTextChange: (v: string) => void;
+  onColorChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{desc}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">문구</Label>
+          <Input value={text} onChange={(e) => onTextChange(e.target.value)} />
+        </div>
+        <ColorField label="색상" value={color} onChange={onColorChange} />
+      </div>
+      <div className="rounded-md border bg-muted/50 px-3 py-2">
+        <span className="text-xs text-muted-foreground">미리보기: </span>
+        <span className="text-sm font-medium" style={{ color }}>{text}</span>
+      </div>
+    </div>
+  );
+}
+
+function PdfLayoutSection({
+  layout,
   onChange,
 }: {
-  settings: ApprovalSettings;
-  onChange: (s: ApprovalSettings) => void;
+  layout: PdfLayoutSettings;
+  onChange: (l: PdfLayoutSettings) => void;
 }) {
-  const d = settings.drafter;
-  const setDrafter = (patch: Partial<typeof d>) =>
-    onChange({ ...settings, drafter: { ...d, ...patch } });
+  const set = <K extends keyof PdfLayoutSettings>(
+    section: K,
+    patch: Partial<PdfLayoutSettings[K]>
+  ) => onChange({ ...layout, [section]: { ...layout[section], ...patch } });
+
+  const setPh = (patch: Partial<PdfLayoutSettings["placeholders"]>) =>
+    set("placeholders", patch);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">기안자 서명</CardTitle>
-        <CardDescription>기안자의 서명 표시 방식을 설정해요.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <RadioGroup
-          value={d.mode}
-          onValueChange={(v) => setDrafter({ mode: v as SignatureMode })}
-          className="flex gap-4"
-        >
-          <div className="flex items-center gap-2">
-            <RadioGroupItem value="text" id="drafter-text" />
-            <Label htmlFor="drafter-text" className="flex items-center gap-1.5 cursor-pointer">
-              <Type className="size-4" /> 글자 (손글씨 폰트)
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <RadioGroupItem value="image" id="drafter-image" />
-            <Label htmlFor="drafter-image" className="flex items-center gap-1.5 cursor-pointer">
-              <ImageIcon className="size-4" /> 이미지
-            </Label>
-          </div>
-        </RadioGroup>
-
-        {d.mode === "text" && (
-          <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-4">
+      {/* 페이지 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">페이지</CardTitle>
+          <CardDescription>
+            기본 폰트, 크기, 여백을 설정해요.
+            폰트 파일은 <code className="rounded bg-muted px-1 text-xs">public/fonts/</code>에
+            OTF/TTF로 번들되어 있어요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">폰트</Label>
-              <Input value={d.fontFamily} readOnly className="bg-muted" />
+              <Select
+                value={layout.page.fontFamily}
+                onValueChange={(v) => { if (v) set("page", { fontFamily: v }); }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PDF_FONT_FAMILIES.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">최대 글자 수</Label>
-              <Input
-                type="number"
-                min={1}
-                max={10}
-                value={d.maxChars}
-                onChange={(e) => setDrafter({ maxChars: Number(e.target.value) || 3 })}
-              />
-            </div>
+            <NumField label="기본 크기" value={layout.page.baseFontSize} onChange={(v) => set("page", { baseFontSize: v })} step={0.5} unit="pt" />
+            <NumField label="줄 높이" value={layout.page.baseLineHeight} onChange={(v) => set("page", { baseLineHeight: v })} step={0.1} />
+            <NumField label="여백" value={layout.page.marginMm} onChange={(v) => set("page", { marginMm: v })} unit="mm" />
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* 선 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">테두리 선</CardTitle>
+          <CardDescription>선 두께와 색상만 변경 가능해요. 선의 존재 패턴은 레이아웃 구조상 고정이에요.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <NumField label="두께" value={layout.border.width} onChange={(v) => set("border", { width: v })} step={0.25} unit="pt" />
+            <ColorField label="색상" value={layout.border.color} onChange={(v) => set("border", { color: v })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 제목 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">제목 영역</CardTitle>
+          <CardDescription>&quot;출장신청서&quot; 제목의 스타일과 아래 간격이에요.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="크기" value={layout.title.fontSize} onChange={(v) => set("title", { fontSize: v })} unit="pt" />
+            <NumField label="굵기" value={layout.title.fontWeight} onChange={(v) => set("title", { fontWeight: v })} step={100} min={100} />
+            <NumField label="줄 높이" value={layout.title.lineHeight} onChange={(v) => set("title", { lineHeight: v })} step={0.05} />
+            <NumField label="하단 간격" value={layout.title.marginBottom} onChange={(v) => set("title", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 결재란 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">결재란</CardTitle>
+          <CardDescription>우측 상단 결재 테이블의 치수와 폰트 설정이에요.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="전체 가로" value={layout.approval.tableWidth} onChange={(v) => set("approval", { tableWidth: v })} unit="pt" />
+            <NumField label="&quot;결재&quot; 칸 가로" value={layout.approval.labelColWidth} onChange={(v) => set("approval", { labelColWidth: v })} unit="pt" />
+            <NumField label="&quot;결재&quot; 칸 최소 높이" value={layout.approval.labelColMinHeight} onChange={(v) => set("approval", { labelColMinHeight: v })} unit="pt" />
+          </div>
+          <Separator />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="&quot;결재&quot; 글자 크기" value={layout.approval.labelFontSize} onChange={(v) => set("approval", { labelFontSize: v })} unit="pt" />
+            <NumField label="결/재 글자 간격" value={layout.approval.labelCharGap} onChange={(v) => set("approval", { labelCharGap: v })} unit="pt" />
+            <NumField label="직위 행 최소 높이" value={layout.approval.headerMinHeight} onChange={(v) => set("approval", { headerMinHeight: v })} unit="pt" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="직위 텍스트 크기" value={layout.approval.headerFontSize} onChange={(v) => set("approval", { headerFontSize: v })} unit="pt" />
+            <NumField label="직위 패딩 세로" value={layout.approval.headerPaddingV} onChange={(v) => set("approval", { headerPaddingV: v })} unit="pt" />
+            <NumField label="직위 패딩 가로" value={layout.approval.headerPaddingH} onChange={(v) => set("approval", { headerPaddingH: v })} unit="pt" />
+          </div>
+          <Separator />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="서명 행 최소 높이" value={layout.approval.signMinHeight} onChange={(v) => set("approval", { signMinHeight: v })} unit="pt" />
+            <NumField label="서명 셀 패딩" value={layout.approval.signPadding} onChange={(v) => set("approval", { signPadding: v })} unit="pt" />
+            <NumField label="기안자 서명 크기" value={layout.approval.drafterFontSize} onChange={(v) => set("approval", { drafterFontSize: v })} unit="pt" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="플레이스홀더 크기" value={layout.approval.placeholderFontSize} onChange={(v) => set("approval", { placeholderFontSize: v })} step={0.5} unit="pt" />
+            <ColorField label="플레이스홀더 색상" value={layout.approval.placeholderColor} onChange={(v) => set("approval", { placeholderColor: v })} />
+            <NumField label="서명 이미지 최대 높이" value={layout.approval.signImageMaxHeight} onChange={(v) => set("approval", { signImageMaxHeight: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 데이터 테이블 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">데이터 테이블</CardTitle>
+          <CardDescription>작성자 소속/성명, 출장 인원/기간/출장지 행의 스타일이에요.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="라벨 칸 가로" value={layout.dataTable.labelWidth} onChange={(v) => set("dataTable", { labelWidth: v })} unit="pt" />
+            <NumField label="행 최소 높이" value={layout.dataTable.rowMinHeight} onChange={(v) => set("dataTable", { rowMinHeight: v })} unit="pt" />
+            <ColorField label="라벨 배경색" value={layout.dataTable.labelBgColor} onChange={(v) => set("dataTable", { labelBgColor: v })} />
+          </div>
+          <Separator />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="라벨 패딩 세로" value={layout.dataTable.labelPaddingV} onChange={(v) => set("dataTable", { labelPaddingV: v })} unit="pt" />
+            <NumField label="라벨 패딩 가로" value={layout.dataTable.labelPaddingH} onChange={(v) => set("dataTable", { labelPaddingH: v })} unit="pt" />
+            <NumField label="라벨 텍스트 크기" value={layout.dataTable.labelFontSize} onChange={(v) => set("dataTable", { labelFontSize: v })} unit="pt" />
+            <NumField label="라벨 텍스트 굵기" value={layout.dataTable.labelFontWeight} onChange={(v) => set("dataTable", { labelFontWeight: v })} step={100} min={100} />
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="값 패딩 세로" value={layout.dataTable.valuePaddingV} onChange={(v) => set("dataTable", { valuePaddingV: v })} unit="pt" />
+            <NumField label="값 패딩 가로" value={layout.dataTable.valuePaddingH} onChange={(v) => set("dataTable", { valuePaddingH: v })} unit="pt" />
+            <NumField label="값 텍스트 크기" value={layout.dataTable.valueFontSize} onChange={(v) => set("dataTable", { valueFontSize: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 연결 문장 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">연결 문장</CardTitle>
+          <CardDescription>&quot;아래와 같이 출장을 신청합니다.&quot; 문장의 스타일이에요.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <NumField label="텍스트 크기" value={layout.intro.fontSize} onChange={(v) => set("intro", { fontSize: v })} unit="pt" />
+            <NumField label="상단 여백" value={layout.intro.marginTop} onChange={(v) => set("intro", { marginTop: v })} unit="pt" />
+            <NumField label="하단 여백" value={layout.intro.marginBottom} onChange={(v) => set("intro", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 출장 목적 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">출장 목적 행</CardTitle>
+          <CardDescription>데이터 테이블 맨 아래 &quot;출장 목적&quot; 행의 스타일이에요.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="최소 높이" value={layout.purpose.minHeight} onChange={(v) => set("purpose", { minHeight: v })} unit="pt" />
+            <NumField label="패딩" value={layout.purpose.padding} onChange={(v) => set("purpose", { padding: v })} unit="pt" />
+            <NumField label="텍스트 크기" value={layout.purpose.fontSize} onChange={(v) => set("purpose", { fontSize: v })} unit="pt" />
+            <NumField label="줄 높이" value={layout.purpose.lineHeight} onChange={(v) => set("purpose", { lineHeight: v })} step={0.1} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 하단 기관명 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">하단 기관명</CardTitle>
+          <CardDescription>PDF 하단 중앙에 표시되는 집행기관명의 스타일이에요.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <NumField label="텍스트 크기" value={layout.footer.fontSize} onChange={(v) => set("footer", { fontSize: v })} unit="pt" />
+            <NumField label="굵기" value={layout.footer.fontWeight} onChange={(v) => set("footer", { fontWeight: v })} step={100} min={100} />
+            <NumField label="상단 여백" value={layout.footer.marginTop} onChange={(v) => set("footer", { marginTop: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 누락 데이터 표시 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">누락 데이터 표시</CardTitle>
+          <CardDescription>
+            데이터가 비어있거나 날짜가 불완전할 때 PDF에 표시되는 대체 문구와 색상이에요.
+            눈에 띄는 색상을 설정하면 담당자가 수정해야 할 곳을 바로 찾을 수 있어요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <PlaceholderRow
+            label="빈 필드 대체 문구"
+            desc="소속, 성명, 출장지 등이 비어있을 때"
+            text={layout.placeholders.emptyField}
+            color={layout.placeholders.emptyFieldColor}
+            onTextChange={(v) => setPh({ emptyField: v })}
+            onColorChange={(v) => setPh({ emptyFieldColor: v })}
+          />
+          <Separator />
+          <PlaceholderRow
+            label="날짜 대체 문구 (종료일 누락)"
+            desc="사용일자에 시작일만 있을 때 종료일에 들어가는 텍스트"
+            text={layout.placeholders.dateFallback}
+            color={layout.placeholders.dateFallbackColor}
+            onTextChange={(v) => setPh({ dateFallback: v })}
+            onColorChange={(v) => setPh({ dateFallbackColor: v })}
+          />
+          <Separator />
+          <PlaceholderRow
+            label="날짜 오류 문구"
+            desc="사용일자를 날짜로 인식할 수 없을 때"
+            text={layout.placeholders.dateInvalid}
+            color={layout.placeholders.dateInvalidColor}
+            onTextChange={(v) => setPh({ dateInvalid: v })}
+            onColorChange={(v) => setPh({ dateInvalidColor: v })}
+          />
+          <Separator />
+          <PlaceholderRow
+            label="기안자 서명 없음"
+            desc="기안자 이름을 찾지 못했을 때 결재란에 표시"
+            text={layout.placeholders.drafterEmpty}
+            color={layout.placeholders.drafterEmptyColor}
+            onTextChange={(v) => setPh({ drafterEmpty: v })}
+            onColorChange={(v) => setPh({ drafterEmptyColor: v })}
+          />
+          <Separator />
+          <PlaceholderRow
+            label="결재자 서명 없음"
+            desc="결재자 서명 이미지가 없을 때 표시"
+            text={layout.placeholders.signEmpty}
+            color={layout.placeholders.signEmptyColor}
+            onTextChange={(v) => setPh({ signEmpty: v })}
+            onColorChange={(v) => setPh({ signEmptyColor: v })}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
 /* ===================================================================
-   Approver Group Section (iPF / 디미)
+   Approver Group Section (iPF / 디미교연)
    =================================================================== */
 
 const GROUP_LABELS: Record<string, string> = {
   ipf: "iPF (아이포트폴리오)",
-  dimi: "디미 (디지털미디어교육콘텐츠)",
+  dimi: "디미교연 (디지털미디어교육콘텐츠)",
 };
 
 function ApproverGroupSection({

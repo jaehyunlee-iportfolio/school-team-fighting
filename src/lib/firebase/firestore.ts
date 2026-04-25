@@ -39,20 +39,6 @@ export async function removeAdminEmail(email: string): Promise<void> {
 
 /* ---------- Approval settings ---------- */
 
-export type SignatureMode = "text" | "image";
-
-export type DrafterSettings = {
-  mode: SignatureMode;
-  fontFamily: string;
-  maxChars: number;
-};
-
-export type ApproverSettings = {
-  mode: SignatureMode;
-  imageUrl: string;
-  label: string;
-};
-
 export type GroupSettings = {
   approver1Label: string;
   approver2Label: string;
@@ -61,16 +47,10 @@ export type GroupSettings = {
 };
 
 export type ApprovalSettings = {
-  drafter: DrafterSettings;
-  /** @deprecated 하위 호환용. 새 구조는 groups[gid].approver{1,2}ImageUrl */
-  approver1?: ApproverSettings;
-  /** @deprecated */
-  approver2?: ApproverSettings;
   groups: Record<string, GroupSettings>;
 };
 
 const DEFAULT_SETTINGS: ApprovalSettings = {
-  drafter: { mode: "text", fontFamily: "NanumPen", maxChars: 3 },
   groups: {
     ipf: { approver1Label: "팀장", approver2Label: "본부장", approver1ImageUrl: "", approver2ImageUrl: "" },
     dimi: { approver1Label: "사무국장", approver2Label: "대표이사", approver1ImageUrl: "", approver2ImageUrl: "" },
@@ -98,10 +78,7 @@ export async function getApprovalSettings(): Promise<ApprovalSettings> {
     if (!g.approver2ImageUrl && oldA2Url) g.approver2ImageUrl = oldA2Url;
   }
 
-  return {
-    drafter: { ...DEFAULT_SETTINGS.drafter, ...(data.drafter ?? {}) },
-    groups: mergedGroups,
-  };
+  return { groups: mergedGroups };
 }
 
 export async function saveApprovalSettings(
@@ -110,4 +87,159 @@ export async function saveApprovalSettings(
   await setDoc(doc(getFirebaseDb(), "settings", "approval"), settings, {
     merge: true,
   });
+}
+
+/* ---------- PDF layout settings ---------- */
+
+export type PdfLayoutSettings = {
+  page: {
+    fontFamily: string;
+    baseFontSize: number;
+    baseLineHeight: number;
+    marginMm: number;
+  };
+  border: {
+    width: number;
+    color: string;
+  };
+  title: {
+    fontSize: number;
+    fontWeight: number;
+    lineHeight: number;
+    marginBottom: number;
+  };
+  approval: {
+    tableWidth: number;
+    labelColWidth: number;
+    labelColMinHeight: number;
+    labelFontSize: number;
+    labelCharGap: number;
+    headerMinHeight: number;
+    headerFontSize: number;
+    headerPaddingV: number;
+    headerPaddingH: number;
+    signMinHeight: number;
+    signPadding: number;
+    drafterFontSize: number;
+    placeholderFontSize: number;
+    placeholderColor: string;
+    signImageMaxHeight: number;
+  };
+  dataTable: {
+    labelWidth: number;
+    rowMinHeight: number;
+    labelBgColor: string;
+    labelPaddingV: number;
+    labelPaddingH: number;
+    labelFontSize: number;
+    labelFontWeight: number;
+    valuePaddingV: number;
+    valuePaddingH: number;
+    valueFontSize: number;
+  };
+  intro: {
+    fontSize: number;
+    marginTop: number;
+    marginBottom: number;
+  };
+  purpose: {
+    minHeight: number;
+    padding: number;
+    fontSize: number;
+    lineHeight: number;
+  };
+  footer: {
+    fontSize: number;
+    fontWeight: number;
+    marginTop: number;
+  };
+  placeholders: {
+    emptyField: string;
+    emptyFieldColor: string;
+    dateFallback: string;
+    dateFallbackColor: string;
+    dateInvalid: string;
+    dateInvalidColor: string;
+    drafterEmpty: string;
+    drafterEmptyColor: string;
+    signEmpty: string;
+    signEmptyColor: string;
+  };
+};
+
+export const DEFAULT_PDF_LAYOUT: PdfLayoutSettings = {
+  page: { fontFamily: "Pretendard", baseFontSize: 9.5, baseLineHeight: 1.4, marginMm: 20 },
+  border: { width: 0.75, color: "#000000" },
+  title: { fontSize: 25, fontWeight: 700, lineHeight: 1.15, marginBottom: 42 },
+  approval: {
+    tableWidth: 256,
+    labelColWidth: 32,
+    labelColMinHeight: 60,
+    labelFontSize: 10,
+    labelCharGap: 2,
+    headerMinHeight: 30,
+    headerFontSize: 9,
+    headerPaddingV: 3,
+    headerPaddingH: 2,
+    signMinHeight: 33,
+    signPadding: 2,
+    drafterFontSize: 12,
+    placeholderFontSize: 7.5,
+    placeholderColor: "#333333",
+    signImageMaxHeight: 23,
+  },
+  dataTable: {
+    labelWidth: 100,
+    rowMinHeight: 32,
+    labelBgColor: "#E6E6E6",
+    labelPaddingV: 5,
+    labelPaddingH: 3,
+    labelFontSize: 11,
+    labelFontWeight: 500,
+    valuePaddingV: 5,
+    valuePaddingH: 7,
+    valueFontSize: 11,
+  },
+  intro: { fontSize: 11, marginTop: 42, marginBottom: 42 },
+  purpose: { minHeight: 112, padding: 6, fontSize: 11, lineHeight: 1.4 },
+  footer: { fontSize: 15, fontWeight: 700, marginTop: 42 },
+  placeholders: {
+    emptyField: "—",
+    emptyFieldColor: "#DC2626",
+    dateFallback: "YYYY. MM. DD",
+    dateFallbackColor: "#DC2626",
+    dateInvalid: "날짜 확인 불가",
+    dateInvalidColor: "#DC2626",
+    drafterEmpty: "(—)",
+    drafterEmptyColor: "#DC2626",
+    signEmpty: "(서명)",
+    signEmptyColor: "#DC2626",
+  },
+};
+
+function deepMerge<T extends Record<string, unknown>>(defaults: T, saved: Record<string, unknown>): T {
+  const result = { ...defaults };
+  for (const key of Object.keys(defaults)) {
+    const defVal = defaults[key];
+    const savedVal = saved[key];
+    if (savedVal === undefined) continue;
+    if (defVal !== null && typeof defVal === "object" && !Array.isArray(defVal) && typeof savedVal === "object" && savedVal !== null) {
+      (result as Record<string, unknown>)[key] = deepMerge(defVal as Record<string, unknown>, savedVal as Record<string, unknown>);
+    } else {
+      (result as Record<string, unknown>)[key] = savedVal;
+    }
+  }
+  return result;
+}
+
+export async function getPdfLayoutSettings(): Promise<PdfLayoutSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "pdfLayout"));
+  if (!snap.exists()) return DEFAULT_PDF_LAYOUT;
+  return deepMerge(DEFAULT_PDF_LAYOUT, snap.data() as Record<string, unknown>);
+}
+
+export async function savePdfLayoutSettings(
+  settings: PdfLayoutSettings
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "pdfLayout"), settings);
 }

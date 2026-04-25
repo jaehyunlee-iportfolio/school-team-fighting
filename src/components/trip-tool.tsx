@@ -24,6 +24,7 @@ import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import {
   type TripRow,
+  type DatePlaceholders,
   parseD4Csv,
   recomputeRowWithOverride,
 } from "@/lib/csv/parseD4";
@@ -64,7 +65,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   getApprovalSettings,
+  getPdfLayoutSettings,
   type ApprovalSettings,
+  type PdfLayoutSettings,
 } from "@/lib/firebase/firestore";
 
 type Mode = "preview" | "direct";
@@ -101,7 +104,7 @@ function fileSafe(s: string) {
 const ALL_APPROVAL: { id: ApprovalGroup | "auto"; label: string }[] = [
   { id: "auto", label: "자동(집행기관명)" },
   { id: "ipf", label: "iPF / 아이포트폴리오" },
-  { id: "dimi", label: "디미" },
+  { id: "dimi", label: "디미교연" },
 ];
 
 function mapAllRows(list: TripRow[], m: ApprovalGroup | "auto"): TripRow[] {
@@ -171,7 +174,7 @@ function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
 
 const GROUP_DISPLAY: Record<string, string> = {
   ipf: "iPF (아이포트폴리오)",
-  dimi: "디미",
+  dimi: "디미교연",
 };
 
 function AdminSignaturePreview({ settings }: { settings: ApprovalSettings }) {
@@ -670,12 +673,14 @@ export function TripTool() {
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
   const [adminSettings, setAdminSettings] = useState<ApprovalSettings | null>(null);
   const [adminSigLoaded, setAdminSigLoaded] = useState(false);
+  const [pdfLayout, setPdfLayout] = useState<PdfLayoutSettings | null>(null);
   const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    getApprovalSettings()
-      .then((s) => {
+    Promise.all([getApprovalSettings(), getPdfLayoutSettings()])
+      .then(([s, l]) => {
         setAdminSettings(s);
+        setPdfLayout(l);
         setAdminSigLoaded(true);
       })
       .catch(() => setAdminSigLoaded(true));
@@ -713,7 +718,10 @@ export function TripTool() {
     setParsePending(true);
     try {
       const t = await readFileText(csv);
-      const p = parseD4Csv(t);
+      const datePh: DatePlaceholders | undefined = pdfLayout
+        ? { dateFallback: pdfLayout.placeholders.dateFallback, dateInvalid: pdfLayout.placeholders.dateInvalid }
+        : undefined;
+      const p = parseD4Csv(t, datePh);
       setHeaderIdx(p.headerLineIndex);
       setParseKeys(p.keys);
 
@@ -721,7 +729,7 @@ export function TripTool() {
       const effectiveMode = fileGroup ?? approvalMode;
       if (fileGroup && approvalMode === "auto") {
         setApprovalMode(fileGroup);
-        toast.success(`파일명에서 "${fileGroup === "ipf" ? "아이포트폴리오" : "디미"}" 그룹을 감지했어요`);
+        toast.success(`파일명에서 "${fileGroup === "ipf" ? "아이포트폴리오" : "디미교연"}" 그룹을 감지했어요`);
       }
       const m = mapAllRows(p.rows, effectiveMode);
       setRows(m);
@@ -780,10 +788,11 @@ export function TripTool() {
           row={d}
           approver1Src={src1}
           approver2Src={src2}
+          layout={pdfLayout ?? undefined}
         />
       ).toBlob();
     },
-    [approvalMode, resolveSignatures]
+    [approvalMode, resolveSignatures, pdfLayout]
   );
 
   const doGenerate = async () => {

@@ -3,9 +3,11 @@ export type ApprovalGroup = "ipf" | "dimi" | "unknown";
 export function detectApprovalGroup(org: string | undefined | null): ApprovalGroup {
   if (!org) return "unknown";
   const t = org.replace(/\s+/g, " ").toLowerCase();
-  if (t.includes("디미") || t.includes("dimi") || t.includes("디지털미디어교육콘텐츠")) return "dimi";
+  if (t.includes("디미") || t.includes("디미교연") || t.includes("dimi") || t.includes("디지털미디어교육콘텐츠")) return "dimi";
   if (
     t.includes("아이포트") ||
+    t.includes("아이포트폴리오") ||
+    t.includes("아포폴") ||
     t.includes("iportfolio") ||
     t.includes("ipf") ||
     t.includes("아이포")
@@ -17,9 +19,11 @@ export function detectApprovalGroup(org: string | undefined | null): ApprovalGro
 
 export function detectGroupFromFilename(filename: string): ApprovalGroup | null {
   const t = filename.replace(/\s+/g, " ").toLowerCase();
-  if (t.includes("디미") || t.includes("dimi") || t.includes("디지털미디어")) return "dimi";
+  if (t.includes("디미") || t.includes("디미교연") || t.includes("dimi") || t.includes("디지털미디어")) return "dimi";
   if (
     t.includes("아이포트") ||
+    t.includes("아이포트폴리오") ||
+    t.includes("아포폴") ||
     t.includes("iportfolio") ||
     t.includes("ipf") ||
     t.includes("아이포")

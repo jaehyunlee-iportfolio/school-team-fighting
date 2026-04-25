@@ -52,7 +52,7 @@
 | 집행기관 | 결재자1 (직위) | 결재자2 (직위) | 서명 파일 |
 |----------|---------------|---------------|----------|
 | **(주)아이포트폴리오** (iPF) | 팀장 | 본부장 | `ipf/서명이미지_결재자1_아포폴_팀장.png`<br>`ipf/서명이미지_결재자2_아포폴_본부장.png` |
-| **디미** | 사무국장 | 대표이사 | `디미/서명이미지_결재자1_디미_사무국장.png`<br>`디미/서명이미지_결재자2_디미_대표이사.png` |
+| **디미교연** | 사무국장 | 대표이사 | `디미교연/서명이미지_결재자1_디미교연_사무국장.png`<br>`디미교연/서명이미지_결재자2_디미교연_대표이사.png` |
 
 - **기안자(맨 왼쪽 칸)**: 서명 이미지가 아닌, 거래처 열의 **맨 앞 사람 이름(최대 3자)**을 **손글씨 폰트(나눔펜스크립트)**로 표시
 - **결재자1·2**: 사용자가 업로드한 PNG/JPG 서명 이미지를 삽입
@@ -91,7 +91,7 @@ Mock PDF 기준 A4 단면, 구성:
    │
    ├─ 1. CSV 파일 선택 (.csv)
    ├─ 2. 결재 서명 이미지 2장 (PNG/JPG, 선택)
-   ├─ 3. 결재란 오버라이드 (auto / iPF / 디미)
+   ├─ 3. 결재란 오버라이드 (auto / iPF / 디미교연)
    │
    ▼
 [브라우저 — parseD4.ts]
@@ -101,7 +101,7 @@ Mock PDF 기준 A4 단면, 구성:
    ├─ 데이터 행 필터링 (isDataRow)
    ├─ 행별 TripRow 구조체 생성
    │   ├─ 거래처 → 첫 토큰 = 작성자명 (parseName.ts)
-   │   ├─ 집행기관명 → iPF/디미/unknown 분류 (labels.ts)
+   │   ├─ 집행기관명 → iPF/디미교연/unknown 분류 (labels.ts)
    │   ├─ 사용내역 → 출장 목적 텍스트
    │   └─ 빈 필드 → fieldWarnings
    │
@@ -122,7 +122,7 @@ Mock PDF 기준 A4 단면, 구성:
 |------|------|
 | `src/lib/csv/parseD4.ts` | CSV 파싱, 2행 헤더 병합, `TripRow[]` 생성 |
 | `src/lib/names/parseName.ts` | 거래처/사용내역에서 이름 추출, 기안 서명용 최대 3자 생성 |
-| `src/lib/approval/labels.ts` | 집행기관명 → iPF/디미 분류, 결재 직위 라벨 반환 |
+| `src/lib/approval/labels.ts` | 집행기관명 → iPF/디미교연 분류, 결재 직위 라벨 반환 |
 | `src/lib/pdf/register-pdf-fonts.ts` | Pretendard + NanumPen(손글씨) 폰트 등록 (브라우저, 1회) |
 | `src/components/pdf/business-trip-document.tsx` | react-pdf `<Document>` 컴포넌트. A4 양식 레이아웃 |
 | `src/components/trip-tool.tsx` | 전체 플로우 UI (3단계 위저드) |
@@ -145,7 +145,7 @@ Mock PDF 기준 A4 단면, 구성:
 | **생성 모드** | `바로 생성(추천)` / `미리보기` — 좌우 2열 카드 |
 | **CSV 파일** | D-4 출장비 시트를 CSV(UTF-8)로 저장한 파일 |
 | **결재 서명 1·2** | 이미지(PNG/JPG). 옵션 — 없으면 `(서명)` 텍스트 대체 |
-| **결재란 머리** | auto(집행기관명으로 자동) / iPF 강제 / 디미 강제 |
+| **결재란 머리** | auto(집행기관명으로 자동) / iPF 강제 / 디미교연 강제 |
 | **다음** | CSV 파싱 후 Step 2로 |
 
 ### Step 2 — 검토
@@ -255,11 +255,11 @@ CSV 행 (TripRow)
 
 | 집행기관명 패턴 | 분류 | 결재자1 | 결재자2 |
 |----------------|------|---------|---------|
-| `아이포트`, `iportfolio`, `ipf` | **ipf** | 팀장 | 본부장 |
-| `디미`, `dimi`, `디지털미디어교육콘텐츠` | **dimi** | 사무국장 | 대표이사 |
+| `아이포트`, `아이포트폴리오`, `아포폴`, `iportfolio`, `ipf`, `아이포` | **ipf** | 팀장 | 본부장 |
+| `디미`, `디미교연`, `dimi`, `디지털미디어교육콘텐츠` | **dimi** | 사무국장 | 대표이사 |
 | 그 외 | **unknown** | 결재1 | 결재2 |
 
-사용자가 UI에서 `auto` 대신 `iPF` 또는 `디미`를 강제 선택할 수 있다.
+사용자가 UI에서 `auto` 대신 `iPF` 또는 `디미교연`을 강제 선택할 수 있다.
 
 ---
 
@@ -309,9 +309,9 @@ school-team-fighting/
 │       ├── ipf/
 │       │   ├── 서명이미지_결재자1_아포폴_팀장.png
 │       │   └── 서명이미지_결재자2_아포폴_본부장.png
-│       └── 디미/
-│           ├── 서명이미지_결재자1_디미_사무국장.png
-│           └── 서명이미지_결재자2_디미_대표이사.png
+│       └── 디미교연/
+│           ├── 서명이미지_결재자1_디미교연_사무국장.png
+│           └── 서명이미지_결재자2_디미교연_대표이사.png
 ├── public/fonts/
 │   ├── Pretendard-Regular.otf
 │   └── nanum-pen-korean.woff2
@@ -326,7 +326,7 @@ school-team-fighting/
 │   │   ├── trip-tool.tsx         ← 3단계 위저드 (메인 UI)
 │   │   └── ui/                   ← shadcn 컴포넌트 (button, card, alert 등)
 │   └── lib/
-│       ├── approval/labels.ts    ← iPF/디미 분류 + 결재 직위
+│       ├── approval/labels.ts    ← iPF/디미교연 분류 + 결재 직위
 │       ├── csv/parseD4.ts        ← CSV 파싱 + TripRow 변환
 │       ├── names/parseName.ts    ← 이름 추출 + 기안 3자
 │       ├── pdf/register-pdf-fonts.ts

@@ -104,7 +104,17 @@ function toKoreanDateFormat(raw: string): string {
 
 const LOOKS_LIKE_DATE = /\d{4}[\s.\-/]+\d{1,2}[\s.\-/]+\d{1,2}/;
 
-function normalizeUsageDate(raw: string): {
+export type DatePlaceholders = {
+  dateFallback: string;
+  dateInvalid: string;
+};
+
+const DEFAULT_DATE_PH: DatePlaceholders = {
+  dateFallback: "YYYY. MM. DD",
+  dateInvalid: "날짜 확인 불가",
+};
+
+function normalizeUsageDate(raw: string, ph: DatePlaceholders = DEFAULT_DATE_PH): {
   periodText: string;
   singleDate: boolean;
   invalidDate: boolean;
@@ -120,20 +130,20 @@ function normalizeUsageDate(raw: string): {
     if (leftOk && !rightOk) {
       const formatted = toKoreanDateFormat(left);
       return {
-        periodText: `${formatted} ~ YYYY. MM. DD`,
+        periodText: `${formatted} ~ ${ph.dateFallback}`,
         singleDate: true,
         invalidDate: false,
       };
     }
-    return { periodText: "날짜 확인 불가", singleDate: false, invalidDate: true };
+    return { periodText: ph.dateInvalid, singleDate: false, invalidDate: true };
   }
 
   if (!LOOKS_LIKE_DATE.test(trimmed)) {
-    return { periodText: "날짜 확인 불가", singleDate: false, invalidDate: true };
+    return { periodText: ph.dateInvalid, singleDate: false, invalidDate: true };
   }
 
   const formatted = toKoreanDateFormat(trimmed);
-  return { periodText: `${formatted} ~ YYYY. MM. DD`, singleDate: true, invalidDate: false };
+  return { periodText: `${formatted} ~ ${ph.dateFallback}`, singleDate: true, invalidDate: false };
 }
 
 function isDataRow(row: string[]): boolean {
@@ -186,7 +196,8 @@ export type TripRow = {
 function rowToTrip(
   i: number,
   row: string[],
-  kcols: KeyCol[]
+  kcols: KeyCol[],
+  datePh?: DatePlaceholders
 ): TripRow {
   const p = getByRe(row, kcols, /^거래처$|거래처/);
   const d = getMainUsageDetail(row, kcols);
@@ -195,7 +206,7 @@ function rowToTrip(
   const u = getByRe(row, kcols, /사용일자/);
   const labels = getApprovalHeaderLabels(o, "auto");
 
-  const { periodText, singleDate, invalidDate } = normalizeUsageDate(u);
+  const { periodText, singleDate, invalidDate } = normalizeUsageDate(u, datePh);
 
   const wlist: string[] = [];
   if (w.from === "none")
@@ -232,7 +243,7 @@ function rowToTrip(
   };
 }
 
-export function parseD4Csv(fileText: string): {
+export function parseD4Csv(fileText: string, datePh?: DatePlaceholders): {
   rows: TripRow[];
   errors: ParseError[];
   headerLineIndex: number;
@@ -262,7 +273,7 @@ export function parseD4Csv(fileText: string): {
     const row = matrix[i] ?? [];
     if (!isDataRow(row)) continue;
     if (row[0] === "사용일자" && /집행/.test(row.join(""))) continue;
-    out.push(rowToTrip(i, row, kcols));
+    out.push(rowToTrip(i, row, kcols, datePh));
   }
   return { rows: out, errors, headerLineIndex: headerI, keys };
 }
