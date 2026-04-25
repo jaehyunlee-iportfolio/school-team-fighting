@@ -44,6 +44,7 @@ export type GroupSettings = {
   approver2Label: string;
   approver1ImageUrl: string;
   approver2ImageUrl: string;
+  logoImageUrl: string;
 };
 
 export type ApprovalSettings = {
@@ -52,8 +53,8 @@ export type ApprovalSettings = {
 
 const DEFAULT_SETTINGS: ApprovalSettings = {
   groups: {
-    ipf: { approver1Label: "팀장", approver2Label: "본부장", approver1ImageUrl: "", approver2ImageUrl: "" },
-    dimi: { approver1Label: "사무국장", approver2Label: "대표이사", approver1ImageUrl: "", approver2ImageUrl: "" },
+    ipf: { approver1Label: "팀장", approver2Label: "본부장", approver1ImageUrl: "", approver2ImageUrl: "", logoImageUrl: "" },
+    dimi: { approver1Label: "사무국장", approver2Label: "대표이사", approver1ImageUrl: "", approver2ImageUrl: "", logoImageUrl: "" },
   },
 };
 
@@ -148,6 +149,12 @@ export type PdfLayoutSettings = {
     fontSize: number;
     lineHeight: number;
   };
+  logo: {
+    enabled: boolean;
+    width: number;
+    height: number;
+    marginRight: number;
+  };
   footer: {
     fontSize: number;
     fontWeight: number;
@@ -202,6 +209,7 @@ export const DEFAULT_PDF_LAYOUT: PdfLayoutSettings = {
   },
   intro: { fontSize: 11, marginTop: 42, marginBottom: 42 },
   purpose: { minHeight: 112, padding: 6, fontSize: 11, lineHeight: 1.4 },
+  logo: { enabled: true, width: 60, height: 60, marginRight: 8 },
   footer: { fontSize: 15, fontWeight: 700, marginTop: 42 },
   placeholders: {
     emptyField: "—",

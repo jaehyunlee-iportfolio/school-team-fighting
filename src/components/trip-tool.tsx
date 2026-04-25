@@ -773,7 +773,8 @@ export function TripTool() {
       const groupSigs = adminSettings?.groups[resolvedGroup];
       const src1 = a1Data || groupSigs?.approver1ImageUrl || undefined;
       const src2 = a2Data || groupSigs?.approver2ImageUrl || undefined;
-      return { src1, src2 };
+      const logo = groupSigs?.logoImageUrl || undefined;
+      return { src1, src2, logo };
     },
     [a1Data, a2Data, approvalMode, adminSettings]
   );
@@ -782,12 +783,13 @@ export function TripTool() {
     async (r: TripRow) => {
       registerPdfFonts();
       const d = recomputeRowWithOverride(r, approvalMode);
-      const { src1, src2 } = resolveSignatures(r);
+      const { src1, src2, logo } = resolveSignatures(r);
       return pdf(
         <BusinessTripDocument
           row={d}
           approver1Src={src1}
           approver2Src={src2}
+          logoSrc={logo}
           layout={pdfLayout ?? undefined}
         />
       ).toBlob();

@@ -35,6 +35,16 @@ function buildStyles(cfg: PdfLayoutSettings) {
       alignItems: "center",
       marginBottom: cfg.title.marginBottom,
     },
+    logoTitleWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    logo: {
+      width: cfg.logo.width,
+      height: cfg.logo.height,
+      marginRight: cfg.logo.marginRight,
+      objectFit: "contain" as const,
+    },
     pageTitle: {
       fontSize: cfg.title.fontSize,
       fontWeight: cfg.title.fontWeight as 700,
@@ -178,6 +188,7 @@ export type BusinessTripDocumentProps = {
   row: TripRow;
   approver1Src?: string;
   approver2Src?: string;
+  logoSrc?: string;
   layout?: PdfLayoutSettings;
 };
 
@@ -185,6 +196,7 @@ export function BusinessTripDocument({
   row,
   approver1Src,
   approver2Src,
+  logoSrc,
   layout,
 }: BusinessTripDocumentProps) {
   const cfg = layout ?? DEFAULT_PDF_LAYOUT;
@@ -225,7 +237,12 @@ export function BusinessTripDocument({
       <Page size="A4" style={styles.page}>
         <View style={styles.content}>
           <View style={styles.topBar}>
-            <Text style={styles.pageTitle}>출장신청서</Text>
+            <View style={styles.logoTitleWrap}>
+              {cfg.logo.enabled && logoSrc && (
+                <Image src={logoSrc} style={styles.logo} />
+              )}
+              <Text style={styles.pageTitle}>출장신청서</Text>
+            </View>
             <View style={styles.apTable}>
               <View style={styles.apRow}>
                 <View style={styles.gyeoljaeCol}>

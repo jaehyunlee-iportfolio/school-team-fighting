@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -214,7 +215,7 @@ export default function AdminPage() {
           <div className="flex flex-col gap-6 lg:flex-row">
             <div className="w-full shrink-0 lg:w-[420px]">
               <div className="sticky top-4">
-                <PdfPreview layout={pdfLayout} />
+                <PdfPreview layout={pdfLayout} approvalSettings={settings} />
               </div>
             </div>
             <div className="min-w-0 flex-1 space-y-4">
@@ -279,12 +280,14 @@ const MOCK_TRIP_ROW: TripRow = {
   approvalGroupOverride: "auto",
 };
 
-function PdfPreview({ layout }: { layout: PdfLayoutSettings }) {
+function PdfPreview({ layout, approvalSettings }: { layout: PdfLayoutSettings; approvalSettings: ApprovalSettings | null }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const prevUrl = useRef<string | null>(null);
   const generation = useRef(0);
+
+  const mockLogoSrc = approvalSettings?.groups[MOCK_TRIP_ROW.orgGroup ?? "ipf"]?.logoImageUrl || undefined;
 
   useEffect(() => {
     const gen = ++generation.current;
@@ -294,7 +297,7 @@ function PdfPreview({ layout }: { layout: PdfLayoutSettings }) {
       try {
         registerPdfFonts();
         const blob = await pdf(
-          <BusinessTripDocument row={MOCK_TRIP_ROW} layout={layout} />,
+          <BusinessTripDocument row={MOCK_TRIP_ROW} layout={layout} logoSrc={mockLogoSrc} />,
         ).toBlob();
         if (gen !== generation.current) return;
         const newUrl = URL.createObjectURL(blob);
@@ -309,7 +312,7 @@ function PdfPreview({ layout }: { layout: PdfLayoutSettings }) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [layout]);
+  }, [layout, mockLogoSrc]);
 
   useEffect(() => {
     return () => {
@@ -484,6 +487,33 @@ function PdfLayoutSection({
             <NumField label="기본 크기" value={layout.page.baseFontSize} onChange={(v) => set("page", { baseFontSize: v })} step={0.5} unit="pt" />
             <NumField label="줄 높이" value={layout.page.baseLineHeight} onChange={(v) => set("page", { baseLineHeight: v })} step={0.1} />
             <NumField label="여백" value={layout.page.marginMm} onChange={(v) => set("page", { marginMm: v })} unit="mm" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 로고 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">로고</CardTitle>
+          <CardDescription>
+            PDF 좌측 상단에 표시되는 로고의 크기와 간격이에요.
+            로고 이미지는 &quot;서명 정책&quot; 탭에서 그룹별로 업로드하세요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">표시</Label>
+              <div className="flex h-10 items-center">
+                <Switch
+                  checked={layout.logo.enabled}
+                  onCheckedChange={(v) => set("logo", { enabled: v })}
+                />
+              </div>
+            </div>
+            <NumField label="가로" value={layout.logo.width} onChange={(v) => set("logo", { width: v })} unit="pt" />
+            <NumField label="세로" value={layout.logo.height} onChange={(v) => set("logo", { height: v })} unit="pt" />
+            <NumField label="우측 여백" value={layout.logo.marginRight} onChange={(v) => set("logo", { marginRight: v })} unit="pt" />
           </div>
         </CardContent>
       </Card>
@@ -712,10 +742,12 @@ function ApproverGroupSection({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          {GROUP_LABELS[groupId] ?? groupId} — 결재자 서명
+          {GROUP_LABELS[groupId] ?? groupId} — 결재자 서명 / 로고
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        <LogoRow groupId={groupId} settings={settings} onChange={onChange} />
+        <Separator />
         <ApproverRow
           groupId={groupId}
           role="approver1"
@@ -900,6 +932,100 @@ function SignatureCropDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function LogoRow({
+  groupId,
+  settings,
+  onChange,
+}: {
+  groupId: string;
+  settings: ApprovalSettings;
+  onChange: (s: ApprovalSettings) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+
+  const groupSettings = settings.groups[groupId];
+  const currentUrl = groupSettings?.logoImageUrl ?? "";
+
+  const updateLogo = (url: string) => {
+    onChange({
+      ...settings,
+      groups: {
+        ...settings.groups,
+        [groupId]: { ...groupSettings, logoImageUrl: url },
+      },
+    });
+  };
+
+  const handleFile = async (file: File) => {
+    setLoading(true);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      updateLogo(dataUrl);
+      toast.success("로고 이미지가 설정되었어요.");
+    } catch {
+      toast.error("이미지를 읽는 데 실패했어요.");
+    } finally {
+      setLoading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium">로고 이미지</p>
+      <div className="flex items-start gap-4">
+        <div
+          className="shrink-0 size-20 rounded-lg border flex items-center justify-center overflow-hidden bg-white"
+        >
+          {currentUrl ? (
+            <img
+              src={currentUrl}
+              alt={`${groupId} 로고`}
+              className="size-full object-contain"
+            />
+          ) : (
+            <ImageIcon className="size-6 text-muted-foreground" />
+          )}
+        </div>
+        <div className="space-y-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={loading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+            {currentUrl ? "교체" : "업로드"}
+          </Button>
+          {currentUrl && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive"
+              onClick={() => updateLogo("")}
+            >
+              <Trash2 className="size-3.5" />
+              삭제
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
