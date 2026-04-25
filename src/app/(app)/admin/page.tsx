@@ -494,6 +494,7 @@ const MOCK_SOMYEONG_ROW: SomyeongRow = {
   attachments:
     "1. 오입금 이체확인증 1부\n2. 오입금액 환수 내역 증빙 1부\n3. 정상 계좌 재입금 이체확인증 1부",
   seomok: "사업시설장비비",
+  subSeomok: "장비/시설임차비",
   hasEmpty: false,
   fieldWarnings: [],
 };

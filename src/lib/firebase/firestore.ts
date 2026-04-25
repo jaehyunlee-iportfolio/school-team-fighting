@@ -269,6 +269,25 @@ export const SEOMOK_LIST = [
 
 export type Seomok = (typeof SEOMOK_LIST)[number];
 
+export const SUB_SEOMOK_LIST = [
+  "내부인건비",
+  "외부인건비",
+  "사업수당",
+  "장비/시설임차비",
+  "외부 전문가 기술 활용비",
+  "회의비",
+  "소프트웨어활용비",
+  "출장비",
+  "인쇄/복사/슬라이드 제작비",
+  "제세공과/수수료/공공요금",
+  "우편요금/택배비",
+  "일용직활용비",
+  "기타경비",
+  "일반관리비(간접비)",
+] as const;
+
+export type SubSeomok = (typeof SUB_SEOMOK_LIST)[number];
+
 export type SomyeongSettings = {
   name: string;
   orgPosition: string;

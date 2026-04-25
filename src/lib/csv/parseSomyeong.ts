@@ -9,6 +9,7 @@ export type SomyeongRow = {
   detail: string;
   attachments: string;
   seomok: string;
+  subSeomok: string;
   hasEmpty: boolean;
   fieldWarnings: string[];
 };
@@ -51,6 +52,7 @@ export function recomputeSomyeongWarnings(r: Omit<SomyeongRow, "hasEmpty" | "fie
   if (!r.title.trim()) w.push("「건명」이 비어 있어요");
   if (!r.detail.trim()) w.push("「상세내용」이 비어 있어요");
   if (!r.attachments.trim()) w.push("「첨부서류」가 비어 있어요");
+  if (!r.subSeomok.trim()) w.push("「세세목」이 비어 있어요");
   if (!r.seomok.trim()) w.push("「세목」이 비어 있어요 — N=0이 적용돼요");
   else if (!(SEOMOK_LIST as readonly string[]).includes(r.seomok))
     w.push(`알 수 없는 세목: "${r.seomok}" — N=0이 적용돼요`);
@@ -70,7 +72,8 @@ export function parseSomyeongCsv(text: string): SomyeongRow[] {
     ["title", /건명/],
     ["detail", /상세내용/],
     ["attachments", /첨부서류/],
-    ["seomok", /세목/],
+    ["subSeomok", /세세목/],
+    ["seomok", /^세목$/],
   ];
 
   for (let i = 0; i < Math.min(raw.length, 10); i++) {
@@ -99,6 +102,7 @@ export function parseSomyeongCsv(text: string): SomyeongRow[] {
     const detail = get("detail");
     const attachments = get("attachments");
     const seomok = get("seomok");
+    const subSeomok = get("subSeomok");
 
     if (!folderRaw && !title && !detail) continue;
 
@@ -111,6 +115,7 @@ export function parseSomyeongCsv(text: string): SomyeongRow[] {
         detail,
         attachments,
         seomok,
+        subSeomok,
       })
     );
   }

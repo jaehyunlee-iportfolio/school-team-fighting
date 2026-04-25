@@ -56,6 +56,7 @@ import {
   getSomyeongSettings,
   getSomyeongLayoutSettings,
   SEOMOK_LIST,
+  SUB_SEOMOK_LIST,
   type SomyeongSettings,
   type SomyeongLayoutSettings,
 } from "@/lib/firebase/firestore";
@@ -81,10 +82,11 @@ function fileSafe(s: string) {
   return s.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60);
 }
 
-function somyeongPdfName(folder: string, n: number, title: string) {
+function somyeongPdfName(folder: string, n: number, subSeomok: string, title: string) {
   const safeFolder = fileSafe(folder || "UNKNOWN");
+  const safeSub = fileSafe(subSeomok || "UNKNOWN");
   const safeTitle = fileSafe(title || "소명서");
-  return `${safeFolder}_${n}.소명서_${safeTitle}.pdf`;
+  return `${safeFolder}_${n}. 기타_소명서_${safeSub}_${safeTitle}.pdf`;
 }
 
 function zipName() {
@@ -115,6 +117,7 @@ function SomyeongRowEditDialog({
     detail: row.detail,
     attachments: row.attachments,
     seomok: row.seomok,
+    subSeomok: row.subSeomok,
   });
 
   useEffect(() => {
@@ -125,6 +128,7 @@ function SomyeongRowEditDialog({
         detail: row.detail,
         attachments: row.attachments,
         seomok: row.seomok,
+        subSeomok: row.subSeomok,
       });
     }
   }, [open, row]);
@@ -140,6 +144,7 @@ function SomyeongRowEditDialog({
       detail: draft.detail,
       attachments: draft.attachments,
       seomok: draft.seomok,
+      subSeomok: draft.subSeomok,
     });
     onSave(updated);
     onOpenChange(false);
@@ -178,22 +183,43 @@ function SomyeongRowEditDialog({
               onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium" htmlFor="edit-seomok">세목</Label>
-            <Select
-              value={draft.seomok || undefined}
-              onValueChange={(v) => { if (v) setDraft((d) => ({ ...d, seomok: v })); }}
-            >
-              <SelectTrigger id="edit-seomok">
-                <SelectValue placeholder="세목을 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {SEOMOK_LIST.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium" htmlFor="edit-seomok">세목</Label>
+              <Select
+                value={draft.seomok || undefined}
+                onValueChange={(v) => { if (v) setDraft((d) => ({ ...d, seomok: v })); }}
+              >
+                <SelectTrigger id="edit-seomok">
+                  <SelectValue placeholder="세목 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEOMOK_LIST.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium" htmlFor="edit-subSeomok">세세목</Label>
+              <Select
+                value={draft.subSeomok || undefined}
+                onValueChange={(v) => { if (v) setDraft((d) => ({ ...d, subSeomok: v })); }}
+              >
+                <SelectTrigger id="edit-subSeomok">
+                  <SelectValue placeholder="세세목 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUB_SEOMOK_LIST.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            파일명: <span className="font-mono">{`{폴더}_0. 기타_소명서_${draft.subSeomok || "?"}_${draft.title || "?"}.pdf`}</span>
+          </p>
           <div className="space-y-1.5">
             <Label className="text-sm font-medium" htmlFor="edit-detail">상세내용</Label>
             <textarea
@@ -263,6 +289,11 @@ function SomyeongRowCard({
             {r.seomok && (
               <Badge variant="outline" className="text-xs">
                 {r.seomok}
+              </Badge>
+            )}
+            {r.subSeomok && (
+              <Badge variant="outline" className="border-blue-300 bg-blue-50 text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                {r.subSeomok}
               </Badge>
             )}
             {r.folderRaw && (
@@ -449,7 +480,7 @@ export function SomyeongTool() {
         const blob = await makeBlobFor(row);
 
         for (const folder of row.folders) {
-          const name = somyeongPdfName(folder, n, row.title);
+          const name = somyeongPdfName(folder, n, row.subSeomok, row.title);
           z.file(name, blob);
           files.push(name);
         }
