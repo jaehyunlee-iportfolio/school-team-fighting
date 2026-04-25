@@ -137,13 +137,24 @@ export default function AdminPage() {
 
   if (!settings || !pdfLayout) return null;
 
+  const firebaseErrorDescription = (e: unknown) => {
+    if (e && typeof e === "object" && "code" in e && "message" in e) {
+      const { code, message } = e as { code: string; message: string };
+      return `${code}: ${message}`;
+    }
+    if (e instanceof Error) return e.message;
+    return String(e);
+  };
+
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
       await saveApprovalSettings(settings);
       toast.success("설정이 저장되었어요.");
-    } catch {
-      toast.error("저장에 실패했어요.");
+    } catch (e) {
+      toast.error("저장에 실패했어요.", {
+        description: firebaseErrorDescription(e),
+      });
     } finally {
       setSaving(false);
     }
@@ -154,8 +165,10 @@ export default function AdminPage() {
     try {
       await savePdfLayoutSettings(pdfLayout);
       toast.success("PDF 레이아웃이 저장되었어요.");
-    } catch {
-      toast.error("저장에 실패했어요.");
+    } catch (e) {
+      toast.error("저장에 실패했어요.", {
+        description: firebaseErrorDescription(e),
+      });
     } finally {
       setSavingPdf(false);
     }
