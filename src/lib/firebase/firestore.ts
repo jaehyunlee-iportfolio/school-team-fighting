@@ -394,6 +394,12 @@ export type SomyeongLayoutSettings = {
     fontWeight: number;
     textAlign: "left" | "center" | "right";
   };
+  placeholders: {
+    emptyField: string;
+    emptyFieldColor: string;
+    signEmpty: string;
+    signEmptyColor: string;
+  };
 };
 
 export const DEFAULT_SOMYEONG_LAYOUT: SomyeongLayoutSettings = {
@@ -428,6 +434,12 @@ export const DEFAULT_SOMYEONG_LAYOUT: SomyeongLayoutSettings = {
   dateText: { fontSize: 11, textAlign: "center", marginBottom: 16, letterSpacing: 1.5 },
   signature: { fontSize: 10, signImageMaxHeight: 28, marginBottom: 10 },
   recipient: { fontSize: 11, fontWeight: 600, textAlign: "right" },
+  placeholders: {
+    emptyField: "—",
+    emptyFieldColor: "#DC2626",
+    signEmpty: "(서명 없음)",
+    signEmptyColor: "#DC2626",
+  },
 };
 
 export async function getSomyeongLayoutSettings(): Promise<SomyeongLayoutSettings> {

@@ -182,7 +182,24 @@ export type SomyeongDocumentProps = {
 export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProps) {
   const cfg = layout ?? DEFAULT_SOMYEONG_LAYOUT;
   const styles = buildStyles(cfg);
-  const dateStr = settings.date || "　　년　　월　　일";
+  const ph = cfg.placeholders;
+
+  const fb = (value: string | undefined | null) =>
+    value && value.trim()
+      ? { text: value, color: undefined as string | undefined }
+      : { text: ph.emptyField, color: ph.emptyFieldColor };
+
+  const nameFb = fb(settings.name);
+  const orgPosFb = fb(settings.orgPosition);
+  const phoneFb = fb(settings.phone);
+  const birthFb = fb(settings.birthdate);
+  const addressFb = fb(settings.address);
+  const dateFb = fb(settings.date);
+  const writerFb = fb(settings.writerName);
+  const recipientFb = fb(settings.recipient);
+  const titleFb = fb(row.title);
+  const detailFb = fb(row.detail);
+  const attachFb = fb(row.attachments);
 
   return (
     <Document>
@@ -198,26 +215,38 @@ export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProp
           {/* 성명 / 소속·직위 */}
           <View style={styles.row}>
             <View style={styles.labelCell}><Text style={styles.labelText}>성명</Text></View>
-            <View style={styles.valueCellMid}><Text style={styles.valueText}>{settings.name}</Text></View>
+            <View style={styles.valueCellMid}>
+              <Text style={[styles.valueText, nameFb.color ? { color: nameFb.color } : {}]}>{nameFb.text}</Text>
+            </View>
             <View style={styles.labelCell}><Text style={styles.labelText}>소속/직위</Text></View>
-            <View style={styles.valueCellEnd}><Text style={styles.valueText}>{settings.orgPosition}</Text></View>
+            <View style={styles.valueCellEnd}>
+              <Text style={[styles.valueText, orgPosFb.color ? { color: orgPosFb.color } : {}]}>{orgPosFb.text}</Text>
+            </View>
           </View>
           {/* 연락처 / 생년월일 */}
           <View style={styles.row}>
             <View style={styles.labelCell}><Text style={styles.labelText}>연락처</Text></View>
-            <View style={styles.valueCellMid}><Text style={styles.valueText}>{settings.phone}</Text></View>
+            <View style={styles.valueCellMid}>
+              <Text style={[styles.valueText, phoneFb.color ? { color: phoneFb.color } : {}]}>{phoneFb.text}</Text>
+            </View>
             <View style={styles.labelCell}><Text style={styles.labelText}>생년월일</Text></View>
-            <View style={styles.valueCellEnd}><Text style={styles.valueText}>{settings.birthdate}</Text></View>
+            <View style={styles.valueCellEnd}>
+              <Text style={[styles.valueText, birthFb.color ? { color: birthFb.color } : {}]}>{birthFb.text}</Text>
+            </View>
           </View>
           {/* 사업장 주소 */}
           <View style={styles.row}>
             <View style={styles.labelCell}><Text style={styles.labelText}>사업장 주소</Text></View>
-            <View style={styles.valueCellEnd}><Text style={styles.valueText}>{settings.address}</Text></View>
+            <View style={styles.valueCellEnd}>
+              <Text style={[styles.valueText, addressFb.color ? { color: addressFb.color } : {}]}>{addressFb.text}</Text>
+            </View>
           </View>
-          {/* 건명 — 마지막 행: bottom이 테이블 하단을 닫음 */}
+          {/* 건명 */}
           <View style={styles.row}>
             <View style={styles.labelCell}><Text style={styles.labelText}>건 명</Text></View>
-            <View style={styles.valueCellEnd}><Text style={styles.valueText}>{row.title}</Text></View>
+            <View style={styles.valueCellEnd}>
+              <Text style={[styles.valueText, titleFb.color ? { color: titleFb.color } : {}]}>{titleFb.text}</Text>
+            </View>
           </View>
         </View>
 
@@ -227,7 +256,7 @@ export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProp
             <Text style={styles.sectionHeaderText}>소명서 상세 내용</Text>
           </View>
           <View style={styles.detailBody}>
-            <Text style={styles.detailText}>{row.detail}</Text>
+            <Text style={[styles.detailText, detailFb.color ? { color: detailFb.color } : {}]}>{detailFb.text}</Text>
           </View>
         </View>
 
@@ -235,12 +264,8 @@ export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProp
         <View style={styles.divider} />
 
         {/* 첨부서류 */}
-        {!!row.attachments && (
-          <>
-            <Text style={styles.attachTitle}>첨부서류</Text>
-            <Text style={styles.attachText}>{row.attachments}</Text>
-          </>
-        )}
+        <Text style={styles.attachTitle}>첨부서류</Text>
+        <Text style={[styles.attachText, attachFb.color ? { color: attachFb.color } : {}]}>{attachFb.text}</Text>
 
         {/* 서명 앞 문구 */}
         <Text style={styles.closingText}>
@@ -248,19 +273,21 @@ export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProp
         </Text>
 
         {/* 날짜 */}
-        <Text style={styles.dateText}>{dateStr}</Text>
+        <Text style={[styles.dateText, dateFb.color ? { color: dateFb.color } : {}]}>{dateFb.text}</Text>
 
         {/* 작성자 + 서명 */}
         <View style={styles.signatureRow}>
           <Text style={styles.signatureText}>작성자:</Text>
-          <Text style={styles.signatureText}>{settings.writerName}</Text>
+          <Text style={[styles.signatureText, writerFb.color ? { color: writerFb.color } : {}]}>{writerFb.text}</Text>
           {settings.signatureImageUrl ? (
             <Image src={settings.signatureImageUrl} style={styles.signImg} />
-          ) : null}
+          ) : (
+            <Text style={[styles.signatureText, { color: ph.signEmptyColor }]}>{ph.signEmpty}</Text>
+          )}
         </View>
 
         {/* 수신처 */}
-        <Text style={styles.recipientText}>{settings.recipient}</Text>
+        <Text style={[styles.recipientText, recipientFb.color ? { color: recipientFb.color } : {}]}>{recipientFb.text}</Text>
       </Page>
     </Document>
   );

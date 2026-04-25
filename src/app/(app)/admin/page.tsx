@@ -1662,6 +1662,36 @@ function SomyeongLayoutSection({
         </CardContent>
       </Card>
 
+      {/* 누락 데이터 표시 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">누락 데이터 표시</CardTitle>
+          <CardDescription>
+            소명자 정보·건명·상세내용·첨부서류 등이 비어있을 때 PDF에 표시되는 대체 문구와 색상이에요.
+            눈에 띄는 색상을 설정하면 누락된 곳을 바로 찾을 수 있어요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <PlaceholderRow
+            label="빈 필드 대체 문구"
+            desc="성명·연락처·건명·상세내용·첨부서류 등이 비어있을 때"
+            text={layout.placeholders.emptyField}
+            color={layout.placeholders.emptyFieldColor}
+            onTextChange={(v) => set("placeholders", { emptyField: v })}
+            onColorChange={(v) => set("placeholders", { emptyFieldColor: v })}
+          />
+          <Separator />
+          <PlaceholderRow
+            label="작성자 서명 없음"
+            desc="어드민에 서명 이미지가 등록되지 않았을 때"
+            text={layout.placeholders.signEmpty}
+            color={layout.placeholders.signEmptyColor}
+            onTextChange={(v) => set("placeholders", { signEmpty: v })}
+            onColorChange={(v) => set("placeholders", { signEmptyColor: v })}
+          />
+        </CardContent>
+      </Card>
+
       {/* 문구 / 날짜 / 서명 / 수신처 */}
       <Card>
         <CardHeader className="pb-3">
