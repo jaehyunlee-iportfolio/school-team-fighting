@@ -46,3 +46,8 @@ next-env.d.ts
 
 # test artifacts
 assets/Mock PDF Image/generated.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
