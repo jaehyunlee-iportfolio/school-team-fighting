@@ -386,7 +386,7 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
           type="color"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="size-9 shrink-0 cursor-pointer rounded-lg border bg-card p-0.5"
+          className="size-9 shrink-0 cursor-pointer rounded-lg border bg-card p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-foreground/10"
         />
         <Input
           value={value}
@@ -847,7 +847,7 @@ function SignatureCropDialog({
               max={255}
               value={threshold}
               onChange={(e) => setThreshold(Number(e.target.value))}
-              className="w-full accent-primary"
+              className="w-full accent-primary outline-none focus-visible:ring-2 focus-visible:ring-foreground/10 focus-visible:rounded"
             />
             <p className="text-xs text-muted-foreground">
               값이 낮을수록 더 어두운 배경까지 제거해요.

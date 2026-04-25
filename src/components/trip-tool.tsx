@@ -147,7 +147,7 @@ function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="flex h-11 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 text-sm transition hover:bg-muted/50"
+        className="flex h-11 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 text-sm outline-none transition hover:bg-muted/50 focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
       >
         <FileUp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         {file ? (
@@ -159,7 +159,7 @@ function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
           <span
             role="button"
             tabIndex={0}
-            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/10"
             aria-label="파일 제거"
             onClick={(e) => { e.stopPropagation(); clear(); }}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); clear(); } }}
@@ -276,7 +276,7 @@ function StepIndicator({
             {goBack ? (
               <button
                 type="button"
-                className="w-full"
+                className="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground/10"
                 onClick={() => onGoTo(s.id)}
                 aria-label={`${s.label} 단계로 돌아가기`}
               >
@@ -589,7 +589,7 @@ function MobileRowCard({
     >
       <button
         type="button"
-        className="absolute inset-0 touch-manipulation"
+        className="absolute inset-0 touch-manipulation outline-none"
         onClick={onSelect}
         aria-label={`${index + 1}번 행 선택`}
       />
@@ -621,7 +621,7 @@ function MobileRowCard({
           )}
           <button
             type="button"
-            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/10"
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
             aria-label={`${index + 1}번 행 수정`}
           >
@@ -629,7 +629,7 @@ function MobileRowCard({
           </button>
           <button
             type="button"
-            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-destructive focus-visible:ring-2 focus-visible:ring-foreground/10"
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
             aria-label={`${index + 1}번 행 삭제`}
           >
@@ -1056,7 +1056,7 @@ export function TripTool() {
                     type="button"
                     onClick={() => reapplyApproval(a.id as ApprovalGroup | "auto")}
                     className={cn(
-                      "rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition-all touch-manipulation",
+                      "rounded-xl border-2 px-3 py-2.5 text-sm font-medium outline-none transition-all touch-manipulation focus-visible:ring-2 focus-visible:ring-foreground/10",
                       approvalMode === a.id
                         ? "border-foreground bg-foreground text-background"
                         : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:bg-muted/40"

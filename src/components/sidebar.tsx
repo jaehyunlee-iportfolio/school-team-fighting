@@ -89,7 +89,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-foreground/10",
                 active
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -110,7 +110,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
             href={ADMIN_ITEM.href}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-foreground/10",
               pathname.startsWith(ADMIN_ITEM.href)
                 ? "bg-primary/10 text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -129,7 +129,7 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
             render={
               <button
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted",
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-foreground/10",
                   collapsed && "justify-center px-2"
                 )}
               />
