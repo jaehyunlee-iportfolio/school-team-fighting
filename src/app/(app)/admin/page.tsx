@@ -15,7 +15,18 @@ import {
   type GroupSettings,
   type PdfLayoutSettings,
 } from "@/lib/firebase/firestore";
-import { PDF_FONT_FAMILIES } from "@/lib/pdf/register-pdf-fonts";
+import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
+import { pdf } from "@react-pdf/renderer";
+import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
+import type { TripRow } from "@/lib/csv/parseD4";
+import ReactCrop, { type PercentCrop, type PixelCrop, convertToPixelCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
+import {
+  removeWhiteBackground,
+  autoCropBounds,
+  cropCanvas,
+  loadImage,
+} from "@/lib/image/remove-bg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +58,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Loader2,
   Upload,
   Trash2,
@@ -56,6 +75,9 @@ import {
   Save,
   ImageIcon,
   RotateCcw,
+  FileText,
+  AlertCircle,
+  Scissors,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,6 +89,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingPdf, setSavingPdf] = useState(false);
+  const [activeTab, setActiveTab] = useState("signature");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -138,7 +161,7 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-8">
+    <div className={`mx-auto space-y-6 p-4 md:p-8 transition-[max-width] ${activeTab === "pdfLayout" ? "max-w-7xl" : "max-w-3xl"}`}>
       <div className="flex items-center gap-3">
         <Shield className="size-6 text-primary" />
         <div>
@@ -149,7 +172,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="signature" className="flex flex-col space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col space-y-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="signature">서명 정책</TabsTrigger>
           <TabsTrigger value="groups">결재 그룹</TabsTrigger>
@@ -187,24 +210,33 @@ export default function AdminPage() {
         </TabsContent>
 
         {/* --- PDF 레이아웃 --- */}
-        <TabsContent value="pdfLayout" className="space-y-4">
-          <PdfLayoutSection layout={pdfLayout} onChange={setPdfLayout} />
-          <div className="flex items-center justify-between border-t pt-4">
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => {
-                setPdfLayout(DEFAULT_PDF_LAYOUT);
-                toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
-              }}
-            >
-              <RotateCcw className="size-4" />
-              기본값 초기화
-            </Button>
-            <Button onClick={handleSavePdfLayout} disabled={savingPdf} className="gap-2">
-              {savingPdf ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              저장
-            </Button>
+        <TabsContent value="pdfLayout">
+          <div className="flex flex-col gap-6 lg:flex-row">
+            <div className="w-full shrink-0 lg:w-[420px]">
+              <div className="sticky top-4">
+                <PdfPreview layout={pdfLayout} />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1 space-y-4">
+              <PdfLayoutSection layout={pdfLayout} onChange={setPdfLayout} />
+              <div className="flex items-center justify-between border-t pt-4">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setPdfLayout(DEFAULT_PDF_LAYOUT);
+                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  기본값 초기화
+                </Button>
+                <Button onClick={handleSavePdfLayout} disabled={savingPdf} className="gap-2">
+                  {savingPdf ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  저장
+                </Button>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
@@ -217,6 +249,100 @@ export default function AdminPage() {
           />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* ===================================================================
+   PDF Preview (mock data + live iframe)
+   =================================================================== */
+
+const MOCK_TRIP_ROW: TripRow = {
+  rowIndex: 0,
+  usageDate: "2026.04.01",
+  partnerRaw: "홍길동",
+  orgName: "아이포트폴리오",
+  outPlace: "서울특별시 강남구",
+  payMethod: "법인카드",
+  detail: "출장자명: 홍길동 / 프로젝트 미팅",
+  writerName: "홍길동",
+  nameSource: "georae",
+  drafter3: "홍길동",
+  memberText: "홍길동 외 2명",
+  periodText: "2026. 04. 01 ~ 2026. 04. 03",
+  purposeText: "신규 프로젝트 킥오프 미팅 참석 및 현장 조사",
+  orgGroup: "ipf",
+  approver1: "팀장",
+  approver2: "대표이사",
+  hasEmpty: false,
+  fieldWarnings: [],
+  approvalGroupOverride: "auto",
+};
+
+function PdfPreview({ layout }: { layout: PdfLayoutSettings }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const prevUrl = useRef<string | null>(null);
+  const generation = useRef(0);
+
+  useEffect(() => {
+    const gen = ++generation.current;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        registerPdfFonts();
+        const blob = await pdf(
+          <BusinessTripDocument row={MOCK_TRIP_ROW} layout={layout} />,
+        ).toBlob();
+        if (gen !== generation.current) return;
+        const newUrl = URL.createObjectURL(blob);
+        setUrl(newUrl);
+        if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+        prevUrl.current = newUrl;
+      } catch (e) {
+        if (gen !== generation.current) return;
+        setError(e instanceof Error ? e.message : "PDF 생성 실패");
+      } finally {
+        if (gen === generation.current) setLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [layout]);
+
+  useEffect(() => {
+    return () => {
+      if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <FileText className="size-4" />
+        미리보기 (목 데이터)
+      </div>
+      <div className="relative overflow-hidden rounded-lg border bg-muted/30" style={{ aspectRatio: "1 / 1.414" }}>
+        {url && (
+          <iframe
+            src={url}
+            title="PDF 미리보기"
+            className="absolute inset-0 size-full"
+          />
+        )}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {error && !loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <AlertCircle className="size-6 text-destructive" />
+            <p className="text-xs text-destructive">{error}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -619,6 +745,164 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+/* ===================================================================
+   Signature Crop Dialog (background removal + manual crop)
+   =================================================================== */
+
+function SignatureCropDialog({
+  open,
+  rawDataUrl,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  rawDataUrl: string;
+  onConfirm: (dataUrl: string) => void;
+  onCancel: () => void;
+}) {
+  const [threshold, setThreshold] = useState(230);
+  const [processedSrc, setProcessedSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState<PercentCrop | undefined>(undefined);
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | undefined>(undefined);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!open || !rawDataUrl) return;
+    let cancelled = false;
+    setProcessing(true);
+
+    (async () => {
+      try {
+        const img = await loadImage(rawDataUrl);
+        if (cancelled) return;
+        const canvas = removeWhiteBackground(img, threshold);
+        canvasRef.current = canvas;
+        setProcessedSrc(canvas.toDataURL("image/png"));
+
+        const bounds = autoCropBounds(canvas);
+        const percentCrop: PercentCrop = {
+          unit: "%",
+          x: bounds.x,
+          y: bounds.y,
+          width: bounds.width,
+          height: bounds.height,
+        };
+        setCrop(percentCrop);
+        setCompletedCrop(undefined);
+      } catch {
+        toast.error("이미지 처리에 실패했어요.");
+      } finally {
+        if (!cancelled) setProcessing(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, rawDataUrl, threshold]);
+
+  const handleApply = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (completedCrop && completedCrop.width > 0 && completedCrop.height > 0) {
+      const result = cropCanvas(canvas, completedCrop);
+      onConfirm(result);
+    } else if (crop && imgRef.current) {
+      const pixelCrop = convertToPixelCrop(
+        crop,
+        imgRef.current.naturalWidth,
+        imgRef.current.naturalHeight,
+      );
+      if (pixelCrop.width > 0 && pixelCrop.height > 0) {
+        const result = cropCanvas(canvas, pixelCrop);
+        onConfirm(result);
+      } else {
+        onConfirm(canvas.toDataURL("image/png"));
+      }
+    } else {
+      onConfirm(canvas.toDataURL("image/png"));
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>서명 이미지 편집</DialogTitle>
+          <DialogDescription>
+            배경이 자동 제거돼요. 슬라이더로 민감도를 조절하고, 드래그로 크롭 영역을 지정하세요.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">배경 제거 민감도</Label>
+              <span className="font-mono text-xs text-muted-foreground">{threshold}</span>
+            </div>
+            <input
+              type="range"
+              min={150}
+              max={255}
+              value={threshold}
+              onChange={(e) => setThreshold(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+            <p className="text-xs text-muted-foreground">
+              값이 낮을수록 더 어두운 배경까지 제거해요.
+            </p>
+          </div>
+
+          <div
+            className="relative overflow-hidden rounded-lg border"
+            style={{
+              backgroundImage:
+                "linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)",
+              backgroundSize: "16px 16px",
+              backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
+            }}
+          >
+            {processing && (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {processedSrc && !processing && (
+              <ReactCrop
+                crop={crop}
+                onChange={(_, pc) => setCrop(pc)}
+                onComplete={(px) => setCompletedCrop(px)}
+                keepSelection
+              >
+                <img
+                  ref={imgRef}
+                  src={processedSrc}
+                  alt="서명 미리보기"
+                  className="max-h-[50vh] w-full object-contain"
+                  onLoad={(e) => {
+                    imgRef.current = e.currentTarget;
+                  }}
+                />
+              </ReactCrop>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            취소
+          </Button>
+          <Button onClick={handleApply} disabled={processing} className="gap-1.5">
+            <Scissors className="size-3.5" />
+            적용
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ApproverRow({
   groupId,
   role,
@@ -634,6 +918,8 @@ function ApproverRow({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [rawDataUrl, setRawDataUrl] = useState("");
 
   const imageKey = role === "approver1" ? "approver1ImageUrl" : "approver2ImageUrl";
   const groupSettings = settings.groups[groupId];
@@ -653,8 +939,8 @@ function ApproverRow({
     setLoading(true);
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      updateGroupImage(dataUrl);
-      toast.success("서명 이미지가 설정되었어요.");
+      setRawDataUrl(dataUrl);
+      setCropDialogOpen(true);
     } catch {
       toast.error("이미지를 읽는 데 실패했어요.");
     } finally {
@@ -667,7 +953,17 @@ function ApproverRow({
     <div className="space-y-3">
       <p className="text-sm font-medium">{roleLabel}</p>
       <div className="flex items-start gap-4">
-        <div className="shrink-0 size-20 rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
+        <div
+          className="shrink-0 size-20 rounded-lg border flex items-center justify-center overflow-hidden"
+          style={{
+            backgroundImage: currentUrl
+              ? "linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)"
+              : undefined,
+            backgroundSize: "12px 12px",
+            backgroundPosition: "0 0, 0 6px, 6px -6px, -6px 0px",
+            backgroundColor: currentUrl ? undefined : "hsl(var(--muted))",
+          }}
+        >
           {currentUrl ? (
             <img
               src={currentUrl}
@@ -700,18 +996,43 @@ function ApproverRow({
             {currentUrl ? "교체" : "업로드"}
           </Button>
           {currentUrl && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 text-destructive hover:text-destructive"
-              onClick={() => updateGroupImage("")}
-            >
-              <Trash2 className="size-3.5" />
-              삭제
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  setRawDataUrl(currentUrl);
+                  setCropDialogOpen(true);
+                }}
+              >
+                <Scissors className="size-3.5" />
+                편집
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-destructive hover:text-destructive"
+                onClick={() => updateGroupImage("")}
+              >
+                <Trash2 className="size-3.5" />
+                삭제
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      <SignatureCropDialog
+        open={cropDialogOpen}
+        rawDataUrl={rawDataUrl}
+        onConfirm={(dataUrl) => {
+          updateGroupImage(dataUrl);
+          setCropDialogOpen(false);
+          toast.success("서명 이미지가 설정되었어요.");
+        }}
+        onCancel={() => setCropDialogOpen(false)}
+      />
     </div>
   );
 }

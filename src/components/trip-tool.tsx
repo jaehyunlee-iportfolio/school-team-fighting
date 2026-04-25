@@ -830,29 +830,24 @@ export function TripTool() {
         setStep("result");
         return;
       }
+      // preview 모드도 ZIP으로 다운로드
+      const z2 = new JSZip();
       for (let i = 0; i < rows.length; i++) {
         setGenProgress({ current: i + 1, total: rows.length });
         const b = await makeBlobFor(rows[i]);
-        if (i === 0) {
-          setPreviewI(0);
-        }
         const n = `출장신청서_r${i + 1}_${fileSafe(rows[i].writerName || "x")}.pdf`;
-        if (i === 0) {
-          setPreviewUrl((old) => {
-            if (old) URL.revokeObjectURL(old);
-            return URL.createObjectURL(b);
-          });
-        }
-        const href = URL.createObjectURL(b);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = n;
-        a.click();
-        URL.revokeObjectURL(href);
+        z2.file(n, b);
         setListDone((d) => [...d, { n, i: i + 1 }]);
       }
+      const zipB2 = await z2.generateAsync({ type: "blob" });
+      const href2 = URL.createObjectURL(zipB2);
+      const a2Elem = document.createElement("a");
+      a2Elem.href = href2;
+      a2Elem.download = `출장신청서_${new Date().toISOString().slice(0, 10)}.zip`;
+      a2Elem.click();
+      URL.revokeObjectURL(href2);
       toast.success(
-        `PDF ${rows.length}장을 각각 다운로드했어요.`
+        `PDF ${rows.length}장이 담긴 ZIP 파일을 다운로드합니다.`
       );
       setStep("result");
     } catch (e) {
@@ -1286,7 +1281,7 @@ export function TripTool() {
                         : "준비 중…"}
                     </>
                   ) : (
-                    "전부 PDF로 (행마다)"
+                    "ZIP으로 받기"
                   )}
                 </Button>
               )}
@@ -1301,8 +1296,7 @@ export function TripTool() {
           <div className="space-y-1">
             <h2 className="text-xl font-semibold">{listDone.length}건 생성 완료</h2>
             <p className="text-sm text-muted-foreground">
-              {mode === "direct" ? "ZIP 파일 1개로 " : `PDF ${listDone.length}개를 `}
-              다운로드했어요.
+              ZIP 파일 1개로 다운로드했어요.
               {warnCount > 0 && ` (경고 ${warnCount}건 포함)`}
             </p>
           </div>
