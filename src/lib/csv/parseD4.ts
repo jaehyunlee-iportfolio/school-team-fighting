@@ -93,6 +93,18 @@ function getMainUsageDetail(row: string[], kcols: KeyCol[]): string {
   return "";
 }
 
+/**
+ * 사용내역(수령인) 텍스트에서 마지막 "/" 뒤 텍스트를 출장지로 추출.
+ * 예) "... 충남 국제포럼 찾학컨 홍보/단국대학교 천안캠퍼스" → "단국대학교 천안캠퍼스"
+ * "/"가 없거나 뒤가 비면 빈 문자열 반환.
+ */
+function extractOutPlaceFromDetail(detail: string): string {
+  if (!detail) return "";
+  const lastSlash = detail.lastIndexOf("/");
+  if (lastSlash < 0) return "";
+  return norm(detail.slice(lastSlash + 1));
+}
+
 const DATE_ISO = /^\d{4}-[0-1]?\d-[0-3]?\d$/;
 const DATE_KR = /^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}/;
 const DATE_RANGE_KR = /^\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\s*~\s*\d{4}\.\s*\d{1,2}\.\s*\d{1,2}/;
@@ -220,6 +232,8 @@ function rowToTrip(
   // "D-4-1" 같은 토큰만 추출 (앞뒤 공백/주석 제거)
   const evidenceMatch = evidenceRaw.match(/[A-Za-z]-\d+(?:-\d+)*/);
   const evidenceNo = evidenceMatch ? evidenceMatch[0] : "";
+  // 출장지: 사용내역의 마지막 "/" 뒤 텍스트
+  const outPlace = extractOutPlaceFromDetail(d);
   const labels = getApprovalHeaderLabels(o, "auto");
 
   const { periodText, singleDate, invalidDate } = normalizeUsageDate(u, datePh);
@@ -228,7 +242,7 @@ function rowToTrip(
   if (w.from === "none")
     wlist.push("이름: 거래처 또는 사용내역(출장자명)을 찾지 못함");
   if (!norm(d)) wlist.push("「사용내역(수령인)」이 비어 있어요");
-  if (!norm(getByRe(row, kcols, /출장지/))) wlist.push("「출장지」가 비어 있어요");
+  if (!outPlace) wlist.push("「출장지」를 사용내역에서 추출하지 못함 (마지막 \"/\" 뒤가 비었거나 없음)");
   if (!norm(o)) wlist.push("「집행기관(명)」이 비어 있어요");
   if (!norm(u)) wlist.push("「사용일자」가 비어 있어요");
   else if (invalidDate)
@@ -240,7 +254,7 @@ function rowToTrip(
     usageDate: u,
     partnerRaw: p,
     orgName: o,
-    outPlace: getByRe(row, kcols, /출장지/),
+    outPlace,
     payMethod: getByRe(row, kcols, /지급/),
     detail: d,
     writerName: w.name,
