@@ -7,6 +7,7 @@ import { getApprovalHeaderLabels, type ApprovalGroup } from "@/lib/approval/labe
 function norm(s: string | undefined | null): string {
   if (s == null) return "";
   return s
+    .normalize("NFC")
     .replace(/\r\n/g, "\n")
     .replace(/\n/g, " ")
     .replace(/\s+/g, " ")
@@ -67,10 +68,14 @@ function toKeyCol(keys: string[]): KeyCol[] {
   return keys.map((key, index) => ({ key, index }));
 }
 
+function nfc(s: string | undefined | null): string {
+  return s == null ? "" : s.normalize("NFC");
+}
+
 function getByRe(row: string[], kcols: KeyCol[], re: RegExp): string {
   for (const { key, index } of kcols) {
     if (re.test(key)) {
-      return row[index] ?? "";
+      return nfc(row[index]);
     }
   }
   return "";
@@ -79,11 +84,11 @@ function getByRe(row: string[], kcols: KeyCol[], re: RegExp): string {
 function getMainUsageDetail(row: string[], kcols: KeyCol[]): string {
   for (const { key, index } of kcols) {
     if (key.includes("사용내역") && key.includes("수령") && !key.toUpperCase().includes("RAW")) {
-      return row[index] ?? "";
+      return nfc(row[index]);
     }
   }
   for (const { key, index } of kcols) {
-    if (/사용내역|수령/.test(key)) return row[index] ?? "";
+    if (/사용내역|수령/.test(key)) return nfc(row[index]);
   }
   return "";
 }

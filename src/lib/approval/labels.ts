@@ -2,7 +2,7 @@ export type ApprovalGroup = "ipf" | "dimi" | "unknown";
 
 export function detectApprovalGroup(org: string | undefined | null): ApprovalGroup {
   if (!org) return "unknown";
-  const t = org.replace(/\s+/g, " ").toLowerCase();
+  const t = org.normalize("NFC").replace(/\s+/g, " ").toLowerCase();
   if (
     t.includes("디미") ||
     t.includes("디미교연") ||
@@ -26,7 +26,7 @@ export function detectApprovalGroup(org: string | undefined | null): ApprovalGro
 }
 
 export function detectGroupFromFilename(filename: string): ApprovalGroup | null {
-  const t = filename.replace(/\s+/g, " ").toLowerCase();
+  const t = filename.normalize("NFC").replace(/\s+/g, " ").toLowerCase();
   if (
     t.includes("디미") ||
     t.includes("디미교연") ||
