@@ -84,8 +84,9 @@ function fileSafe(s: string) {
 
 function somyeongPdfName(folder: string, n: number, subSeomok: string, title: string) {
   const safeFolder = fileSafe(folder || "UNKNOWN");
-  const safeSub = fileSafe(subSeomok || "UNKNOWN");
-  const safeTitle = fileSafe(title || "소명서");
+  // 세세목의 "/"는 파일시스템·ZIP 경로 구분자라 그대로 못 씀 → 시각적으로 동일한 전각 슬래시로 치환
+  const safeSub = fileSafe((subSeomok || "UNKNOWN").replace(/\//g, "／"));
+  const safeTitle = fileSafe((title || "소명서").replace(/\//g, "／"));
   return `${safeFolder}_${n}. 기타_소명서_${safeSub}_${safeTitle}.pdf`;
 }
 
