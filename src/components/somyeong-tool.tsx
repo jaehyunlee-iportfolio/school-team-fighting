@@ -1,21 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import JSZip from "jszip";
 import {
+  AlertTriangle,
+  Check,
   CheckCircle2,
   ChevronLeft,
   FileUp,
   Image as ImageIcon,
   Loader2,
   Download,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { SomyeongDocument } from "@/components/pdf/somyeong-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import {
   type SomyeongRow,
   parseSomyeongCsv,
+  expandFolders,
+  recomputeSomyeongWarnings,
 } from "@/lib/csv/parseSomyeong";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +33,23 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -71,6 +94,228 @@ function zipName() {
   const hh = String(kst.getUTCHours()).padStart(2, "0");
   const mm = String(kst.getUTCMinutes()).padStart(2, "0");
   return `소명서_모음_${date}_${hh}시${mm}분.zip`;
+}
+
+function SomyeongRowEditDialog({
+  row,
+  index,
+  open,
+  onOpenChange,
+  onSave,
+}: {
+  row: SomyeongRow;
+  index: number;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (updated: SomyeongRow) => void;
+}) {
+  const [draft, setDraft] = useState({
+    folderRaw: row.folderRaw,
+    title: row.title,
+    detail: row.detail,
+    attachments: row.attachments,
+    seomok: row.seomok,
+  });
+
+  useEffect(() => {
+    if (open) {
+      setDraft({
+        folderRaw: row.folderRaw,
+        title: row.title,
+        detail: row.detail,
+        attachments: row.attachments,
+        seomok: row.seomok,
+      });
+    }
+  }, [open, row]);
+
+  const folders = expandFolders(draft.folderRaw);
+
+  const handleSave = () => {
+    const updated = recomputeSomyeongWarnings({
+      ...row,
+      folderRaw: draft.folderRaw,
+      folders,
+      title: draft.title,
+      detail: draft.detail,
+      attachments: draft.attachments,
+      seomok: draft.seomok,
+    });
+    onSave(updated);
+    onOpenChange(false);
+    toast.success(`#${index + 1}번 행을 수정했어요`);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>#{index + 1}번 행 수정</DialogTitle>
+          <DialogDescription>
+            내용을 직접 수정할 수 있어요. 저장하면 PDF에 바로 반영돼요.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium" htmlFor="edit-folderRaw">
+              증빙폴더번호
+            </Label>
+            <Input
+              id="edit-folderRaw"
+              value={draft.folderRaw}
+              placeholder="예: A-1-21 ~ A-1-55 또는 C-9, A-1-1"
+              onChange={(e) => setDraft((d) => ({ ...d, folderRaw: e.target.value }))}
+            />
+            <p className="text-xs text-muted-foreground">
+              현재 PDF {folders.length}개 생성: {folders.length === 0 ? "없음" : folders.length > 6 ? `${folders.slice(0, 3).join(", ")} ... ${folders[folders.length - 1]}` : folders.join(", ")}
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium" htmlFor="edit-title">건명</Label>
+            <Input
+              id="edit-title"
+              value={draft.title}
+              onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium" htmlFor="edit-seomok">세목</Label>
+            <Select
+              value={draft.seomok || undefined}
+              onValueChange={(v) => { if (v) setDraft((d) => ({ ...d, seomok: v })); }}
+            >
+              <SelectTrigger id="edit-seomok">
+                <SelectValue placeholder="세목을 선택하세요" />
+              </SelectTrigger>
+              <SelectContent>
+                {SEOMOK_LIST.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium" htmlFor="edit-detail">상세내용</Label>
+            <textarea
+              id="edit-detail"
+              className="flex min-h-32 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
+              value={draft.detail}
+              onChange={(e) => setDraft((d) => ({ ...d, detail: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium" htmlFor="edit-attachments">첨부서류</Label>
+            <textarea
+              id="edit-attachments"
+              className="flex min-h-20 w-full rounded-xl border border-input bg-card px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
+              value={draft.attachments}
+              placeholder="1. 영수증 1부&#10;2. 거래명세서 1부"
+              onChange={(e) => setDraft((d) => ({ ...d, attachments: e.target.value }))}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
+          <Button onClick={handleSave}>저장</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SomyeongRowCard({
+  r,
+  index,
+  selected,
+  onSelect,
+  onEdit,
+  onRemove,
+}: {
+  r: SomyeongRow;
+  index: number;
+  selected: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative w-full max-w-full rounded-lg border p-3 text-left transition",
+        selected
+          ? "border-foreground/20 bg-muted shadow-sm"
+          : "border-border bg-card hover:bg-muted/50"
+      )}
+    >
+      <button
+        type="button"
+        className="absolute inset-0 touch-manipulation outline-none"
+        onClick={onSelect}
+        aria-label={`${index + 1}번 행 선택`}
+      />
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-snug">
+            <span className="text-muted-foreground">#{index + 1}</span>{" "}
+            {r.title || <span className="text-muted-foreground">(건명 없음)</span>}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {r.seomok && (
+              <Badge variant="outline" className="text-xs">
+                {r.seomok}
+              </Badge>
+            )}
+            {r.folderRaw && (
+              <Badge variant="secondary" className="font-mono text-xs">
+                {r.folderRaw}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <div className="relative z-10 flex items-center gap-1.5 shrink-0">
+          {r.folders.length > 1 && (
+            <Badge variant="secondary" className="text-[10px] sm:text-xs">
+              ×{r.folders.length}
+            </Badge>
+          )}
+          {r.hasEmpty ? (
+            <Badge variant="destructive" className="text-[10px] sm:text-xs">
+              누락
+            </Badge>
+          ) : (
+            <Badge className="border-0 bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 text-[10px] sm:text-xs">
+              양호
+            </Badge>
+          )}
+          <button
+            type="button"
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/10"
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            aria-label={`${index + 1}번 행 수정`}
+          >
+            <Pencil className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-destructive focus-visible:ring-2 focus-visible:ring-foreground/10"
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            aria-label={`${index + 1}번 행 삭제`}
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
+      </div>
+      {r.hasEmpty && r.fieldWarnings.length > 0 && (
+        <ul className="relative z-10 mt-2 list-inside list-disc text-[10px] text-amber-700 dark:text-amber-400 sm:text-xs">
+          {r.fieldWarnings.map((w) => (
+            <li key={w} className="line-clamp-2">
+              {w}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function StepIndicator({
@@ -122,9 +367,35 @@ export function SomyeongTool() {
   const [previewI, setPreviewI] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
+  const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
 
   const csvInputRef = useRef<HTMLInputElement>(null);
   const previewStart = useRef(false);
+
+  const okCount = useMemo(() => rows.filter((r) => !r.hasEmpty).length, [rows]);
+  const warnCount = useMemo(() => rows.filter((r) => r.hasEmpty).length, [rows]);
+
+  const updateRow = useCallback((index: number, updated: SomyeongRow) => {
+    setRows((prev) => {
+      const next = [...prev];
+      next[index] = updated;
+      return next;
+    });
+  }, []);
+
+  const removeRow = useCallback((index: number) => {
+    setRows((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      // 미리보기 인덱스 보정
+      setPreviewI((p) => {
+        if (next.length === 0) return 0;
+        if (p >= next.length) return next.length - 1;
+        return p;
+      });
+      return next;
+    });
+    toast.success(`#${index + 1}번 행을 삭제했어요`);
+  }, []);
 
   useEffect(() => {
     getSomyeongSettings().then(setSettings).catch(console.error);
@@ -426,9 +697,21 @@ export function SomyeongTool() {
               {rows.length > 0 ? `${rows.length}건 읽었어요` : "2. 검토"}
             </h2>
             {rows.length > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                PDF {totalPdfCount}개 생성 예정
-              </span>
+              <>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  <Check className="size-3" />
+                  양호 {okCount}
+                </span>
+                {warnCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                    <AlertTriangle className="size-3" />
+                    누락 {warnCount}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                  PDF {totalPdfCount}개 생성 예정
+                </span>
+              </>
             )}
           </div>
 
@@ -506,50 +789,18 @@ export function SomyeongTool() {
                 <p className="mb-2 text-sm font-medium text-foreground">행 목록</p>
                 <div className="max-h-[min(80vh,56rem)] overflow-y-auto rounded-xl border border-border/80 p-2 lg:max-h-[calc(100vh-14rem)]">
                   <div className="grid gap-2" role="list" aria-label="행 목록">
-                    {rows.map((row, i) => {
-                      const selected = previewI === i;
-                      const n = settings?.seomokN[row.seomok] ?? 0;
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          role="listitem"
-                          onClick={() => void onPreviewIndex(i)}
-                          className={cn(
-                            "flex flex-col items-start gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
-                            selected
-                              ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                              : "border-border/80 bg-card hover:bg-muted/40"
-                          )}
-                        >
-                          <div className="flex w-full items-start gap-2">
-                            <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                              #{row.rowIndex}
-                            </span>
-                            <span className="flex-1 font-medium leading-snug">
-                              {row.title || "(건명 없음)"}
-                            </span>
-                            {row.folders.length > 1 && (
-                              <Badge variant="secondary" className="shrink-0 text-xs">
-                                ×{row.folders.length}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {row.seomok && (
-                              <Badge variant="outline" className="text-xs">
-                                {row.seomok} · N={n}
-                              </Badge>
-                            )}
-                            {row.folders.map((f) => (
-                              <Badge key={f} variant="secondary" className="font-mono text-xs">
-                                {f}
-                              </Badge>
-                            ))}
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {rows.map((row, i) => (
+                      <div key={i} role="listitem">
+                        <SomyeongRowCard
+                          r={row}
+                          index={i}
+                          selected={previewI === i}
+                          onSelect={() => void onPreviewIndex(i)}
+                          onEdit={() => setEditingRowIdx(i)}
+                          onRemove={() => removeRow(i)}
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -589,6 +840,23 @@ export function SomyeongTool() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* 행 편집 다이얼로그 */}
+      {editingRowIdx !== null && rows[editingRowIdx] && (
+        <SomyeongRowEditDialog
+          row={rows[editingRowIdx]}
+          index={editingRowIdx}
+          open={editingRowIdx !== null}
+          onOpenChange={(v) => { if (!v) setEditingRowIdx(null); }}
+          onSave={(updated) => {
+            updateRow(editingRowIdx, updated);
+            // 편집된 행이 현재 미리보기 행이면 즉시 갱신
+            if (previewI === editingRowIdx) {
+              void onPreviewIndex(editingRowIdx);
+            }
+          }}
+        />
       )}
 
       {/* ── STEP 3: 결과 ── */}

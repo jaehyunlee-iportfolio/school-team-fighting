@@ -425,7 +425,7 @@ export const DEFAULT_SOMYEONG_LAYOUT: SomyeongLayoutSettings = {
     marginBottom: 20,
   },
   closingText: { fontSize: 10, textAlign: "center", marginTop: 0, marginBottom: 20 },
-  dateText: { fontSize: 11, textAlign: "center", marginBottom: 16, letterSpacing: 4 },
+  dateText: { fontSize: 11, textAlign: "center", marginBottom: 16, letterSpacing: 1.5 },
   signature: { fontSize: 10, signImageMaxHeight: 28, marginBottom: 10 },
   recipient: { fontSize: 11, fontWeight: 600, textAlign: "right" },
 };

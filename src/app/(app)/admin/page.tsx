@@ -28,7 +28,9 @@ import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-font
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
 import { pdf } from "@react-pdf/renderer";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
+import { SomyeongDocument } from "@/components/pdf/somyeong-document";
 import type { TripRow } from "@/lib/csv/parseD4";
+import type { SomyeongRow } from "@/lib/csv/parseSomyeong";
 import ReactCrop, { type PercentCrop, type PixelCrop, convertToPixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import {
@@ -91,6 +93,7 @@ import {
   Scissors,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function AdminPage() {
   const { user, isAdmin, adminLoading } = useAuth();
@@ -104,7 +107,9 @@ export default function AdminPage() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [savingSomyeong, setSavingSomyeong] = useState(false);
   const [savingSomyeongLayout, setSavingSomyeongLayout] = useState(false);
-  const [activeTab, setActiveTab] = useState("signature");
+  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "common">("trip");
+  const [tripSub, setTripSub] = useState<"signApproval" | "layout">("signApproval");
+  const [somyeongSub, setSomyeongSub] = useState<"info" | "layout">("info");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -203,134 +208,171 @@ export default function AdminPage() {
     }
   };
 
+  const isWideTab =
+    (activeGroup === "trip" && tripSub === "layout") ||
+    (activeGroup === "somyeong" && somyeongSub === "layout");
+
   return (
-    <div className={`mx-auto space-y-6 p-4 md:p-8 transition-[max-width] ${activeTab === "pdfLayout" ? "max-w-7xl" : "max-w-3xl"}`}>
+    <div
+      className={cn(
+        "mx-auto space-y-6 p-4 md:p-8 transition-[max-width]",
+        isWideTab ? "max-w-7xl" : "max-w-3xl"
+      )}
+    >
       <div className="flex items-center gap-3">
         <Shield className="size-6 text-primary" />
         <div>
           <h1 className="text-xl font-bold tracking-tight">어드민 설정</h1>
           <p className="text-sm text-muted-foreground">
-            서명 정책, 결재 그룹, PDF 레이아웃, 사용자 관리
+            자동화 도구별 설정과 사용자 관리
           </p>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="signature">서명 정책</TabsTrigger>
-          <TabsTrigger value="groups">결재 그룹</TabsTrigger>
-          <TabsTrigger value="pdfLayout">PDF 레이아웃</TabsTrigger>
-          <TabsTrigger value="somyeong">소명서 설정</TabsTrigger>
-          <TabsTrigger value="users">어드민 사용자</TabsTrigger>
+      {/* 1단계: 도구 그룹 */}
+      <Tabs
+        value={activeGroup}
+        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "common")}
+        className="flex flex-col space-y-4"
+      >
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="trip">출장신청서</TabsTrigger>
+          <TabsTrigger value="somyeong">소명서</TabsTrigger>
+          <TabsTrigger value="common">공통</TabsTrigger>
         </TabsList>
 
-        {/* --- 서명 정책 --- */}
-        <TabsContent value="signature" className="space-y-4">
-          {(["ipf", "dimi"] as const).map((gid) => (
-            <ApproverGroupSection
-              key={gid}
-              groupId={gid}
-              settings={settings}
-              onChange={setSettings}
-            />
-          ))}
-          <div className="flex justify-end">
-            <Button onClick={handleSaveSettings} disabled={saving} className="gap-2">
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              저장
-            </Button>
-          </div>
-        </TabsContent>
+        {/* ── 출장신청서 ── */}
+        <TabsContent value="trip" className="space-y-4">
+          <Tabs
+            value={tripSub}
+            onValueChange={(v) => setTripSub(v as "signApproval" | "layout")}
+            className="flex flex-col space-y-4"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="signApproval">서명·결재</TabsTrigger>
+              <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
+            </TabsList>
 
-        {/* --- 결재 그룹 --- */}
-        <TabsContent value="groups" className="space-y-4">
-          <GroupLabelsSection settings={settings} onChange={setSettings} />
-          <div className="flex justify-end">
-            <Button onClick={handleSaveSettings} disabled={saving} className="gap-2">
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              저장
-            </Button>
-          </div>
-        </TabsContent>
-
-        {/* --- PDF 레이아웃 --- */}
-        <TabsContent value="pdfLayout">
-          <div className="flex flex-col gap-6 lg:flex-row">
-            <div className="w-full shrink-0 lg:w-[420px]">
-              <div className="sticky top-4">
-                <PdfPreview layout={pdfLayout} />
+            {/* 서명·결재 (서명 정책 + 결재 그룹 통합) */}
+            <TabsContent value="signApproval" className="space-y-6">
+              <div className="space-y-4">
+                <h2 className="text-base font-semibold">결재자 서명</h2>
+                {(["ipf", "dimi"] as const).map((gid) => (
+                  <ApproverGroupSection
+                    key={gid}
+                    groupId={gid}
+                    settings={settings}
+                    onChange={setSettings}
+                  />
+                ))}
               </div>
-            </div>
-            <div className="min-w-0 flex-1 space-y-4">
-              <PdfLayoutSection layout={pdfLayout} onChange={setPdfLayout} />
-              <div className="flex items-center justify-between border-t pt-4">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    setPdfLayout(DEFAULT_PDF_LAYOUT);
-                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
-                  }}
-                >
-                  <RotateCcw className="size-4" />
-                  기본값 초기화
-                </Button>
-                <Button onClick={handleSavePdfLayout} disabled={savingPdf} className="gap-2">
-                  {savingPdf ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              <Separator />
+              <div className="space-y-4">
+                <h2 className="text-base font-semibold">결재자 직위</h2>
+                <GroupLabelsSection settings={settings} onChange={setSettings} />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveSettings} disabled={saving} className="gap-2">
+                  {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                   저장
                 </Button>
               </div>
-            </div>
-          </div>
+            </TabsContent>
+
+            {/* PDF 레이아웃 */}
+            <TabsContent value="layout">
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <PdfPreview layout={pdfLayout} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <PdfLayoutSection layout={pdfLayout} onChange={setPdfLayout} />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setPdfLayout(DEFAULT_PDF_LAYOUT);
+                        toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                      }}
+                    >
+                      <RotateCcw className="size-4" />
+                      기본값 초기화
+                    </Button>
+                    <Button onClick={handleSavePdfLayout} disabled={savingPdf} className="gap-2">
+                      {savingPdf ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      저장
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        {/* --- 소명서 설정 --- */}
-        <TabsContent value="somyeong" className="space-y-6">
-          {/* 소명자 정보 + 서명 + 세목별 N */}
-          <div className="space-y-4">
-            <SomyeongSettingsSection
-              settings={somyeongSettings}
-              onChange={setSomyeongSettings}
-            />
-            <div className="flex justify-end">
-              <Button onClick={handleSaveSomyeong} disabled={savingSomyeong} className="gap-2">
-                {savingSomyeong ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                소명자 정보 저장
-              </Button>
-            </div>
-          </div>
+        {/* ── 소명서 ── */}
+        <TabsContent value="somyeong" className="space-y-4">
+          <Tabs
+            value={somyeongSub}
+            onValueChange={(v) => setSomyeongSub(v as "info" | "layout")}
+            className="flex flex-col space-y-4"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="info">소명자 정보·서명</TabsTrigger>
+              <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
+            </TabsList>
 
-          <Separator />
+            {/* 소명자 정보·서명·세목 N */}
+            <TabsContent value="info" className="space-y-4">
+              <SomyeongSettingsSection
+                settings={somyeongSettings}
+                onChange={setSomyeongSettings}
+              />
+              <div className="flex justify-end">
+                <Button onClick={handleSaveSomyeong} disabled={savingSomyeong} className="gap-2">
+                  {savingSomyeong ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  저장
+                </Button>
+              </div>
+            </TabsContent>
 
-          {/* 레이아웃 */}
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-base font-semibold">PDF 레이아웃</h2>
-              <p className="text-sm text-muted-foreground">글씨 크기·굵기·정렬·여백·테이블 크기를 조절해요.</p>
-            </div>
-            <SomyeongLayoutSection layout={somyeongLayout} onChange={setSomyeongLayout} />
-            <div className="flex items-center justify-between border-t pt-4">
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => {
-                  setSomyeongLayout(DEFAULT_SOMYEONG_LAYOUT);
-                  toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
-                }}
-              >
-                <RotateCcw className="size-4" />
-                기본값 초기화
-              </Button>
-              <Button onClick={handleSaveSomyeongLayout} disabled={savingSomyeongLayout} className="gap-2">
-                {savingSomyeongLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                레이아웃 저장
-              </Button>
-            </div>
-          </div>
+            {/* PDF 레이아웃 */}
+            <TabsContent value="layout">
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <SomyeongPreview layout={somyeongLayout} settings={somyeongSettings} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <SomyeongLayoutSection layout={somyeongLayout} onChange={setSomyeongLayout} />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setSomyeongLayout(DEFAULT_SOMYEONG_LAYOUT);
+                        toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                      }}
+                    >
+                      <RotateCcw className="size-4" />
+                      기본값 초기화
+                    </Button>
+                    <Button onClick={handleSaveSomyeongLayout} disabled={savingSomyeongLayout} className="gap-2">
+                      {savingSomyeongLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      저장
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        {/* --- 어드민 사용자 --- */}
-        <TabsContent value="users" className="space-y-4">
+        {/* ── 공통 ── */}
+        <TabsContent value="common" className="space-y-4">
           <AdminUsersSection
             currentEmail={user?.email ?? ""}
             emails={adminEmails}
@@ -418,6 +460,112 @@ function PdfPreview({ layout }: { layout: PdfLayoutSettings }) {
           <iframe
             src={url}
             title="PDF 미리보기"
+            className="absolute inset-0 size-full"
+          />
+        )}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {error && !loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <AlertCircle className="size-6 text-destructive" />
+            <p className="text-xs text-destructive">{error}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ===================================================================
+   Somyeong PDF Preview (mock data + live iframe)
+   =================================================================== */
+
+const MOCK_SOMYEONG_ROW: SomyeongRow = {
+  rowIndex: 1,
+  folderRaw: "C-9",
+  folders: ["C-9"],
+  title: "웨일북 대여비용 정산 지연 미치 오입금 처리 경위",
+  detail:
+    "1. 대금 지급 지연 사유: 당 사업단은 네이버 웨일북 대여비용에 대한 세금계산서(발행일: 2025.12.25)를 수취하였으나, 내부 정산 프로세스 확인 및 관련 행정 절차 소요로 인해 대금 지급이 당초 예정보다 약 3개월 지연되었습니다.\n\n2. 오입금 발생 경위: 이후 지연된 대금을 지급하는 과정에서, 담당자의 행정적 착오로 인해 수납 계좌가 아닌 잘못된 계좌(네이버 관련)로 대금이 송금되었습니다. (2026.3.31)\n\n3. 인지 및 조치 사항: 정산 미감일 후 해당 오입금 사실을 인지하였으며, 오입금된 금액에 대한 환수 조치를 취하여 전액 회수를 완료하였습니다.\n\n4. 최종 처리 결과: 환수 완료 즉시 실제 수납 계좌로 재입금 처리를 완료(2026.4.1)하였으며, 현재 대여비용 전액이 정상적으로 지급 완료된 상태입니다.\n\n5. 의견 및 최종 확인: 상기 내용은 사실과 다름없으며, 관련 증빙 자료를 첨부하여 소명합니다.",
+  attachments:
+    "1. 오입금 이체확인증 1부\n2. 오입금액 환수 내역 증빙 1부\n3. 정상 계좌 재입금 이체확인증 1부",
+  seomok: "사업시설장비비",
+  hasEmpty: false,
+  fieldWarnings: [],
+};
+
+function SomyeongPreview({
+  layout,
+  settings,
+}: {
+  layout: SomyeongLayoutSettings;
+  settings: SomyeongSettings;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const prevUrl = useRef<string | null>(null);
+  const generation = useRef(0);
+
+  // 빈 값일 때 미리보기에서만 채우는 mock 설정
+  const previewSettings: SomyeongSettings = {
+    ...settings,
+    name: settings.name || "채영지",
+    orgPosition: settings.orgPosition || "(주)아이포트폴리오 / 팀장",
+    phone: settings.phone || "010-0000-0000",
+    birthdate: settings.birthdate || "1985. 06. 26.",
+    address: settings.address || "서울특별시 강서구 마곡중앙8로 57, B동 8층",
+    date: settings.date || "2026년 4월 28일",
+    writerName: settings.writerName || "채영지",
+    recipient: settings.recipient || "한국과학창의재단 귀하",
+  };
+
+  useEffect(() => {
+    const gen = ++generation.current;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        registerPdfFonts();
+        const blob = await pdf(
+          <SomyeongDocument row={MOCK_SOMYEONG_ROW} settings={previewSettings} layout={layout} />
+        ).toBlob();
+        if (gen !== generation.current) return;
+        const newUrl = URL.createObjectURL(blob);
+        setUrl(newUrl);
+        if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+        prevUrl.current = newUrl;
+      } catch (e) {
+        if (gen !== generation.current) return;
+        setError(e instanceof Error ? e.message : "PDF 생성 실패");
+      } finally {
+        if (gen === generation.current) setLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, settings]);
+
+  useEffect(() => {
+    return () => {
+      if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <FileText className="size-4" />
+        미리보기 (목 데이터)
+      </div>
+      <div className="relative overflow-hidden rounded-lg border bg-muted/30" style={{ aspectRatio: "1 / 1.414" }}>
+        {url && (
+          <iframe
+            src={url}
+            title="소명서 PDF 미리보기"
             className="absolute inset-0 size-full"
           />
         )}

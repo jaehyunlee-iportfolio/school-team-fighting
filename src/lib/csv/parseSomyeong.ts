@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { SEOMOK_LIST } from "@/lib/firebase/firestore";
 
 export type SomyeongRow = {
   rowIndex: number;
@@ -8,6 +9,8 @@ export type SomyeongRow = {
   detail: string;
   attachments: string;
   seomok: string;
+  hasEmpty: boolean;
+  fieldWarnings: string[];
 };
 
 /**
@@ -18,7 +21,7 @@ export type SomyeongRow = {
  */
 export function expandFolders(raw: string): string[] {
   const trimmed = raw.trim();
-  if (!trimmed) return [""];
+  if (!trimmed) return [];
 
   if (trimmed.includes("~")) {
     const [leftStr, rightStr] = trimmed.split("~").map((s) => s.trim());
@@ -41,12 +44,23 @@ export function expandFolders(raw: string): string[] {
     .filter(Boolean);
 }
 
+export function recomputeSomyeongWarnings(r: Omit<SomyeongRow, "hasEmpty" | "fieldWarnings">): SomyeongRow {
+  const w: string[] = [];
+  if (!r.folderRaw.trim()) w.push("「증빙폴더번호」가 비어 있어요");
+  else if (r.folders.length === 0) w.push("「증빙폴더번호」를 폴더로 인식하지 못했어요");
+  if (!r.title.trim()) w.push("「건명」이 비어 있어요");
+  if (!r.detail.trim()) w.push("「상세내용」이 비어 있어요");
+  if (!r.seomok.trim()) w.push("「세목」이 비어 있어요 — N=0이 적용돼요");
+  else if (!(SEOMOK_LIST as readonly string[]).includes(r.seomok))
+    w.push(`알 수 없는 세목: "${r.seomok}" — N=0이 적용돼요`);
+  return { ...r, hasEmpty: w.length > 0, fieldWarnings: w };
+}
+
 export function parseSomyeongCsv(text: string): SomyeongRow[] {
   const result = Papa.parse<string[]>(text, { skipEmptyLines: false });
   const raw = result.data as string[][];
   if (!raw.length) return [];
 
-  // 헤더 행 탐색
   let headerIdx = -1;
   let colMap: Record<string, number> = {};
 
@@ -85,18 +99,19 @@ export function parseSomyeongCsv(text: string): SomyeongRow[] {
     const attachments = get("attachments");
     const seomok = get("seomok");
 
-    // 건명도 폴더도 없으면 스킵
     if (!folderRaw && !title && !detail) continue;
 
-    rows.push({
-      rowIndex: i,
-      folderRaw,
-      folders: expandFolders(folderRaw),
-      title,
-      detail,
-      attachments,
-      seomok,
-    });
+    rows.push(
+      recomputeSomyeongWarnings({
+        rowIndex: i,
+        folderRaw,
+        folders: expandFolders(folderRaw),
+        title,
+        detail,
+        attachments,
+        seomok,
+      })
+    );
   }
 
   return rows;
