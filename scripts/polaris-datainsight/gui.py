@@ -1,22 +1,41 @@
 #!/usr/bin/env python3
-"""Polaris AI DataInsight Doc Extract — tkinter GUI 테스터.
+"""Polaris AI DataInsight Doc Extract — PySide6 GUI 테스터.
 
-실행: python3 scripts/polaris-datainsight/gui.py
+실행: python3 scripts/polaris-datainsight/gui_qt.py
 """
 from __future__ import annotations
 
 import json
-import queue
-import threading
-import tkinter as tk
-from pathlib import Path
-from tkinter import filedialog, messagebox, scrolledtext, ttk
-
 import sys
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))  # for _tk_macos
+import unicodedata
+from pathlib import Path
 
-from _tk_macos import enable_macos_shortcuts
+
+def nfc(s: str) -> str:
+    """macOS는 파일 시스템 한글을 NFD로 저장 → 클립보드 자모 분리 방지를 위해 NFC 정규화."""
+    return unicodedata.normalize("NFC", s) if s else s
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from PySide6.QtCore import QObject, QThread, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
 from extract import (
     SUPPORTED_EXTS,
     ExtractResult,
@@ -33,202 +52,271 @@ DEFAULT_OUTPUT = HERE / "output"
 ENV_FILE = HERE / ".env"
 
 
-class App:
-    def __init__(self, root: tk.Tk) -> None:
-        self.root = root
-        root.title("Polaris DataInsight Doc Extract — Tester")
-        root.geometry("960x720")
+# ─── 워커 ────────────────────────────────────────────────────────────
+class ExtractWorker(QObject):
+    finished = Signal(object)  # ExtractResult
+    error = Signal(str)
 
-        self.q: queue.Queue[tuple[str, object]] = queue.Queue()
-        self.api_key = tk.StringVar(value=load_api_key(ENV_FILE) or "")
-        self.file_path = tk.StringVar()
-        self.output_dir = tk.StringVar(value=str(DEFAULT_OUTPUT))
+    def __init__(self, file_path: Path, api_key: str, output_dir: Path):
+        super().__init__()
+        self.file_path = file_path
+        self.api_key = api_key
+        self.output_dir = output_dir
+
+    def run(self) -> None:
+        try:
+            result = extract_document(self.file_path, self.api_key, self.output_dir)
+            self.finished.emit(result)
+        except Exception as e:  # noqa: BLE001
+            self.error.emit(str(e))
+
+
+class RenderPdfWorker(QObject):
+    finished = Signal(object)  # Path
+    error = Signal(str)
+
+    def __init__(self, data: dict, out_pdf: Path, image_dir: Path):
+        super().__init__()
+        self.data = data
+        self.out_pdf = out_pdf
+        self.image_dir = image_dir
+
+    def run(self) -> None:
+        try:
+            pdf = render_report_pdf(self.data, self.out_pdf, image_dir=self.image_dir)
+            self.finished.emit(pdf)
+        except Exception as e:  # noqa: BLE001
+            self.error.emit(str(e))
+
+
+# ─── 메인 윈도우 ─────────────────────────────────────────────────────
+class MainWindow(QMainWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setWindowTitle("Polaris DataInsight Doc Extract — Tester")
+        self.resize(960, 720)
+
         self.last_result: ExtractResult | None = None
+        self._extract_thread: QThread | None = None
+        self._extract_worker: ExtractWorker | None = None
+        self._pdf_thread: QThread | None = None
+        self._pdf_worker: RenderPdfWorker | None = None
 
         self._build_ui()
-        self.root.after(120, self._poll)
 
     def _build_ui(self) -> None:
-        top = ttk.Frame(self.root, padding=10)
-        top.pack(fill="x")
+        central = QWidget()
+        self.setCentralWidget(central)
+        root = QVBoxLayout(central)
+        root.setContentsMargins(10, 10, 10, 10)
+        root.setSpacing(8)
 
-        ttk.Label(top, text="API Key:").grid(row=0, column=0, sticky="w")
-        key_entry = ttk.Entry(top, textvariable=self.api_key, show="•", width=70)
-        key_entry.grid(row=0, column=1, sticky="we", padx=4)
-        status = "✓ .env에서 로드됨" if self.api_key.get() else "⚠ .env에 키 없음"
-        ttk.Label(top, text=status).grid(row=0, column=2, sticky="w")
+        # 입력 영역 (Grid)
+        top = QGridLayout()
+        top.setHorizontalSpacing(6)
+        top.setVerticalSpacing(6)
+        top.setColumnStretch(1, 1)
 
-        ttk.Label(top, text="입력 파일:").grid(row=1, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(top, textvariable=self.file_path).grid(row=1, column=1, sticky="we", padx=4, pady=(8, 0))
-        ttk.Button(top, text="선택...", command=self._pick_file).grid(row=1, column=2, sticky="w", pady=(8, 0))
+        # API Key
+        top.addWidget(QLabel("API Key:"), 0, 0)
+        self.api_key_input = QLineEdit(load_api_key(ENV_FILE) or "")
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        top.addWidget(self.api_key_input, 0, 1)
+        status = "✓ .env에서 로드됨" if self.api_key_input.text() else "⚠ .env에 키 없음"
+        top.addWidget(QLabel(status), 0, 2)
 
-        ttk.Label(top, text="출력 폴더:").grid(row=2, column=0, sticky="w", pady=(8, 0))
-        ttk.Entry(top, textvariable=self.output_dir).grid(row=2, column=1, sticky="we", padx=4, pady=(8, 0))
-        ttk.Button(top, text="선택...", command=self._pick_outdir).grid(row=2, column=2, sticky="w", pady=(8, 0))
+        # 입력 파일
+        top.addWidget(QLabel("입력 파일:"), 1, 0)
+        self.file_path_input = QLineEdit()
+        top.addWidget(self.file_path_input, 1, 1)
+        pick_file_btn = QPushButton("선택...")
+        pick_file_btn.clicked.connect(self._pick_file)
+        top.addWidget(pick_file_btn, 1, 2)
 
-        top.columnconfigure(1, weight=1)
+        # 출력 폴더
+        top.addWidget(QLabel("출력 폴더:"), 2, 0)
+        self.output_dir_input = QLineEdit(str(DEFAULT_OUTPUT))
+        top.addWidget(self.output_dir_input, 2, 1)
+        pick_outdir_btn = QPushButton("선택...")
+        pick_outdir_btn.clicked.connect(self._pick_outdir)
+        top.addWidget(pick_outdir_btn, 2, 2)
 
-        actions = ttk.Frame(self.root, padding=(10, 0, 10, 10))
-        actions.pack(fill="x")
-        self.run_btn = ttk.Button(actions, text="추출 시작", command=self._run)
-        self.run_btn.pack(side="left")
-        self.pdf_btn = ttk.Button(actions, text="보고서 PDF 생성", command=self._run_pdf_report, state="disabled")
-        self.pdf_btn.pack(side="left", padx=4)
-        ttk.Button(actions, text="결과 폴더 열기", command=self._open_outdir).pack(side="left", padx=8)
-        self.progress = ttk.Progressbar(actions, mode="indeterminate")
-        self.progress.pack(side="left", fill="x", expand=True, padx=8)
+        root.addLayout(top)
 
-        ttk.Label(self.root, text="로그", padding=(10, 0)).pack(anchor="w")
-        self.log = scrolledtext.ScrolledText(self.root, height=8, wrap="word")
-        self.log.pack(fill="x", padx=10)
+        # 액션 버튼 + 진행률
+        actions = QHBoxLayout()
+        self.run_btn = QPushButton("추출 시작")
+        self.run_btn.clicked.connect(self._run)
+        actions.addWidget(self.run_btn)
 
-        nb = ttk.Notebook(self.root)
-        nb.pack(fill="both", expand=True, padx=10, pady=10)
-        self.summary_view = self._add_tab(nb, "요약")
-        self.tables_view = self._add_tab(nb, "표 (Markdown)")
-        self.text_view = self._add_tab(nb, "본문 텍스트")
-        self.json_view = self._add_tab(nb, "원본 JSON")
+        self.pdf_btn = QPushButton("보고서 PDF 생성")
+        self.pdf_btn.setEnabled(False)
+        self.pdf_btn.clicked.connect(self._run_pdf_report)
+        actions.addWidget(self.pdf_btn)
 
-    def _add_tab(self, nb: ttk.Notebook, title: str) -> scrolledtext.ScrolledText:
-        frame = ttk.Frame(nb)
-        nb.add(frame, text=title)
-        text = scrolledtext.ScrolledText(frame, wrap="word", font=("Menlo", 11))
-        text.pack(fill="both", expand=True)
-        return text
+        open_outdir_btn = QPushButton("결과 폴더 열기")
+        open_outdir_btn.clicked.connect(self._open_outdir)
+        actions.addWidget(open_outdir_btn)
 
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 1)  # idle
+        self.progress.setValue(0)
+        actions.addWidget(self.progress, 1)
+        root.addLayout(actions)
+
+        # 로그
+        root.addWidget(QLabel("로그"))
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setMaximumBlockCount(5000)
+        self.log.setFixedHeight(150)
+        root.addWidget(self.log)
+
+        # 결과 탭
+        self.tabs = QTabWidget()
+        mono = QFont("Menlo", 11)
+
+        self.summary_view = QPlainTextEdit(); self.summary_view.setReadOnly(True); self.summary_view.setFont(mono)
+        self.tables_view = QPlainTextEdit(); self.tables_view.setReadOnly(True); self.tables_view.setFont(mono)
+        self.text_view = QPlainTextEdit(); self.text_view.setReadOnly(True); self.text_view.setFont(mono)
+        self.json_view = QPlainTextEdit(); self.json_view.setReadOnly(True); self.json_view.setFont(mono)
+
+        self.tabs.addTab(self.summary_view, "요약")
+        self.tabs.addTab(self.tables_view, "표 (Markdown)")
+        self.tabs.addTab(self.text_view, "본문 텍스트")
+        self.tabs.addTab(self.json_view, "원본 JSON")
+        root.addWidget(self.tabs, 1)
+
+    # ─── 핸들러 ───────────────────────────────────────────────────────
     def _pick_file(self) -> None:
         exts = " ".join(f"*{e}" for e in sorted(SUPPORTED_EXTS))
-        path = filedialog.askopenfilename(
-            title="추출할 문서 선택",
-            filetypes=[("지원 문서", exts), ("모든 파일", "*.*")],
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "추출할 문서 선택",
+            "",
+            f"지원 문서 ({exts});;모든 파일 (*.*)",
         )
         if path:
-            self.file_path.set(path)
+            self.file_path_input.setText(nfc(path))
 
     def _pick_outdir(self) -> None:
-        d = filedialog.askdirectory(title="출력 폴더 선택", initialdir=self.output_dir.get())
+        d = QFileDialog.getExistingDirectory(
+            self,
+            "출력 폴더 선택",
+            self.output_dir_input.text(),
+        )
         if d:
-            self.output_dir.set(d)
+            self.output_dir_input.setText(nfc(d))
 
     def _open_outdir(self) -> None:
-        out = Path(self.output_dir.get())
+        out = Path(self.output_dir_input.text())
         out.mkdir(parents=True, exist_ok=True)
-        import subprocess
-        subprocess.run(["open", str(out)], check=False)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(out)))
 
     def _log(self, msg: str) -> None:
-        self.log.insert("end", msg + "\n")
-        self.log.see("end")
+        self.log.appendPlainText(nfc(msg))
 
-    def _set_text(self, widget: scrolledtext.ScrolledText, content: str) -> None:
-        widget.delete("1.0", "end")
-        widget.insert("1.0", content)
+    def _set_progress_busy(self, busy: bool) -> None:
+        if busy:
+            self.progress.setRange(0, 0)  # indeterminate
+        else:
+            self.progress.setRange(0, 1)
+            self.progress.setValue(0)
 
+    # ─── 추출 ───────────────────────────────────────────────────────
     def _run(self) -> None:
-        api_key = self.api_key.get().strip()
-        file_path = self.file_path.get().strip()
-        output_dir = self.output_dir.get().strip()
+        api_key = self.api_key_input.text().strip()
+        file_path = self.file_path_input.text().strip()
+        output_dir = self.output_dir_input.text().strip()
         if not api_key:
-            messagebox.showerror("오류", "API Key가 필요합니다.")
+            QMessageBox.critical(self, "오류", "API Key가 필요합니다.")
             return
         if not file_path or not Path(file_path).exists():
-            messagebox.showerror("오류", "파일을 선택하세요.")
+            QMessageBox.critical(self, "오류", "파일을 선택하세요.")
             return
 
-        self.run_btn.config(state="disabled")
-        self.progress.start(10)
+        self.run_btn.setEnabled(False)
+        self._set_progress_busy(True)
         self._log(f"[추출 시작] {Path(file_path).name}")
 
-        def worker() -> None:
-            try:
-                result = extract_document(
-                    Path(file_path), api_key, Path(output_dir)
-                )
-                self.q.put(("done", result))
-            except Exception as e:  # noqa: BLE001
-                self.q.put(("error", str(e)))
+        self._extract_thread = QThread(self)
+        self._extract_worker = ExtractWorker(Path(file_path), api_key, Path(output_dir))
+        self._extract_worker.moveToThread(self._extract_thread)
+        self._extract_thread.started.connect(self._extract_worker.run)
+        self._extract_worker.finished.connect(self._on_extract_done)
+        self._extract_worker.error.connect(self._on_extract_error)
+        self._extract_worker.finished.connect(self._extract_thread.quit)
+        self._extract_worker.error.connect(self._extract_thread.quit)
+        self._extract_thread.finished.connect(self._extract_worker.deleteLater)
+        self._extract_thread.finished.connect(self._extract_thread.deleteLater)
+        self._extract_thread.start()
 
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _run_pdf_report(self) -> None:
-        if not self.last_result:
-            messagebox.showerror("오류", "먼저 추출을 실행하세요.")
-            return
-        result = self.last_result
-        stem = result.json_path.stem.replace(".hwp", "").replace(".hwpx", "")
-        out_pdf = result.json_path.parent.parent / f"{stem}.report.pdf"
-        self.pdf_btn.config(state="disabled")
-        self.progress.start(10)
-        self._log("[보고서 PDF 생성 시작]")
-
-        image_dir = result.json_path.parent
-
-        def worker() -> None:
-            try:
-                pdf = render_report_pdf(result.data, out_pdf, image_dir=image_dir)
-                self.q.put(("pdf_done", pdf))
-            except Exception as e:  # noqa: BLE001
-                self.q.put(("pdf_error", str(e)))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _poll(self) -> None:
-        try:
-            while True:
-                kind, payload = self.q.get_nowait()
-                if kind == "done":
-                    assert isinstance(payload, ExtractResult)
-                    self._on_done(payload)
-                elif kind == "error":
-                    self._on_error(str(payload))
-                elif kind == "pdf_done":
-                    self._on_pdf_done(Path(str(payload)))
-                elif kind == "pdf_error":
-                    self._on_pdf_error(str(payload))
-        except queue.Empty:
-            pass
-        self.root.after(120, self._poll)
-
-    def _on_done(self, result: ExtractResult) -> None:
-        self.progress.stop()
-        self.run_btn.config(state="normal")
+    def _on_extract_done(self, result: object) -> None:
+        assert isinstance(result, ExtractResult)
+        self._set_progress_busy(False)
+        self.run_btn.setEnabled(True)
         self.last_result = result
-        self.pdf_btn.config(state="normal")
+        self.pdf_btn.setEnabled(True)
         self._log(f"[성공] ZIP: {result.zip_path}")
         self._log(f"  JSON: {result.json_path}")
         self._log(f"  이미지: {len(result.images)}개")
 
-        self._set_text(self.summary_view, summarize(result.data))
-        self._set_text(self.tables_view, collect_tables_markdown(result.data))
-        self._set_text(self.text_view, collect_text(result.data))
-        self._set_text(self.json_view, json.dumps(result.data, ensure_ascii=False, indent=2))
+        self.summary_view.setPlainText(summarize(result.data))
+        self.tables_view.setPlainText(collect_tables_markdown(result.data))
+        self.text_view.setPlainText(collect_text(result.data))
+        self.json_view.setPlainText(json.dumps(result.data, ensure_ascii=False, indent=2))
 
-    def _on_error(self, msg: str) -> None:
-        self.progress.stop()
-        self.run_btn.config(state="normal")
+    def _on_extract_error(self, msg: str) -> None:
+        self._set_progress_busy(False)
+        self.run_btn.setEnabled(True)
         self._log(f"[실패] {msg}")
-        messagebox.showerror("추출 실패", msg)
+        QMessageBox.critical(self, "추출 실패", msg)
 
-    def _on_pdf_done(self, pdf_path: Path) -> None:
-        self.progress.stop()
-        self.pdf_btn.config(state="normal")
-        self._log(f"[보고서 PDF 완료] {pdf_path}")
-        import subprocess
-        subprocess.run(["open", str(pdf_path)], check=False)
+    # ─── 보고서 PDF ─────────────────────────────────────────────────
+    def _run_pdf_report(self) -> None:
+        if not self.last_result:
+            QMessageBox.critical(self, "오류", "먼저 추출을 실행하세요.")
+            return
+        result = self.last_result
+        stem = result.json_path.stem.replace(".hwp", "").replace(".hwpx", "")
+        out_pdf = result.json_path.parent.parent / f"{stem}.report.pdf"
+
+        self.pdf_btn.setEnabled(False)
+        self._set_progress_busy(True)
+        self._log("[보고서 PDF 생성 시작]")
+
+        self._pdf_thread = QThread(self)
+        self._pdf_worker = RenderPdfWorker(result.data, out_pdf, image_dir=result.json_path.parent)
+        self._pdf_worker.moveToThread(self._pdf_thread)
+        self._pdf_thread.started.connect(self._pdf_worker.run)
+        self._pdf_worker.finished.connect(self._on_pdf_done)
+        self._pdf_worker.error.connect(self._on_pdf_error)
+        self._pdf_worker.finished.connect(self._pdf_thread.quit)
+        self._pdf_worker.error.connect(self._pdf_thread.quit)
+        self._pdf_thread.finished.connect(self._pdf_worker.deleteLater)
+        self._pdf_thread.finished.connect(self._pdf_thread.deleteLater)
+        self._pdf_thread.start()
+
+    def _on_pdf_done(self, pdf_path: object) -> None:
+        path = Path(str(pdf_path))
+        self._set_progress_busy(False)
+        self.pdf_btn.setEnabled(True)
+        self._log(f"[보고서 PDF 완료] {path}")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def _on_pdf_error(self, msg: str) -> None:
-        self.progress.stop()
-        self.pdf_btn.config(state="normal")
+        self._set_progress_busy(False)
+        self.pdf_btn.setEnabled(True)
         self._log(f"[보고서 PDF 실패] {msg}")
-        messagebox.showerror("보고서 PDF 실패", msg)
+        QMessageBox.critical(self, "보고서 PDF 실패", msg)
 
 
-def main() -> None:
-    root = tk.Tk()
-    enable_macos_shortcuts(root)
-    App(root)
-    root.mainloop()
+def main() -> int:
+    app = QApplication(sys.argv)
+    win = MainWindow()
+    win.show()
+    return app.exec()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

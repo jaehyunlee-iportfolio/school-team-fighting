@@ -1,0 +1,13 @@
+# 두 Python GUI 공통 의존성
+#
+# 설치:
+#   pip3 install --user --break-system-packages -r scripts/requirements.txt
+
+# GUI (PySide6 — Qt 공식 LGPL 바인딩)
+PySide6>=6.6
+
+# Polaris DataInsight Doc Extract API 호출
+requests>=2.31.0
+
+# 보고서 PDF 생성 (reportlab)
+reportlab>=4.0.0

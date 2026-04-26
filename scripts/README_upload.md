@@ -17,23 +17,23 @@
 
 ## 준비
 
-### 1. Python (3.9+) + Tk
+### 1. Python (3.9+)
 ```bash
 python3 --version
 ```
-- macOS Homebrew Python을 쓰면 Tk가 따로 설치 필요:
-  ```bash
-  brew install python-tk@3.12
-  ```
-- 시스템 Python(`/usr/bin/python3`)은 보통 Tk 포함되어 있음
 
-### 2. tqdm 설치 (CLI 진행률 표시용, 선택)
+### 2. 의존성 설치 (PySide6 등)
+```bash
+pip3 install --user --break-system-packages -r scripts/requirements.txt
+```
+
+### 3. tqdm 설치 (CLI 진행률 표시용, 선택)
 ```bash
 pip3 install --user --break-system-packages tqdm
 ```
 없어도 동작합니다 (CLI 진행률만 안 보임). GUI는 tqdm 불필요.
 
-### 3. Google Drive Desktop
+### 4. Google Drive Desktop
 - https://www.google.com/drive/download/ 에서 설치
 - D-4.출장비 폴더가 **로컬 동기화** 활성화되어 있어야 함
 - 동기화된 로컬 경로 확인 (보통)
