@@ -2,12 +2,25 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import requests
+
+
+def _fix_text(s: Any) -> Any:
+    """double-encoded UTF-8(Latin-1로 읽힌 UTF-8 바이트) 복구 + NFC 정규화."""
+    if not isinstance(s, str):
+        return s
+    try:
+        repaired = s.encode("latin-1").decode("utf-8")
+        s = repaired
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    return unicodedata.normalize("NFC", s)
 
 API_URL = "https://datainsight-api.polarisoffice.com/api/v1/datainsight/doc-extract"
 SUPPORTED_EXTS = {".docx", ".pptx", ".xlsx", ".hwp", ".hwpx"}
@@ -78,7 +91,7 @@ def extract_document(file_path: Path, api_key: str, output_dir: Path, timeout: i
 
 def summarize(data: dict[str, Any]) -> str:
     lines: list[str] = []
-    lines.append(f"문서명: {data.get('docName', '?')}")
+    lines.append(f"문서명: {_fix_text(data.get('docName', '?'))}")
     lines.append(f"총 페이지: {data.get('totalPages', '?')}")
     meta = data.get("metadata", {}).get("coreProperties", {}) if data.get("metadata") else {}
     if meta:
@@ -130,9 +143,14 @@ def table_to_markdown(table_content: dict[str, Any], structure: dict[str, Any] |
         m = cell.get("metrics", {}) or {}
         r = m.get("rowaddr") or 0
         c = m.get("coladdr") or 0
+        rspan = max(1, m.get("rowspan") or 1)
+        cspan = max(1, m.get("colspan") or 1)
         text = _cell_text(cell)
-        if 0 <= r < rows and 0 <= c < cols:
-            grid[r][c] = text
+        for dr in range(rspan):
+            for dc in range(cspan):
+                rr, cc = r + dr, c + dc
+                if 0 <= rr < rows and 0 <= cc < cols:
+                    grid[rr][cc] = text
 
     out: list[str] = []
     out.append("| " + " | ".join(grid[0]) + " |")
