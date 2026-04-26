@@ -17,9 +17,9 @@ from typing import Callable, Iterable
 PREFIX_RE = re.compile(r"^([A-Za-z]-\d+(?:-\d+)*)_(.+\.pdf)$", re.IGNORECASE)
 REPORT_SCHEMA_VERSION = 1
 
-# Google Drive Desktop 가상 FS는 macOS PATH_MAX(1024)보다 보수적으로 동작해
-# 한글 다바이트 경로에서 ENAMETOOLONG이 종종 발생함. 안전 budget으로 자동 축약.
-PATH_BUDGET_BYTES = 240
+# macOS PATH_MAX는 1024바이트. Drive Desktop 가상 FS는 그보다 약간 보수적이라
+# 여유를 둬서 이 값 이내면 그대로 통과. 이걸 넘는 진짜 극단적인 경우에만 축약.
+PATH_BUDGET_BYTES = 950
 
 
 @dataclass
