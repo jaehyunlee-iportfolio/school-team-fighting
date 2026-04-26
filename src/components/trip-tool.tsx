@@ -256,60 +256,39 @@ function SigThumb({ src, label }: { src: string; label: string }) {
 }
 
 function StepIndicator({
+  steps,
   current,
-  onGoTo,
+  onBack,
 }: {
+  steps: typeof STEPS;
   current: AppStep;
-  onGoTo?: (step: AppStep) => void;
+  onBack: (id: AppStep) => void;
 }) {
-  const i = STEPS.findIndex((s) => s.id === current);
+  const currentIdx = steps.findIndex((s) => s.id === current);
   return (
-    <div
-      className="mb-4 grid w-full min-w-0 max-w-4xl grid-cols-3 gap-0 rounded-lg bg-muted p-1 sm:mb-6"
-      role="status"
-      aria-label="진행 단계"
-    >
-      {STEPS.map((s, n) => {
-        const done = n < i;
-        const active = n === i;
-        const goBack = onGoTo && n < i;
-        const segment = (
-          <div
-            className={cn(
-              "flex min-h-11 w-full touch-manipulation flex-col items-center justify-center gap-0.5 rounded-md px-1.5 py-2 text-center sm:min-h-9 sm:gap-0 sm:px-2.5",
-              active && "bg-card text-foreground shadow-sm",
-              !active && done && "text-muted-foreground",
-              !active && !done && "text-muted-foreground/70"
-            )}
-            aria-current={active ? "step" : undefined}
-          >
-            <span className="inline-flex items-center justify-center gap-1 text-xs font-medium sm:text-sm">
-              {done && !active ? <Check className="size-3.5 sm:size-4" aria-hidden /> : null}
-              {s.label}
-            </span>
-            <span className="text-[9px] leading-tight text-muted-foreground sm:text-[10px]">
-              {s.desc}
-            </span>
-          </div>
-        );
+    <ol className="flex items-center gap-1">
+      {steps.map((s, i) => {
+        const done = i < currentIdx;
+        const active = i === currentIdx;
         return (
-          <div key={s.id} className="min-w-0">
-            {goBack ? (
-              <button
-                type="button"
-                className="w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-foreground/10"
-                onClick={() => onGoTo(s.id)}
-                aria-label={`${s.label} 단계로 돌아가기`}
-              >
-                {segment}
-              </button>
-            ) : (
-              <div className="w-full">{segment}</div>
-            )}
-          </div>
+          <li key={s.id} className="flex items-center gap-1">
+            {i > 0 && <span className="text-muted-foreground">›</span>}
+            <button
+              onClick={() => done && onBack(s.id)}
+              disabled={!done}
+              className={cn(
+                "rounded px-2 py-1 text-xs font-medium transition-colors",
+                active && "bg-primary text-primary-foreground",
+                done && "cursor-pointer text-muted-foreground hover:text-foreground",
+                !done && !active && "cursor-default text-muted-foreground/40"
+              )}
+            >
+              {s.label}
+            </button>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -955,18 +934,17 @@ export function TripTool() {
       data-step={step}
     >
       <div className="mx-auto w-full min-w-0 space-y-4 sm:space-y-6">
-        <header className="mx-auto mb-0 w-full max-w-4xl border-b border-border pb-5 sm:pb-6">
-          <h1 className="text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl lg:text-3xl">
-            출장신청서
-          </h1>
-          <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
-            CSV는 필수, 결재 서명 이미지 2장은 선택이에요.
-          </p>
+        <header className="mx-auto mb-0 flex w-full max-w-4xl items-center justify-between gap-4 border-b border-border pb-5 sm:pb-6">
+          <div>
+            <h1 className="text-xl font-semibold leading-tight tracking-tight text-foreground sm:text-2xl lg:text-3xl">
+              출장신청서
+            </h1>
+            <p className="mt-2 text-xs text-muted-foreground sm:text-sm">
+              CSV는 필수, 결재 서명 이미지 2장은 선택이에요.
+            </p>
+          </div>
+          <StepIndicator steps={STEPS} current={step} onBack={goToStep} />
         </header>
-
-        <div className="mx-auto w-full max-w-4xl">
-          <StepIndicator current={step} onGoTo={goToStep} />
-        </div>
 
       {step === "input" && (
         <Card className="mx-auto max-w-4xl">
