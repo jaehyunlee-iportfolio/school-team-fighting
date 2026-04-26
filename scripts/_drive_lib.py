@@ -14,7 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterable
 
-PREFIX_RE = re.compile(r"^([A-Za-z]-\d+(?:-\d+)*)_(.+\.pdf)$", re.IGNORECASE)
+SUPPORTED_EXTS = (".pdf", ".hwp", ".hwpx")
+PREFIX_RE = re.compile(
+    r"^([A-Za-z]-\d+(?:-\d+)*)_(.+\.(?:pdf|hwp|hwpx))$", re.IGNORECASE
+)
 REPORT_SCHEMA_VERSION = 1
 
 
@@ -119,7 +122,7 @@ def process_one(
             evidence_no="",
             target_folder="",
             target_filename="",
-            reason="파일명에 증빙번호 prefix 없음 (예: D-4-1_파일명.pdf)",
+            reason="파일명에 증빙번호 prefix 없음 또는 미지원 확장자 (예: D-4-1_파일명.pdf, .hwp, .hwpx 지원)",
         )
 
     target_folder = find_target_folder(drive_root, evidence_no, max_depth=2)
@@ -193,7 +196,10 @@ def process_one(
 
 
 def list_pdfs(src: Path) -> list[Path]:
-    return sorted([p for p in src.iterdir() if p.is_file() and p.suffix.lower() == ".pdf"])
+    """이름은 list_pdfs지만 .pdf / .hwp / .hwpx 모두 포함."""
+    return sorted(
+        [p for p in src.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS]
+    )
 
 
 def process_all(
@@ -205,7 +211,7 @@ def process_all(
     dry_run: bool = False,
     on_progress: Callable[[int, int, TaskResult], None] | None = None,
 ) -> list[TaskResult]:
-    """모든 PDF 처리. on_progress(현재, 전체, 결과)로 진행 상황 보고."""
+    """모든 지원 파일 처리. on_progress(현재, 전체, 결과)로 진행 상황 보고."""
     pdfs = list_pdfs(src)
     total = len(pdfs)
     results: list[TaskResult] = []
