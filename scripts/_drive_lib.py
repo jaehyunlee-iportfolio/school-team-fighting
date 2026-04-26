@@ -17,10 +17,6 @@ from typing import Callable, Iterable
 PREFIX_RE = re.compile(r"^([A-Za-z]-\d+(?:-\d+)*)_(.+\.pdf)$", re.IGNORECASE)
 REPORT_SCHEMA_VERSION = 1
 
-# macOS PATH_MAX는 1024바이트. Drive Desktop 가상 FS는 그보다 약간 보수적이라
-# 여유를 둬서 이 값 이내면 그대로 통과. 이걸 넘는 진짜 극단적인 경우에만 축약.
-PATH_BUDGET_BYTES = 950
-
 
 @dataclass
 class TaskResult:
@@ -80,45 +76,6 @@ def find_target_folder(
     return None
 
 
-def _path_byte_len(p: Path) -> int:
-    return len(str(p).encode("utf-8"))
-
-
-def shorten_to_fit(
-    target_dir: Path,
-    name: str,
-    evidence_no: str,
-    *,
-    budget: int = PATH_BUDGET_BYTES,
-    suffix_room: int = 8,  # "_dup99" 등 추후 suffix 여유분
-) -> str:
-    """target_dir/name 의 전체 경로 길이가 budget을 넘으면 name을 줄여 반환.
-
-    - 확장자 보존
-    - 줄여도 안 되면 `{evidence_no}.pdf` 로 fallback
-    """
-    full_bytes = _path_byte_len(target_dir / name)
-    if full_bytes + suffix_room <= budget:
-        return name
-    base, dot, ext = name.rpartition(".")
-    if not dot:
-        base, ext = name, ""
-    else:
-        ext = "." + ext
-
-    overflow = full_bytes - budget + suffix_room
-    base_bytes = base.encode("utf-8")
-    if overflow >= len(base_bytes):
-        return f"{evidence_no}{ext}"
-    new_bytes = base_bytes[: len(base_bytes) - overflow]
-    while new_bytes:
-        try:
-            return new_bytes.decode("utf-8") + ext
-        except UnicodeDecodeError:
-            new_bytes = new_bytes[:-1]
-    return f"{evidence_no}{ext}"
-
-
 def _safe_exists(p: Path) -> bool:
     """ENAMETOOLONG 발생 시 False로 처리 (해당 경로엔 파일 없다고 간주)."""
     try:
@@ -176,13 +133,7 @@ def process_one(
             reason=f"Drive 트리에서 {evidence_no} 폴더를 찾지 못함 (2단계까지 검색)",
         )
 
-    # Drive 가상 FS에서 ENAMETOOLONG이 안 나도록 미리 축약
-    shortened = shorten_to_fit(target_folder, stripped, evidence_no)
-    truncated = shortened != stripped
-    stripped = shortened
-
     target_path = target_folder / stripped if overwrite else resolve_dup_name(target_folder, stripped)
-    base_reason_suffix = " · 파일명 축약함" if truncated else ""
 
     if dry_run:
         return TaskResult(
@@ -191,7 +142,7 @@ def process_one(
             evidence_no=evidence_no,
             target_folder=str(target_folder),
             target_filename=target_path.name,
-            reason=f"[dry-run] {mode} 예정{base_reason_suffix}",
+            reason=f"[dry-run] {mode} 예정",
         )
 
     try:
@@ -200,37 +151,19 @@ def process_one(
         else:  # copy
             shutil.copy2(str(src_file), str(target_path))
     except OSError as e:
-        # 사전 축약을 했어도 실패하면 evidence_no.pdf 로 한 번 더 시도
         if e.errno == errno.ENAMETOOLONG:
-            ext = src_file.suffix or ".pdf"
-            fallback_name = f"{evidence_no}{ext}"
-            fallback_path = (
-                target_folder / fallback_name
-                if overwrite
-                else resolve_dup_name(target_folder, fallback_name)
+            full_bytes = len(str(target_path).encode("utf-8"))
+            return TaskResult(
+                status="ERROR",
+                src_filename=name,
+                evidence_no=evidence_no,
+                target_folder=str(target_folder),
+                target_filename=target_path.name,
+                reason=(
+                    f"경로가 너무 길어 Drive가 거부함 ({full_bytes}바이트). "
+                    f"Drive 폴더를 더 짧은 위치로 옮기거나 단축 경로를 만들어 주세요."
+                ),
             )
-            try:
-                if mode == "move":
-                    shutil.move(str(src_file), str(fallback_path))
-                else:
-                    shutil.copy2(str(src_file), str(fallback_path))
-                return TaskResult(
-                    status="OK",
-                    src_filename=name,
-                    evidence_no=evidence_no,
-                    target_folder=str(target_folder),
-                    target_filename=fallback_path.name,
-                    reason=f"{mode} 완료 · 경로 길이 한계로 파일명 최소화함",
-                )
-            except Exception as e2:
-                return TaskResult(
-                    status="ERROR",
-                    src_filename=name,
-                    evidence_no=evidence_no,
-                    target_folder=str(target_folder),
-                    target_filename=fallback_path.name,
-                    reason=f"축약 후에도 실패: {type(e2).__name__}: {e2}",
-                )
         return TaskResult(
             status="ERROR",
             src_filename=name,
@@ -255,7 +188,7 @@ def process_one(
         evidence_no=evidence_no,
         target_folder=str(target_folder),
         target_filename=target_path.name,
-        reason=f"{mode} 완료{base_reason_suffix}",
+        reason=f"{mode} 완료",
     )
 
 
