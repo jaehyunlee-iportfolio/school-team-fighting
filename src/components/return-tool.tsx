@@ -757,6 +757,7 @@ export function ReturnTool() {
   const [pageInfoProgress, setPageInfoProgress] = useState<{ done: number; total: number } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bulkInputRef = useRef<HTMLInputElement>(null);
   const previewStart = useRef(false);
   const measureToken = useRef(0);
 
@@ -836,6 +837,104 @@ export function ReturnTool() {
       }
     } catch {
       toast.error("사진 처리 중 오류가 발생했어요");
+    }
+  }, []);
+
+  const [bulkPending, setBulkPending] = useState<{ done: number; total: number } | null>(null);
+  const bulkUploadPhotos = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    // 1. 이미지 파일을 즉시 부모 폴더 이름으로 그룹화
+    const groups = new Map<string, File[]>();
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      const relPath = (file as File & { webkitRelativePath?: string }).webkitRelativePath ?? "";
+      const parts = relPath.split("/");
+      if (parts.length < 2) continue;
+      const parent = parts[parts.length - 2];
+      if (!parent) continue;
+      const arr = groups.get(parent) ?? [];
+      arr.push(file);
+      groups.set(parent, arr);
+    }
+    if (groups.size === 0) {
+      toast.error("폴더 안에 이미지가 없어요");
+      return;
+    }
+    // 2. 폴더 이름 → 행 인덱스 매칭 (콤마 구분 PK 목록 지원)
+    const currentRows = rowsRef.current;
+    const pkToIdx = new Map(currentRows.map((r, i) => [r.primaryKey.trim(), i]));
+    type Match = { folder: string; files: File[]; rowIdxs: number[] };
+    const matches: Match[] = [];
+    const unmatchedFolders: string[] = [];
+    for (const [folder, fileList] of groups.entries()) {
+      const tokens = folder.split(",").map((t) => t.trim()).filter(Boolean);
+      const idxs: number[] = [];
+      for (const t of tokens) {
+        const idx = pkToIdx.get(t);
+        if (idx !== undefined && !idxs.includes(idx)) idxs.push(idx);
+      }
+      if (idxs.length > 0) matches.push({ folder, files: fileList, rowIdxs: idxs });
+      else unmatchedFolders.push(folder);
+    }
+    if (matches.length === 0) {
+      toast.error("PK와 매칭되는 폴더가 없어요");
+      return;
+    }
+    // 3. 행별 잔여 용량 추적하면서 리사이즈 + 분배
+    const remainingByRow = new Map<number, number>();
+    for (let i = 0; i < currentRows.length; i++) {
+      remainingByRow.set(i, MAX_RETURN_PHOTOS - currentRows[i].photos.length);
+    }
+    const totalFiles = matches.reduce((sum, m) => sum + m.files.length, 0);
+    setBulkPending({ done: 0, total: totalFiles });
+    let totalAdded = 0;
+    let totalSkipped = 0;
+    let processed = 0;
+    const computedUpdates: { rowIdx: number; take: string[] }[] = [];
+    try {
+      for (const m of matches) {
+        const sorted = [...m.files].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+        // 폴더 단위 일괄 리사이즈
+        const dataUrls: string[] = [];
+        for (const f of sorted) {
+          dataUrls.push(await resizeImageToDataUrl(f));
+          processed += 1;
+          setBulkPending({ done: processed, total: totalFiles });
+        }
+        // 매칭된 행마다 잔여 용량만큼 take
+        for (const rowIdx of m.rowIdxs) {
+          const remain = remainingByRow.get(rowIdx) ?? 0;
+          const take = dataUrls.slice(0, Math.max(remain, 0));
+          if (take.length > 0) {
+            computedUpdates.push({ rowIdx, take });
+            remainingByRow.set(rowIdx, remain - take.length);
+          }
+          totalAdded += take.length;
+          totalSkipped += dataUrls.length - take.length;
+        }
+      }
+      // 4. 한 번에 setRows
+      setRows((prev) => {
+        const next = [...prev];
+        for (const u of computedUpdates) {
+          const r = next[u.rowIdx];
+          if (!r) continue;
+          next[u.rowIdx] = { ...r, photos: [...r.photos, ...u.take].slice(0, MAX_RETURN_PHOTOS) };
+        }
+        return next;
+      });
+      // 5. 요약
+      const matchedRows = new Set(matches.flatMap((m) => m.rowIdxs)).size;
+      const lines = [
+        `폴더 ${matches.length}개 → ${matchedRows}개 행에 사진 ${totalAdded}장 추가`,
+      ];
+      if (totalSkipped > 0) lines.push(`${totalSkipped}장은 행당 ${MAX_RETURN_PHOTOS}장 한도 초과로 제외`);
+      if (unmatchedFolders.length > 0) lines.push(`미매칭 폴더 ${unmatchedFolders.length}개 (${unmatchedFolders.slice(0, 3).join(", ")}${unmatchedFolders.length > 3 ? " 외" : ""})`);
+      toast.success(lines.join(" · "));
+    } catch {
+      toast.error("일부 사진 처리 중 오류가 발생했어요");
+    } finally {
+      setBulkPending(null);
     }
   }, []);
 
@@ -1159,13 +1258,44 @@ export function ReturnTool() {
               </div>
 
               <div className="min-w-0 flex-1">
-                <div className="mb-2 flex items-baseline justify-between gap-2">
-                  <p className="text-sm font-medium">행 목록</p>
-                  {pageInfoProgress && (
-                    <p className="text-[11px] text-muted-foreground">
-                      페이지 검사 {pageInfoProgress.done}/{pageInfoProgress.total}
-                    </p>
-                  )}
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-sm font-medium">행 목록</p>
+                    {pageInfoProgress && (
+                      <p className="text-[11px] text-muted-foreground">
+                        페이지 검사 {pageInfoProgress.done}/{pageInfoProgress.total}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {bulkPending && (
+                      <p className="text-[11px] text-muted-foreground">
+                        업로드 중 {bulkPending.done}/{bulkPending.total}
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!!bulkPending}
+                      onClick={() => bulkInputRef.current?.click()}
+                      title="폴더 선택 → PK 이름 폴더 안의 사진을 자동 분배"
+                    >
+                      {bulkPending ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}
+                      폴더 일괄 업로드
+                    </Button>
+                    <input
+                      ref={bulkInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+                      onChange={(e) => {
+                        void bulkUploadPhotos(e.target.files);
+                        if (bulkInputRef.current) bulkInputRef.current.value = "";
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="max-h-[min(80vh,56rem)] overflow-y-auto rounded-xl border p-2 lg:max-h-[calc(100vh-14rem)]">
                   <div className="grid gap-2">
