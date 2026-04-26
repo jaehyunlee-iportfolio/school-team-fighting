@@ -128,7 +128,16 @@ export function parseResumeJson(text: string): ResumeRow[] {
   else if (parsed && typeof parsed === "object" && Array.isArray((parsed as AnyObj).resumes)) {
     list = (parsed as AnyObj).resumes as unknown[];
   } else if (parsed && typeof parsed === "object") {
-    list = [parsed]; // 단일 객체도 허용
+    // 단일 객체 — 단, 알려진 키가 하나라도 있을 때만 인정 (잘못된 JSON 무방비 통과 방지)
+    const KNOWN_KEYS = new Set([
+      "기본정보", "basic", "경력", "career", "경력사항",
+      "연수이수", "trainings", "자격증", "certificates",
+      "교원대상강의", "lectures", "정부사업", "projects",
+      "지원동기 및 포부", "지원동기", "motivation",
+    ]);
+    const hasKnown = Object.keys(parsed as AnyObj).some((k) => KNOWN_KEYS.has(k));
+    if (!hasKnown) return [];
+    list = [parsed];
   } else {
     return [];
   }

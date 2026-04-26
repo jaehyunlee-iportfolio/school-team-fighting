@@ -205,10 +205,20 @@ export function ResumeTool() {
     try {
       const z = new JSZip();
       const files: { name: string }[] = [];
+      const seen = new Set<string>();
       for (let i = 0; i < rows.length; i++) {
         setGenProgress({ current: i + 1, total: rows.length });
         const blob = await makeBlobFor(rows[i]);
-        const name = pdfNameFor(rows[i], i);
+        let name = pdfNameFor(rows[i], i);
+        // 동명·동소속 충돌 시 _2, _3 ... 접미사로 분기
+        if (seen.has(name)) {
+          const ext = name.endsWith(".pdf") ? ".pdf" : "";
+          const base = ext ? name.slice(0, -ext.length) : name;
+          let n = 2;
+          while (seen.has(`${base}_${n}${ext}`)) n++;
+          name = `${base}_${n}${ext}`;
+        }
+        seen.add(name);
         z.file(name, blob);
         files.push({ name });
       }

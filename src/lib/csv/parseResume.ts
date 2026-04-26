@@ -81,37 +81,44 @@ export function parseResumeCsv(text: string): ResumeRow[] {
     seniorYears: findColIdx(header, [/수석교사.*근속연수/, /수석.*근속/]),
     motivation: findColIdx(header, [/^지원동기/, /^motivation$/i, /지원\s*동기/]),
   };
+  // 정확 일치 위해 ^...$ anchor 사용
+  const exact = (s: string) => new RegExp(`^${s}$`);
   const teacherDuties = findIndexedCols(
     header,
-    (i) => [new RegExp(`교사경력_담당업무_${i}`), new RegExp(`교사.*담당.*${i}`)],
+    (i) => [exact(`교사경력_담당업무_${i}`)],
+    MAX_TEACHER_DUTIES
+  );
+  const seniorDuties = findIndexedCols(
+    header,
+    (i) => [exact(`수석교사_담당업무_${i}`)],
     MAX_TEACHER_DUTIES
   );
   const digitalCols = Array.from({ length: MAX_TRAININGS }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [new RegExp(`디지털연수_${i}_연수명`)]),
-    period: findColIdx(header, [new RegExp(`디지털연수_${i}_기간차시`), new RegExp(`디지털연수_${i}_기간`)]),
-    organizer: findColIdx(header, [new RegExp(`디지털연수_${i}_기관`)]),
+    name: findColIdx(header, [exact(`디지털연수_${i}_연수명`)]),
+    period: findColIdx(header, [exact(`디지털연수_${i}_기간차시`), exact(`디지털연수_${i}_기간`)]),
+    organizer: findColIdx(header, [exact(`디지털연수_${i}_기관`)]),
   }));
   const otherCols = Array.from({ length: MAX_TRAININGS }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [new RegExp(`기타연수_${i}_연수명`)]),
-    period: findColIdx(header, [new RegExp(`기타연수_${i}_기간차시`), new RegExp(`기타연수_${i}_기간`)]),
-    organizer: findColIdx(header, [new RegExp(`기타연수_${i}_기관`)]),
+    name: findColIdx(header, [exact(`기타연수_${i}_연수명`)]),
+    period: findColIdx(header, [exact(`기타연수_${i}_기간차시`), exact(`기타연수_${i}_기간`)]),
+    organizer: findColIdx(header, [exact(`기타연수_${i}_기관`)]),
   }));
   const certCols = Array.from({ length: MAX_CERTIFICATES }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [new RegExp(`자격증_${i}_자격증명`), new RegExp(`자격증_${i}_명`)]),
-    date: findColIdx(header, [new RegExp(`자격증_${i}_취득일자`), new RegExp(`자격증_${i}_일자`)]),
-    issuer: findColIdx(header, [new RegExp(`자격증_${i}_발행기관`), new RegExp(`자격증_${i}_기관`)]),
+    name: findColIdx(header, [exact(`자격증_${i}_자격증명`), exact(`자격증_${i}_명`)]),
+    date: findColIdx(header, [exact(`자격증_${i}_취득일자`), exact(`자격증_${i}_일자`)]),
+    issuer: findColIdx(header, [exact(`자격증_${i}_발행기관`), exact(`자격증_${i}_기관`)]),
   }));
   const lectureCols = Array.from({ length: MAX_LECTURES }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [new RegExp(`강의경험_${i}_연수명`), new RegExp(`강의경험_${i}_명`)]),
-    period: findColIdx(header, [new RegExp(`강의경험_${i}_기간차시`), new RegExp(`강의경험_${i}_기간`)]),
-    role: findColIdx(header, [new RegExp(`강의경험_${i}_역할`)]),
-    organizer: findColIdx(header, [new RegExp(`강의경험_${i}_기관`)]),
+    name: findColIdx(header, [exact(`강의경험_${i}_연수명`), exact(`강의경험_${i}_명`)]),
+    period: findColIdx(header, [exact(`강의경험_${i}_기간차시`), exact(`강의경험_${i}_기간`)]),
+    role: findColIdx(header, [exact(`강의경험_${i}_역할`)]),
+    organizer: findColIdx(header, [exact(`강의경험_${i}_기관`)]),
   }));
   const projectCols = Array.from({ length: MAX_PROJECTS }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [new RegExp(`정부사업_${i}_사업명`), new RegExp(`정부사업_${i}_명`)]),
-    period: findColIdx(header, [new RegExp(`정부사업_${i}_기간`)]),
-    role: findColIdx(header, [new RegExp(`정부사업_${i}_역할`)]),
-    organization: findColIdx(header, [new RegExp(`정부사업_${i}_기관`)]),
+    name: findColIdx(header, [exact(`정부사업_${i}_사업명`), exact(`정부사업_${i}_명`)]),
+    period: findColIdx(header, [exact(`정부사업_${i}_기간`)]),
+    role: findColIdx(header, [exact(`정부사업_${i}_역할`)]),
+    organization: findColIdx(header, [exact(`정부사업_${i}_기관`)]),
   }));
 
   const rows: ResumeRow[] = [];
@@ -134,7 +141,7 @@ export function parseResumeCsv(text: string): ResumeRow[] {
       teacherYears: getStr(r, cols.teacherYears),
       teacherDuties: teacherDuties.map((idx) => getStr(r, idx)).filter(Boolean),
       seniorYears: getStr(r, cols.seniorYears),
-      seniorDuties: [],
+      seniorDuties: seniorDuties.map((idx) => getStr(r, idx)).filter(Boolean),
     };
     row.trainings = {
       digital: digitalCols

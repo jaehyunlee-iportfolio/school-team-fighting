@@ -1,10 +1,14 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type {
-  ResumeRow,
-  TrainingItem,
-  CertificateItem,
-  LectureItem,
-  ProjectItem,
+import {
+  type ResumeRow,
+  type TrainingItem,
+  type CertificateItem,
+  type LectureItem,
+  type ProjectItem,
+  MAX_TRAININGS,
+  MAX_CERTIFICATES,
+  MAX_LECTURES,
+  MAX_PROJECTS,
 } from "@/lib/resume/types";
 
 // ─── 디자인 토큰 ──────────────────────────────────────────────────────
@@ -228,12 +232,18 @@ function BasicInfoRows({ row }: { row: ResumeRow }) {
 
 function CareerSection({ row }: { row: ResumeRow }) {
   const c = row.career;
-  // 헤더: 교사 경력(36%) | 근속연수(29%) | 담당업무 및 주요역할(35%)
+  // 헤더-데이터 컬럼 정렬: 헤더 (36/29/35), 데이터 (10/26/29/35)
+  // 데이터의 10+26=36이라 헤더의 첫 컬럼과 시각적으로 일치하도록 통일
   return (
     <>
-      {/* 헤더 행 */}
+      {/* 헤더 행: 데이터와 같은 4컬럼으로 통일해 모든 분할선이 정렬되게 함 */}
       <View style={styles.row}>
-        <Cell width="36%" variant="label">교사 경력</Cell>
+        <View style={[styles.cellBase, styles.labelCell, { width: "10%" }]}>
+          <Text style={styles.labelText}>구분</Text>
+        </View>
+        <View style={[styles.cellBase, styles.labelCell, { width: "26%" }]}>
+          <Text style={styles.labelText}>경력 구분</Text>
+        </View>
         <Cell width="29%" variant="label">근속연수</Cell>
         <Cell width="35%" variant="label">
           <View>
@@ -247,7 +257,7 @@ function CareerSection({ row }: { row: ResumeRow }) {
       {/* 교사경력 데이터 */}
       <View style={styles.row}>
         <View style={[styles.cellBase, styles.labelCell, { width: "10%" }]}>
-          <Text style={styles.labelText}>교사경력</Text>
+          <Text style={styles.labelText}>교사 경력</Text>
         </View>
         <View style={[styles.cellBase, { width: "26%" }]}>
           <Text style={[styles.valueTextSm, { color: COLOR.text }]}>교원 근속 경력 및 주요 업무</Text>
@@ -293,7 +303,7 @@ function CareerSection({ row }: { row: ResumeRow }) {
 }
 
 function TrainingSection({ row }: { row: ResumeRow }) {
-  const slots = 3;
+  const slots = MAX_TRAININGS;
   const buildSlots = (items: TrainingItem[]) => {
     const out: (TrainingItem | null)[] = [];
     for (let i = 0; i < slots; i++) out.push(items[i] ?? null);
@@ -306,37 +316,56 @@ function TrainingSection({ row }: { row: ResumeRow }) {
     items: TrainingItem[]
   ) => {
     const padded = buildSlots(items);
-    return padded.map((it, i) => (
-      <View key={i} style={styles.row}>
-        {i === 0 && (
-          <View
-            style={[
-              styles.cellBase,
-              styles.labelCell,
-              { width: "16%" },
-            ]}
-          >
-            <Text style={styles.labelText}>{title}</Text>
+    return padded.map((it, i) => {
+      const isFirst = i === 0;
+      const isLast = i === slots - 1;
+      // 첫 행 라벨/설명 셀: 아래로 합쳐 보이도록 borderBottom 제거 (단, 그룹이 1행이면 유지)
+      const mergeDown = !isLast;
+      return (
+        <View key={i} style={styles.row}>
+          {isFirst ? (
+            <>
+              <View style={[
+                styles.cellBase, styles.labelCell,
+                { width: "16%", ...(mergeDown ? { borderBottomWidth: 0 } : null) },
+              ]}>
+                <Text style={styles.labelText}>{title}</Text>
+              </View>
+              <View style={[
+                styles.cellBase,
+                { width: "26%", ...(mergeDown ? { borderBottomWidth: 0 } : null) },
+              ]}>
+                <Text style={[styles.valueTextSm, { color: COLOR.text }]}>{description}</Text>
+                <Text style={[styles.valueTextSm, { color: COLOR.labelText }]}>{sub}</Text>
+              </View>
+            </>
+          ) : (
+            // 병합된 라벨 영역의 우측 보더(42% 위치) 유지 + 마지막 행이면 하단 보더도
+            <View style={{
+              width: "42%",
+              borderRightWidth: BORDER_W,
+              borderColor: COLOR.border,
+              ...(isLast ? { borderBottomWidth: BORDER_W } : null),
+            }} />
+          )}
+          <View style={[styles.cellBase, { width: "29%" }]}>
+            <Text style={it?.name ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>
+              {it?.name || "-"}
+            </Text>
           </View>
-        )}
-        {i === 0 && (
-          <View style={[styles.cellBase, { width: "26%" }]}>
-            <Text style={[styles.valueTextSm, { color: COLOR.text }]}>{description}</Text>
-            <Text style={[styles.valueTextSm, { color: COLOR.labelText }]}>{sub}</Text>
+          <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
+            <Text style={it?.period ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>
+              {it?.period || "-"}
+            </Text>
           </View>
-        )}
-        {i !== 0 && <View style={{ width: "42%" }} />}
-        <View style={[styles.cellBase, { width: "29%" }]}>
-          {it?.name ? <Text style={styles.valueTextSm}>{it.name}</Text> : <Text style={[styles.valueTextSm, styles.empty]}> </Text>}
+          <View style={[styles.cellBase, { width: "15%" }]}>
+            <Text style={it?.organizer ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>
+              {it?.organizer || "-"}
+            </Text>
+          </View>
         </View>
-        <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
-          {it?.period ? <Text style={styles.valueTextSm}>{it.period}</Text> : <Text style={[styles.valueTextSm, styles.empty]}> </Text>}
-        </View>
-        <View style={[styles.cellBase, { width: "15%" }]}>
-          {it?.organizer ? <Text style={styles.valueTextSm}>{it.organizer}</Text> : <Text style={[styles.valueTextSm, styles.empty]}> </Text>}
-        </View>
-      </View>
-    ));
+      );
+    });
   };
 
   return (
@@ -365,14 +394,15 @@ function TrainingSection({ row }: { row: ResumeRow }) {
 }
 
 function CertificateSection({ row }: { row: ResumeRow }) {
-  const slots = 3;
+  const slots = MAX_CERTIFICATES;
   const padded: (CertificateItem | null)[] = [];
   for (let i = 0; i < slots; i++) padded.push(row.certificates[i] ?? null);
 
   return (
     <>
       <View style={styles.row}>
-        <View style={[styles.cellBase, styles.labelCell, { width: "42%" }]}>
+        {/* 좌측 라벨 셀은 아래 슬롯 행들로 시각적 병합 → borderBottom 제거 */}
+        <View style={[styles.cellBase, styles.labelCell, { width: "42%", borderBottomWidth: 0 }]}>
           <View>
             <Text style={[styles.labelText, { textAlign: "left" }]}>디지털/IT 관련 자격증</Text>
             <Text style={[styles.labelText, { textAlign: "left", fontSize: 7.5, color: COLOR.muted, fontWeight: 400 }]}>
@@ -384,33 +414,41 @@ function CertificateSection({ row }: { row: ResumeRow }) {
         <Cell width="14%" variant="label">취득일자</Cell>
         <Cell width="15%" variant="label">발행기관</Cell>
       </View>
-      {padded.map((c, i) => (
-        <View key={i} style={styles.row}>
-          <View style={{ width: "42%" }} />
-          <View style={[styles.cellBase, { width: "29%" }]}>
-            <Text style={c?.name ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{c?.name || " "}</Text>
+      {padded.map((c, i) => {
+        const isLast = i === slots - 1;
+        return (
+          <View key={i} style={styles.row}>
+            <View style={{
+              width: "42%",
+              borderRightWidth: BORDER_W,
+              borderColor: COLOR.border,
+              ...(isLast ? { borderBottomWidth: BORDER_W } : null),
+            }} />
+            <View style={[styles.cellBase, { width: "29%" }]}>
+              <Text style={c?.name ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{c?.name || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
+              <Text style={c?.date ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{c?.date || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "15%" }]}>
+              <Text style={c?.issuer ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{c?.issuer || "-"}</Text>
+            </View>
           </View>
-          <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
-            <Text style={c?.date ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{c?.date || " "}</Text>
-          </View>
-          <View style={[styles.cellBase, { width: "15%" }]}>
-            <Text style={c?.issuer ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{c?.issuer || " "}</Text>
-          </View>
-        </View>
-      ))}
+        );
+      })}
     </>
   );
 }
 
 function LectureSection({ row }: { row: ResumeRow }) {
-  const slots = 5;
+  const slots = MAX_LECTURES;
   const padded: (LectureItem | null)[] = [];
   for (let i = 0; i < slots; i++) padded.push(row.lectures[i] ?? null);
 
   return (
     <>
       <View style={styles.row}>
-        <View style={[styles.cellBase, styles.labelCell, { width: "30%" }]}>
+        <View style={[styles.cellBase, styles.labelCell, { width: "30%", borderBottomWidth: 0 }]}>
           <View>
             <Text style={[styles.labelText, { textAlign: "left" }]}>교원대상 강의 경험</Text>
             <Text style={[styles.labelText, { textAlign: "left", fontSize: 7.5, color: COLOR.muted, fontWeight: 400 }]}>
@@ -426,36 +464,44 @@ function LectureSection({ row }: { row: ResumeRow }) {
         <Cell width="10%" variant="label">역할</Cell>
         <Cell width="18%" variant="label">연수 운영기관</Cell>
       </View>
-      {padded.map((l, i) => (
-        <View key={i} style={styles.row}>
-          <View style={{ width: "30%" }} />
-          <View style={[styles.cellBase, { width: "28%" }]}>
-            <Text style={l?.name ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.name || " "}</Text>
+      {padded.map((l, i) => {
+        const isLast = i === slots - 1;
+        return (
+          <View key={i} style={styles.row}>
+            <View style={{
+              width: "30%",
+              borderRightWidth: BORDER_W,
+              borderColor: COLOR.border,
+              ...(isLast ? { borderBottomWidth: BORDER_W } : null),
+            }} />
+            <View style={[styles.cellBase, { width: "28%" }]}>
+              <Text style={l?.name ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.name || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
+              <Text style={l?.period ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.period || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "10%", alignItems: "center" }]}>
+              <Text style={l?.role ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.role || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "18%" }]}>
+              <Text style={l?.organizer ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.organizer || "-"}</Text>
+            </View>
           </View>
-          <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
-            <Text style={l?.period ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.period || " "}</Text>
-          </View>
-          <View style={[styles.cellBase, { width: "10%", alignItems: "center" }]}>
-            <Text style={l?.role ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.role || " "}</Text>
-          </View>
-          <View style={[styles.cellBase, { width: "18%" }]}>
-            <Text style={l?.organizer ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{l?.organizer || " "}</Text>
-          </View>
-        </View>
-      ))}
+        );
+      })}
     </>
   );
 }
 
 function ProjectSection({ row }: { row: ResumeRow }) {
-  const slots = 5;
+  const slots = MAX_PROJECTS;
   const padded: (ProjectItem | null)[] = [];
   for (let i = 0; i < slots; i++) padded.push(row.projects[i] ?? null);
 
   return (
     <>
       <View style={styles.row}>
-        <View style={[styles.cellBase, styles.labelCell, { width: "30%" }]}>
+        <View style={[styles.cellBase, styles.labelCell, { width: "30%", borderBottomWidth: 0 }]}>
           <View>
             <Text style={[styles.labelText, { textAlign: "left" }]}>정부사업 수행 경험</Text>
             <Text style={[styles.labelText, { textAlign: "left", fontSize: 7.5, color: COLOR.muted, fontWeight: 400 }]}>
@@ -471,23 +517,31 @@ function ProjectSection({ row }: { row: ResumeRow }) {
         <Cell width="18%" variant="label">역할</Cell>
         <Cell width="10%" variant="label">기관</Cell>
       </View>
-      {padded.map((p, i) => (
-        <View key={i} style={styles.row}>
-          <View style={{ width: "30%" }} />
-          <View style={[styles.cellBase, { width: "28%" }]}>
-            <Text style={p?.name ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.name || " "}</Text>
+      {padded.map((p, i) => {
+        const isLast = i === slots - 1;
+        return (
+          <View key={i} style={styles.row}>
+            <View style={{
+              width: "30%",
+              borderRightWidth: BORDER_W,
+              borderColor: COLOR.border,
+              ...(isLast ? { borderBottomWidth: BORDER_W } : null),
+            }} />
+            <View style={[styles.cellBase, { width: "28%" }]}>
+              <Text style={p?.name ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.name || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
+              <Text style={p?.period ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.period || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "18%" }]}>
+              <Text style={p?.role ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.role || "-"}</Text>
+            </View>
+            <View style={[styles.cellBase, { width: "10%", alignItems: "center" }]}>
+              <Text style={p?.organization ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.organization || "-"}</Text>
+            </View>
           </View>
-          <View style={[styles.cellBase, { width: "14%", alignItems: "center" }]}>
-            <Text style={p?.period ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.period || " "}</Text>
-          </View>
-          <View style={[styles.cellBase, { width: "18%" }]}>
-            <Text style={p?.role ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.role || " "}</Text>
-          </View>
-          <View style={[styles.cellBase, { width: "10%", alignItems: "center" }]}>
-            <Text style={p?.organization ? styles.valueTextSm : [styles.valueTextSm, styles.empty]}>{p?.organization || " "}</Text>
-          </View>
-        </View>
-      ))}
+        );
+      })}
     </>
   );
 }
