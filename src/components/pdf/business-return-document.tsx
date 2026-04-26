@@ -107,11 +107,14 @@ function buildStyles(cfg: ReturnLayoutSettings) {
       marginTop: 2,
     },
     /* ── 2페이지: 첨부 사진 ── */
+    photoTitleWrap: {
+      marginBottom: 18,
+    },
     photoPageTitle: {
       fontSize: cfg.title.fontSize,
       fontWeight: cfg.title.fontWeight as 700,
       letterSpacing: cfg.title.letterSpacing,
-      marginBottom: 12,
+      lineHeight: 1.4,
     },
     photoGrid: {
       flexDirection: "row" as const,
@@ -483,7 +486,7 @@ export function BusinessReturnDocument({ row, layout }: BusinessReturnDocumentPr
         </View>
       </Page>
       {row.photos && row.photos.length > 0 ? (
-        <PhotoPage photos={row.photos} styles={styles} />
+        <PhotoPage photos={row.photos} cfg={cfg} styles={styles} />
       ) : null}
     </Document>
   );
@@ -491,26 +494,34 @@ export function BusinessReturnDocument({ row, layout }: BusinessReturnDocumentPr
 
 function PhotoPage({
   photos,
+  cfg,
   styles,
 }: {
   photos: string[];
+  cfg: ReturnLayoutSettings;
   styles: ReturnType<typeof buildStyles>;
 }) {
-  // A4 595 x 842pt. 페이지 패딩(MM ≈ 56.7pt) 후 가용폭 ≈ 481.7pt, 가용높이 ≈ 728.7pt
-  // 제목 영역(약 36pt) 제외 후 그리드 영역 ≈ 692pt
-  const n = Math.min(photos.length, 6);
-  const cols = n === 1 ? 1 : 2;
-  const rows = Math.ceil(n / cols);
+  // A4 595 x 842pt. 페이지 패딩과 제목 영역을 cfg 기반으로 정확히 계산.
+  const PAGE_W = 595;
+  const PAGE_H = 842;
+  const padPt = cfg.page.marginMm * 2.8346;
+  // 제목: 30pt 폰트 × lineHeight 1.4 ≈ 42pt + 여유 18pt
+  const titleAreaPt = cfg.title.fontSize * (cfg.page.baseLineHeight ?? 1.4) + 18;
+  // 사진 수와 무관하게 2열 × 3행 고정. 빈 셀은 미렌더.
+  const COLS = 2;
+  const ROWS = 3;
   const gap = 8;
-  const gridWidth = 481.7;
-  const gridHeight = 692;
-  const cellW = (gridWidth - gap * (cols - 1)) / cols;
-  const cellH = (gridHeight - gap * (rows - 1)) / rows;
+  const gridWidth = PAGE_W - padPt * 2;
+  const gridHeight = PAGE_H - padPt * 2 - titleAreaPt;
+  const cellW = (gridWidth - gap * (COLS - 1)) / COLS;
+  const cellH = (gridHeight - gap * (ROWS - 1)) / ROWS;
   return (
     <Page size="A4" style={styles.page}>
-      <Text style={styles.photoPageTitle}>첨부 사진</Text>
+      <View style={styles.photoTitleWrap}>
+        <Text style={styles.photoPageTitle}>첨부 사진</Text>
+      </View>
       <View style={styles.photoGrid}>
-        {photos.slice(0, 6).map((src, i) => (
+        {photos.slice(0, COLS * ROWS).map((src, i) => (
           <View key={i} style={[styles.photoCell, { width: cellW, height: cellH }]}>
             <Image src={src} style={styles.photoImg} />
           </View>
