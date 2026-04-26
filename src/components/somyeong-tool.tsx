@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { SomyeongDocument } from "@/components/pdf/somyeong-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
+import { getPdfPageCount } from "@/lib/pdf/page-count";
 import {
   type SomyeongRow,
   parseSomyeongCsv,
@@ -396,7 +397,7 @@ export function SomyeongTool() {
   const [csvDragOver, setCsvDragOver] = useState(false);
   const [genPending, setGenPending] = useState(false);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
-  const [resultFiles, setResultFiles] = useState<string[]>([]);
+  const [resultFiles, setResultFiles] = useState<{ name: string; pageCount: number }[]>([]);
   const [previewI, setPreviewI] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
@@ -473,18 +474,19 @@ export function SomyeongTool() {
 
     try {
       const z = new JSZip();
-      const files: string[] = [];
+      const files: { name: string; pageCount: number }[] = [];
 
       for (let i = 0; i < rows.length; i++) {
         setGenProgress({ current: i + 1, total: rows.length });
         const row = rows[i];
         const n = settings.seomokN[row.seomok] ?? 0;
         const blob = await makeBlobFor(row);
+        const pageCount = await getPdfPageCount(blob);
 
         for (const folder of row.folders) {
           const name = somyeongPdfName(folder, n, row.subSeomok, row.title);
           z.file(name, blob);
-          files.push(name);
+          files.push({ name, pageCount });
         }
       }
 
@@ -919,14 +921,23 @@ export function SomyeongTool() {
               </div>
               <CardDescription>
                 총 {resultFiles.length}개의 PDF가 ZIP으로 저장되었어요.
+                {(() => {
+                  const over = resultFiles.filter((f) => f.pageCount >= 2).length;
+                  return over > 0 ? ` · 2장 이상 ${over}건` : "";
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="max-h-96 space-y-1 overflow-y-auto">
-                {resultFiles.map((name, i) => (
-                  <li key={i} className="flex items-center gap-2 rounded px-2 py-1 text-xs font-mono hover:bg-muted/50">
+                {resultFiles.map((f, i) => (
+                  <li key={i} className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/50">
                     <CheckCircle2 className="size-3 shrink-0 text-green-500" />
-                    {name}
+                    <span className="min-w-0 flex-1 truncate font-mono">{f.name}</span>
+                    {f.pageCount >= 2 && (
+                      <Badge variant="destructive" className="shrink-0 text-[10px]">
+                        {f.pageCount}장
+                      </Badge>
+                    )}
                   </li>
                 ))}
               </ul>

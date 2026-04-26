@@ -22,6 +22,7 @@ import { DayPicker } from "react-day-picker";
 import { ko } from "date-fns/locale";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
+import { getPdfPageCount } from "@/lib/pdf/page-count";
 import {
   type TripRow,
   type DatePlaceholders,
@@ -703,7 +704,7 @@ export function TripTool() {
   const [genPending, setGenPending] = useState(false);
   const [parsePending, setParsePending] = useState(false);
   const [previewPending, setPreviewPending] = useState(false);
-  const [listDone, setListDone] = useState<{ n: string; i: number }[]>([]);
+  const [listDone, setListDone] = useState<{ n: string; i: number; pageCount: number }[]>([]);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
   const [adminSettings, setAdminSettings] = useState<ApprovalSettings | null>(null);
   const [adminSigLoaded, setAdminSigLoaded] = useState(false);
@@ -845,12 +846,15 @@ export function TripTool() {
     try {
       if (mode === "direct") {
         const z = new JSZip();
+        const done: { n: string; i: number; pageCount: number }[] = [];
         for (let i = 0; i < rows.length; i++) {
           setGenProgress({ current: i + 1, total: rows.length });
           const r = rows[i];
           const b = await makeBlobFor(r);
           const n = pdfName(r);
           z.file(n, b);
+          const pageCount = await getPdfPageCount(b);
+          done.push({ n, i: i + 1, pageCount });
         }
         const zipB = await z.generateAsync({ type: "blob" });
         const href = URL.createObjectURL(zipB);
@@ -862,9 +866,7 @@ export function TripTool() {
         toast.success(
           `PDF ${rows.length}장이 담긴 ZIP 파일을 다운로드합니다.`
         );
-        setListDone(
-          rows.map((r, i) => ({ n: r.writerName, i: i + 1 }))
-        );
+        setListDone(done);
         setStep("result");
         return;
       }
@@ -875,7 +877,8 @@ export function TripTool() {
         const b = await makeBlobFor(rows[i]);
         const n = pdfName(rows[i]);
         z2.file(n, b);
-        setListDone((d) => [...d, { n, i: i + 1 }]);
+        const pageCount = await getPdfPageCount(b);
+        setListDone((d) => [...d, { n, i: i + 1, pageCount }]);
       }
       const zipB2 = await z2.generateAsync({ type: "blob" });
       const href2 = URL.createObjectURL(zipB2);
@@ -1335,8 +1338,27 @@ export function TripTool() {
             <p className="text-sm text-muted-foreground">
               ZIP 파일 1개로 다운로드했어요.
               {warnCount > 0 && ` (경고 ${warnCount}건 포함)`}
+              {(() => {
+                const over = listDone.filter((d) => d.pageCount >= 2).length;
+                return over > 0 ? ` · 2장 이상 ${over}건` : "";
+              })()}
             </p>
           </div>
+          {listDone.length > 0 && (
+            <ul className="w-full max-h-96 space-y-1 overflow-y-auto text-left">
+              {listDone.map((d, i) => (
+                <li key={i} className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/50">
+                  <CheckCircle2 className="size-3 shrink-0 text-green-500" />
+                  <span className="min-w-0 flex-1 truncate font-mono">{d.n}</span>
+                  {d.pageCount >= 2 && (
+                    <Badge variant="destructive" className="shrink-0 text-[10px]">
+                      {d.pageCount}장
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="flex justify-end w-full border-t border-border/60 pt-4">
             <Button
               onClick={() => {

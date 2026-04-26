@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { BusinessReturnDocument } from "@/components/pdf/business-return-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
+import { getPdfPageCount } from "@/lib/pdf/page-count";
+import { compactReturnLayout } from "@/lib/pdf/compact-return-layout";
 import {
   type ReturnRow,
   parseReturnInput,
@@ -574,7 +576,7 @@ export function ReturnTool() {
   const [csvDragOver, setCsvDragOver] = useState(false);
   const [genPending, setGenPending] = useState(false);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
-  const [resultFiles, setResultFiles] = useState<string[]>([]);
+  const [resultFiles, setResultFiles] = useState<{ name: string; pageCount: number; compacted: boolean }[]>([]);
   const [previewI, setPreviewI] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
@@ -640,10 +642,10 @@ export function ReturnTool() {
   }, []);
 
   const makeBlobFor = useCallback(
-    async (row: ReturnRow) => {
+    async (row: ReturnRow, layoutOverride?: ReturnLayoutSettings) => {
       registerPdfFonts();
       return pdf(
-        <BusinessReturnDocument row={row} layout={layout ?? undefined} />
+        <BusinessReturnDocument row={row} layout={layoutOverride ?? layout ?? undefined} />
       ).toBlob();
     },
     [layout]
@@ -702,13 +704,25 @@ export function ReturnTool() {
     setGenProgress({ current: 0, total: rows.length });
     try {
       const z = new JSZip();
-      const files: string[] = [];
+      const files: { name: string; pageCount: number; compacted: boolean }[] = [];
       for (let i = 0; i < rows.length; i++) {
         setGenProgress({ current: i + 1, total: rows.length });
-        const blob = await makeBlobFor(rows[i]);
+        let blob = await makeBlobFor(rows[i]);
+        let pageCount = await getPdfPageCount(blob);
+        let compacted = false;
+        // 2페이지 이상이면 compact 레이아웃으로 한 번 더 시도해서 1페이지에 맞춰봄
+        if (pageCount > 1 && layout) {
+          const compactBlob = await makeBlobFor(rows[i], compactReturnLayout(layout));
+          const compactCount = await getPdfPageCount(compactBlob);
+          if (compactCount <= pageCount) {
+            blob = compactBlob;
+            pageCount = compactCount;
+            compacted = true;
+          }
+        }
         const name = returnPdfName(rows[i]);
         z.file(name, blob);
-        files.push(name);
+        files.push({ name, pageCount, compacted });
       }
       const zipBlob = await z.generateAsync({ type: "blob" });
       const href = URL.createObjectURL(zipBlob);
@@ -727,7 +741,7 @@ export function ReturnTool() {
       setGenPending(false);
       setGenProgress(null);
     }
-  }, [rows, settings, makeBlobFor]);
+  }, [rows, settings, makeBlobFor, layout]);
 
   return (
     <div
@@ -961,12 +975,26 @@ export function ReturnTool() {
                 <CheckCircle2 className="size-5 text-green-500" />
                 <h2 className="text-base font-semibold">ZIP 다운로드 완료</h2>
               </div>
-              <p className="text-sm text-muted-foreground">총 {resultFiles.length}개의 PDF가 ZIP으로 저장됐어요.</p>
+              <p className="text-sm text-muted-foreground">
+                총 {resultFiles.length}개의 PDF가 ZIP으로 저장됐어요.
+                {(() => {
+                  const over = resultFiles.filter((f) => f.pageCount >= 2).length;
+                  return over > 0 ? ` · 2장 이상 ${over}건` : "";
+                })()}
+              </p>
               <ul className="mt-4 max-h-96 space-y-1 overflow-y-auto">
-                {resultFiles.map((name, i) => (
-                  <li key={i} className="flex items-center gap-2 rounded px-2 py-1 text-xs font-mono hover:bg-muted/50">
+                {resultFiles.map((f, i) => (
+                  <li key={i} className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/50">
                     <CheckCircle2 className="size-3 shrink-0 text-green-500" />
-                    {name}
+                    <span className="min-w-0 flex-1 truncate font-mono">{f.name}</span>
+                    {f.compacted && (
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">압축 적용</Badge>
+                    )}
+                    {f.pageCount >= 2 && (
+                      <Badge variant="destructive" className="shrink-0 text-[10px]">
+                        {f.pageCount}장
+                      </Badge>
+                    )}
                   </li>
                 ))}
               </ul>
