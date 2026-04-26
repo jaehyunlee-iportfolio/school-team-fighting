@@ -51,3 +51,8 @@ assets/Mock PDF Image/generated.*
 __pycache__/
 *.pyc
 *.pyo
+
+# Polaris DataInsight test outputs
+/scripts/polaris-datainsight/output/*
+!/scripts/polaris-datainsight/output/.gitkeep
+!/scripts/polaris-datainsight/.env.example
