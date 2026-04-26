@@ -443,6 +443,7 @@ function ReturnRowCard({
   r,
   index,
   selected,
+  pageInfo,
   onSelect,
   onEdit,
   onRemove,
@@ -450,6 +451,7 @@ function ReturnRowCard({
   r: ReturnRow;
   index: number;
   selected: boolean;
+  pageInfo?: { pageCount: number; compacted: boolean };
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -486,6 +488,12 @@ function ReturnRowCard({
           </div>
         </div>
         <div className="relative z-10 flex items-center gap-1.5 shrink-0">
+          {pageInfo && pageInfo.compacted && (
+            <Badge variant="secondary" className="text-[10px] sm:text-xs">압축</Badge>
+          )}
+          {pageInfo && pageInfo.pageCount >= 2 && (
+            <Badge variant="destructive" className="text-[10px] sm:text-xs">{pageInfo.pageCount}장</Badge>
+          )}
           {r.hasEmpty ? (
             <Badge variant="destructive" className="text-[10px] sm:text-xs">누락</Badge>
           ) : (
@@ -581,9 +589,12 @@ export function ReturnTool() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
+  const [pageInfo, setPageInfo] = useState<Record<number, { pageCount: number; compacted: boolean }>>({});
+  const [pageInfoProgress, setPageInfoProgress] = useState<{ done: number; total: number } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewStart = useRef(false);
+  const measureToken = useRef(0);
 
   const okCount = useMemo(() => rows.filter((r) => !r.hasEmpty).length, [rows]);
   const warnCount = useMemo(() => rows.filter((r) => r.hasEmpty).length, [rows]);
@@ -679,10 +690,51 @@ export function ReturnTool() {
     void onPreviewIndex(0);
   }, [step, rows.length, settings, onPreviewIndex]);
 
+  // 검토 진입 시 모든 행의 PDF 페이지 수 측정 (배경 작업)
+  useEffect(() => {
+    if (step !== "validate" || !rows.length || !settings) return;
+    const token = ++measureToken.current;
+    setPageInfo({});
+    setPageInfoProgress({ done: 0, total: rows.length });
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < rows.length; i++) {
+        if (cancelled || measureToken.current !== token) return;
+        try {
+          let blob = await makeBlobFor(rows[i]);
+          let pageCount = await getPdfPageCount(blob);
+          let compacted = false;
+          if (pageCount > 1 && layout) {
+            blob = await makeBlobFor(rows[i], compactReturnLayout(layout));
+            const c = await getPdfPageCount(blob);
+            if (c <= pageCount) {
+              pageCount = c;
+              compacted = true;
+            }
+          }
+          if (cancelled || measureToken.current !== token) return;
+          setPageInfo((prev) => ({ ...prev, [i]: { pageCount, compacted } }));
+          setPageInfoProgress({ done: i + 1, total: rows.length });
+        } catch (e) {
+          console.error("page count measure failed", i, e);
+        }
+      }
+      if (!cancelled && measureToken.current === token) {
+        setPageInfoProgress(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step, rows, settings, layout, makeBlobFor]);
+
   // input 진입 시 미리보기 정리
   useEffect(() => {
     if (step === "input") {
       previewStart.current = false;
+      measureToken.current++;
+      setPageInfo({});
+      setPageInfoProgress(null);
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
@@ -905,7 +957,14 @@ export function ReturnTool() {
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="mb-2 text-sm font-medium">행 목록</p>
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <p className="text-sm font-medium">행 목록</p>
+                  {pageInfoProgress && (
+                    <p className="text-[11px] text-muted-foreground">
+                      페이지 검사 {pageInfoProgress.done}/{pageInfoProgress.total}
+                    </p>
+                  )}
+                </div>
                 <div className="max-h-[min(80vh,56rem)] overflow-y-auto rounded-xl border p-2 lg:max-h-[calc(100vh-14rem)]">
                   <div className="grid gap-2">
                     {rows.map((row, i) => (
@@ -914,6 +973,7 @@ export function ReturnTool() {
                         r={row}
                         index={i}
                         selected={previewI === i}
+                        pageInfo={pageInfo[i]}
                         onSelect={() => void onPreviewIndex(i)}
                         onEdit={() => setEditingRowIdx(i)}
                         onRemove={() => removeRow(i)}

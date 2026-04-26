@@ -590,6 +590,7 @@ function MobileRowCard({
   index,
   approvalMode,
   selected,
+  pageInfo,
   onSelect,
   onEdit,
   onRemove,
@@ -598,6 +599,7 @@ function MobileRowCard({
   index: number;
   approvalMode: ApprovalGroup | "auto";
   selected: boolean;
+  pageInfo?: { pageCount: number };
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -643,6 +645,11 @@ function MobileRowCard({
           ) : (
             <Badge variant="destructive" className="font-mono text-[10px] sm:text-xs">
               증빙번호 없음
+            </Badge>
+          )}
+          {pageInfo && pageInfo.pageCount >= 2 && (
+            <Badge variant="destructive" className="text-[10px] sm:text-xs">
+              {pageInfo.pageCount}장
             </Badge>
           )}
           {r.hasEmpty ? (
@@ -710,6 +717,9 @@ export function TripTool() {
   const [adminSigLoaded, setAdminSigLoaded] = useState(false);
   const [pdfLayout, setPdfLayout] = useState<PdfLayoutSettings | null>(null);
   const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
+  const [pageInfo, setPageInfo] = useState<Record<number, { pageCount: number }>>({});
+  const [pageInfoProgress, setPageInfoProgress] = useState<{ done: number; total: number } | null>(null);
+  const measureToken = useRef(0);
 
   useEffect(() => {
     Promise.all([getApprovalSettings(), getPdfLayoutSettings()])
@@ -927,6 +937,9 @@ export function TripTool() {
   useEffect(() => {
     if (step === "input") {
       previewStart.current = false;
+      measureToken.current++;
+      setPageInfo({});
+      setPageInfoProgress(null);
     }
   }, [step]);
 
@@ -942,6 +955,35 @@ export function TripTool() {
     previewStart.current = true;
     void onPreviewIndex(0);
   }, [mode, step, rows, onPreviewIndex, rows.length]);
+
+  // 검토 진입 시 모든 행의 PDF 페이지 수 측정 (배경)
+  useEffect(() => {
+    if (step !== "validate" || !rows.length) return;
+    const token = ++measureToken.current;
+    setPageInfo({});
+    setPageInfoProgress({ done: 0, total: rows.length });
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < rows.length; i++) {
+        if (cancelled || measureToken.current !== token) return;
+        try {
+          const blob = await makeBlobFor(rows[i]);
+          const pageCount = await getPdfPageCount(blob);
+          if (cancelled || measureToken.current !== token) return;
+          setPageInfo((prev) => ({ ...prev, [i]: { pageCount } }));
+          setPageInfoProgress({ done: i + 1, total: rows.length });
+        } catch (e) {
+          console.error("page count measure failed", i, e);
+        }
+      }
+      if (!cancelled && measureToken.current === token) {
+        setPageInfoProgress(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [step, rows, makeBlobFor]);
 
   const goToStep = useCallback(
     (target: AppStep) => {
@@ -1232,9 +1274,14 @@ export function TripTool() {
 
               {/* Right: Row list */}
               <div className="min-w-0 flex-1">
-                <p className="mb-2 text-sm font-medium text-foreground">
-                  행 목록
-                </p>
+                <div className="mb-2 flex items-baseline justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">행 목록</p>
+                  {pageInfoProgress && (
+                    <p className="text-[11px] text-muted-foreground">
+                      페이지 검사 {pageInfoProgress.done}/{pageInfoProgress.total}
+                    </p>
+                  )}
+                </div>
                 <div className="max-h-[min(80vh,56rem)] overflow-y-auto rounded-xl border border-border/80 p-2 lg:max-h-[calc(100vh-14rem)]">
                   <div className="grid gap-2" role="list" aria-label="행 목록">
                     {rows.map((r, i) => (
@@ -1244,6 +1291,7 @@ export function TripTool() {
                           index={i}
                           approvalMode={approvalMode}
                           selected={mode === "preview" && previewI === i}
+                          pageInfo={pageInfo[i]}
                           onSelect={() => mode === "preview" ? void onPreviewIndex(i) : undefined}
                           onEdit={() => setEditingRowIdx(i)}
                           onRemove={() => removeRow(i)}
