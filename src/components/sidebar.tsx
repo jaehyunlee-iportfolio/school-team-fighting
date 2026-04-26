@@ -37,6 +37,11 @@ const NAV_ITEMS = [
     label: "출장복명서",
     icon: FileText,
   },
+  {
+    href: "/resume",
+    label: "이력서",
+    icon: FileText,
+  },
 ];
 
 const ADMIN_ITEM = {
