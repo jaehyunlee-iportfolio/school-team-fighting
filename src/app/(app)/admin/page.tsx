@@ -39,8 +39,10 @@ import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
 import { pdf } from "@react-pdf/renderer";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import { SomyeongDocument } from "@/components/pdf/somyeong-document";
+import { BusinessReturnDocument } from "@/components/pdf/business-return-document";
 import type { TripRow } from "@/lib/csv/parseD4";
 import type { SomyeongRow } from "@/lib/csv/parseSomyeong";
+import type { ReturnRow } from "@/lib/csv/parseReturn";
 import ReactCrop, { type PercentCrop, type PixelCrop, convertToPixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import {
@@ -453,24 +455,31 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="layout">
-              <div className="space-y-4">
-                <ReturnLayoutSection layout={returnLayout} onChange={setReturnLayout} />
-                <div className="flex items-center justify-between border-t pt-4">
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => {
-                      setReturnLayout(DEFAULT_RETURN_LAYOUT);
-                      toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
-                    }}
-                  >
-                    <RotateCcw className="size-4" />
-                    기본값 초기화
-                  </Button>
-                  <Button onClick={handleSaveReturnLayout} disabled={savingReturnLayout} className="gap-2">
-                    {savingReturnLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                    저장
-                  </Button>
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <ReturnPreview layout={returnLayout} settings={returnSettings} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <ReturnLayoutSection layout={returnLayout} onChange={setReturnLayout} />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setReturnLayout(DEFAULT_RETURN_LAYOUT);
+                        toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                      }}
+                    >
+                      <RotateCcw className="size-4" />
+                      기본값 초기화
+                    </Button>
+                    <Button onClick={handleSaveReturnLayout} disabled={savingReturnLayout} className="gap-2">
+                      {savingReturnLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      저장
+                    </Button>
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -674,6 +683,108 @@ function SomyeongPreview({
           <iframe
             src={url}
             title="소명서 PDF 미리보기"
+            className="absolute inset-0 size-full"
+          />
+        )}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {error && !loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <AlertCircle className="size-6 text-destructive" />
+            <p className="text-xs text-destructive">{error}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ===================================================================
+   Return PDF Preview (mock data + live iframe)
+   =================================================================== */
+
+const MOCK_RETURN_ROW_BASE: Omit<ReturnRow, "approval"> = {
+  rowIndex: 0,
+  primaryKey: "R-2026-001",
+  org: "(주)아이포트폴리오",
+  name: "홍길동",
+  periodRaw: "2026.04.01 ~ 2026.04.03",
+  periodText: "2026. 4. 1 ~ 2026. 4. 3",
+  startYymmdd: "260401",
+  invalidPeriod: false,
+  destination: "서울특별시 강남구 / 테헤란로 123",
+  purpose: "신규 프로젝트 킥오프 미팅 참석 및 현장 조사",
+  workContent:
+    "1. 프로젝트 요구사항 정의 회의 참석\n2. 협력사 담당자 인터뷰 진행\n3. 현장 시설 점검 및 사진 촬영\n4. 차주 일정 및 산출물 협의",
+  notes: "특이사항 없음",
+  cost: "350,000원",
+  payment: "법인카드",
+  hasEmpty: false,
+  fieldWarnings: [],
+};
+
+function ReturnPreview({
+  layout,
+  settings,
+}: {
+  layout: ReturnLayoutSettings;
+  settings: ReturnSettings;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const prevUrl = useRef<string | null>(null);
+  const generation = useRef(0);
+
+  useEffect(() => {
+    const gen = ++generation.current;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        registerPdfFonts();
+        const row: ReturnRow = {
+          ...MOCK_RETURN_ROW_BASE,
+          approval: settings.approval,
+        };
+        const blob = await pdf(
+          <BusinessReturnDocument row={row} layout={layout} />,
+        ).toBlob();
+        if (gen !== generation.current) return;
+        const newUrl = URL.createObjectURL(blob);
+        setUrl(newUrl);
+        if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+        prevUrl.current = newUrl;
+      } catch (e) {
+        if (gen !== generation.current) return;
+        setError(e instanceof Error ? e.message : "PDF 생성 실패");
+      } finally {
+        if (gen === generation.current) setLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [layout, settings]);
+
+  useEffect(() => {
+    return () => {
+      if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <FileText className="size-4" />
+        미리보기 (목 데이터)
+      </div>
+      <div className="relative overflow-hidden rounded-lg border bg-muted/30" style={{ aspectRatio: "1 / 1.414" }}>
+        {url && (
+          <iframe
+            src={url}
+            title="출장복명서 PDF 미리보기"
             className="absolute inset-0 size-full"
           />
         )}
