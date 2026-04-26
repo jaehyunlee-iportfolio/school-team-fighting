@@ -101,6 +101,11 @@ function buildStyles(cfg: ReturnLayoutSettings) {
       textAlign: "center" as const,
       marginTop: 1,
     },
+    costAnnotation: {
+      fontSize: cfg.approval.annotationFontSize,
+      color: cfg.approval.annotationColor,
+      marginTop: 2,
+    },
     /* ── 데이터 테이블 ── */
     table: {
       borderTopWidth: b,
@@ -439,6 +444,9 @@ export function BusinessReturnDocument({ row, layout }: BusinessReturnDocumentPr
             </View>
             <View style={styles.valueCellMid}>
               <Text style={[styles.valueText, costFb.color ? { color: costFb.color } : {}]}>{costFb.text}</Text>
+              {row.costAnnotation && row.costAnnotation.trim() ? (
+                <Text style={styles.costAnnotation}>{row.costAnnotation}</Text>
+              ) : null}
             </View>
             <View style={[styles.labelCell, { width: cfg.dataTable.labelWidth }]}>
               <Text style={styles.labelText}>정산방법</Text>

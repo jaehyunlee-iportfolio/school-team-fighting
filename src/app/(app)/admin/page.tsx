@@ -719,6 +719,7 @@ const MOCK_RETURN_ROW_BASE: Omit<ReturnRow, "approval"> = {
     "1. 프로젝트 요구사항 정의 회의 참석\n2. 협력사 담당자 인터뷰 진행\n3. 현장 시설 점검 및 사진 촬영\n4. 차주 일정 및 산출물 협의",
   notes: "특이사항 없음",
   cost: "350,000원",
+  costAnnotation: "",
   payment: "법인카드",
   hasEmpty: false,
   fieldWarnings: [],

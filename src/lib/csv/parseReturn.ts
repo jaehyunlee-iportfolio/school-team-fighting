@@ -22,6 +22,8 @@ export type ReturnRow = {
   workContent: string;
   notes: string;
   cost: string;
+  /** 출장경비 아래 작은 글씨 주석 (예: "*출장비 산정 내역서 별도 첨부"). 비면 미표시 */
+  costAnnotation: string;
   payment: string;
   approval: [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
   hasEmpty: boolean;
@@ -38,6 +40,7 @@ const COLUMN_KEYS = [
   "업무내용",
   "특이사항",
   "출장경비",
+  "출장경비_주석",
   "정산방법",
 ] as const;
 
@@ -213,6 +216,7 @@ function buildRow(
   const workContent = get("업무내용");
   const notes = get("특이사항");
   const cost = get("출장경비");
+  const costAnnotation = get("출장경비_주석");
   const payment = get("정산방법");
 
   const period = normalizePeriod(periodRaw);
@@ -232,6 +236,7 @@ function buildRow(
     workContent,
     notes,
     cost,
+    costAnnotation,
     payment,
     approval,
   });

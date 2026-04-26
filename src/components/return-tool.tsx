@@ -374,6 +374,30 @@ function ReturnRowEditDialog({
                 onChange={(e) => setDraft((d) => ({ ...d, payment: e.target.value }))}
               />
             </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm font-medium">출장경비 주석 (작은 글씨)</Label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      costAnnotation: d.costAnnotation
+                        ? ""
+                        : "*출장비 산정 내역서 별도 첨부",
+                    }))
+                  }
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  {draft.costAnnotation ? "주석 제거" : "별도첨부 문구 자동 입력"}
+                </button>
+              </div>
+              <Input
+                value={draft.costAnnotation}
+                onChange={(e) => setDraft((d) => ({ ...d, costAnnotation: e.target.value }))}
+                placeholder="비워두면 표시되지 않아요"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -850,7 +874,7 @@ export function ReturnTool() {
                   {parsePending ? "파일 읽는 중..." : "CSV 또는 JSON 파일 클릭 또는 드래그하여 업로드"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Primary Key, 출장자_소속, 출장자_성명, 출장기간, 출장지, 출장목적, 업무내용, 특이사항, 출장경비, 정산방법
+                  Primary Key, 출장자_소속, 출장자_성명, 출장기간, 출장지, 출장목적, 업무내용, 특이사항, 출장경비, 출장경비_주석, 정산방법
                 </p>
               </button>
               <input
