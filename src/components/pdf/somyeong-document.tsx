@@ -164,6 +164,21 @@ function buildStyles(cfg: SomyeongLayoutSettings) {
       maxWidth: 80,
       objectFit: "contain" as const,
     },
+    sealWrap: {
+      position: "relative" as const,
+      width: 80,
+      height: cfg.signature.signImageMaxHeight,
+      justifyContent: "center" as const,
+      alignItems: "center" as const,
+    },
+    sealImgOverlay: {
+      position: "absolute" as const,
+      top: 0,
+      left: 0,
+      width: "100%" as const,
+      height: "100%" as const,
+      objectFit: "contain" as const,
+    },
     recipientText: {
       fontSize: cfg.recipient.fontSize,
       fontWeight: cfg.recipient.fontWeight as 600,
@@ -284,11 +299,12 @@ export function SomyeongDocument({ row, settings, layout }: SomyeongDocumentProp
         <View style={styles.signatureRow}>
           <Text style={styles.signatureText}>작성자:</Text>
           <Text style={[styles.signatureText, writerFb.color ? { color: writerFb.color } : {}]}>{writerFb.text}</Text>
-          {settings.signatureImageUrl ? (
-            <Image src={settings.signatureImageUrl} style={styles.signImg} />
-          ) : (
-            <Text style={[styles.signatureText, { color: ph.signEmptyColor }]}>{ph.signEmpty}</Text>
-          )}
+          <View style={styles.sealWrap}>
+            <Text style={styles.signatureText}>(인)</Text>
+            {settings.signatureImageUrl ? (
+              <Image src={settings.signatureImageUrl} style={styles.sealImgOverlay} />
+            ) : null}
+          </View>
         </View>
 
         {/* 수신처 */}
