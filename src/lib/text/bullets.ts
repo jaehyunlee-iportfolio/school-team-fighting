@@ -17,10 +17,10 @@ export function parseBullets(raw: string): BulletItem[] {
   if (!raw) return [];
   return raw
     .split("|")
-    .map((s) => s.trim())
+    .map((s) => s.replace(/[\r\n]+/g, " ").trim())
     .filter(Boolean)
     .map((line) => {
-      const m = line.match(/^(-+)\s*(.*)$/);
+      const m = line.match(/^(-+)\s*([\s\S]*)$/);
       if (!m) return { depth: 1, text: line };
       const depth = Math.min(m[1].length, 3);
       return { depth, text: m[2].trim() };
