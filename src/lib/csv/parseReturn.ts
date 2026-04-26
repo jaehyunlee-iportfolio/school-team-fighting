@@ -26,9 +26,14 @@ export type ReturnRow = {
   costAnnotation: string;
   payment: string;
   approval: [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
+  /** 첨부 사진 (data URL). 세션 메모리만, 최대 6장. 비어 있으면 2페이지 미생성 */
+  photos: string[];
   hasEmpty: boolean;
   fieldWarnings: string[];
 };
+
+/** 첨부 사진 최대 매수 */
+export const MAX_RETURN_PHOTOS = 6;
 
 const COLUMN_KEYS = [
   "Primary Key",
@@ -239,6 +244,7 @@ function buildRow(
     costAnnotation,
     payment,
     approval,
+    photos: [],
   });
 }
 

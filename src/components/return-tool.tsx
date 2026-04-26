@@ -15,17 +15,20 @@ import {
   Pencil,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { BusinessReturnDocument } from "@/components/pdf/business-return-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { getPdfPageCount } from "@/lib/pdf/page-count";
 import { compactReturnLayout } from "@/lib/pdf/compact-return-layout";
 import {
+  MAX_RETURN_PHOTOS,
   type ReturnRow,
   parseReturnInput,
   recomputeReturnWarnings,
   normalizePeriod,
 } from "@/lib/csv/parseReturn";
+import { resizeImageToDataUrl } from "@/lib/images/resize";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -302,6 +305,38 @@ function ReturnRowEditDialog({
     });
   };
 
+  const dialogPhotoInputRef = useRef<HTMLInputElement>(null);
+  const handleDialogAddPhotos = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (list.length === 0) {
+      toast.error("이미지 파일만 업로드할 수 있어요");
+      return;
+    }
+    try {
+      const dataUrls = await Promise.all(list.map((f) => resizeImageToDataUrl(f)));
+      let added = 0;
+      let skipped = 0;
+      setDraft((d) => {
+        const remain = MAX_RETURN_PHOTOS - d.photos.length;
+        const take = dataUrls.slice(0, Math.max(remain, 0));
+        added = take.length;
+        skipped = dataUrls.length - take.length;
+        return { ...d, photos: [...d.photos, ...take] };
+      });
+      if (added === 0) {
+        toast.error(`사진은 최대 ${MAX_RETURN_PHOTOS}장까지 첨부할 수 있어요`);
+      } else if (skipped > 0) {
+        toast.success(`사진 ${added}장 추가 (${skipped}장 제외)`);
+      }
+    } catch {
+      toast.error("사진 처리 중 오류가 발생했어요");
+    }
+  };
+  const removeDialogPhoto = (i: number) => {
+    setDraft((d) => ({ ...d, photos: d.photos.filter((_, idx) => idx !== i) }));
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -425,6 +460,63 @@ function ReturnRowEditDialog({
 
           <Separator />
           <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">
+                첨부 사진 <span className="font-normal text-muted-foreground">({draft.photos.length}/{MAX_RETURN_PHOTOS})</span>
+              </h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={draft.photos.length >= MAX_RETURN_PHOTOS}
+                onClick={() => dialogPhotoInputRef.current?.click()}
+              >
+                <ImageIcon className="size-4" /> 사진 추가
+              </Button>
+              <input
+                ref={dialogPhotoInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  void handleDialogAddPhotos(e.target.files);
+                  if (dialogPhotoInputRef.current) dialogPhotoInputRef.current.value = "";
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              사진을 첨부하면 PDF 2페이지가 자동 생성돼요. 최대 {MAX_RETURN_PHOTOS}장.
+            </p>
+            {draft.photos.length === 0 ? (
+              <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 text-xs text-muted-foreground">
+                첨부된 사진이 없어요
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                {draft.photos.map((src, i) => (
+                  <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`사진 ${i + 1}`} className="size-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeDialogPhoto(i)}
+                      className="absolute right-1 top-1 inline-flex size-6 items-center justify-center rounded-md bg-background/90 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-destructive group-hover:opacity-100"
+                      aria-label={`사진 ${i + 1} 삭제`}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                    <span className="absolute bottom-1 left-1 inline-flex size-5 items-center justify-center rounded bg-background/80 text-[10px] font-medium text-foreground">
+                      {i + 1}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
+          <div className="space-y-2">
             <h3 className="text-sm font-semibold">결재 라인 (3 셀)</h3>
             <p className="text-xs text-muted-foreground">
               헤더 라벨, 내용 종류(글자/이미지/대각선), 본문/이미지, 하단 작은 글씨를 셀별로 설정해요.
@@ -471,6 +563,7 @@ function ReturnRowCard({
   onSelect,
   onEdit,
   onRemove,
+  onAddPhotos,
 }: {
   r: ReturnRow;
   index: number;
@@ -479,7 +572,10 @@ function ReturnRowCard({
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
+  onAddPhotos: (files: FileList | null) => void;
 }) {
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const remaining = MAX_RETURN_PHOTOS - r.photos.length;
   return (
     <div
       className={cn(
@@ -533,6 +629,35 @@ function ReturnRowCard({
           >
             <Pencil className="size-3.5" />
           </button>
+          <button
+            type="button"
+            className="relative inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (remaining > 0) photoInputRef.current?.click();
+            }}
+            disabled={remaining <= 0}
+            aria-label={`${index + 1}번 행 사진 추가 (현재 ${r.photos.length}/${MAX_RETURN_PHOTOS})`}
+            title={remaining > 0 ? `사진 추가 (${r.photos.length}/${MAX_RETURN_PHOTOS})` : `최대 ${MAX_RETURN_PHOTOS}장`}
+          >
+            <ImageIcon className="size-3.5" />
+            {r.photos.length > 0 && (
+              <span className="absolute -right-1 -top-1 inline-flex size-3.5 items-center justify-center rounded-full bg-foreground text-[8px] font-bold text-background">
+                {r.photos.length}
+              </span>
+            )}
+          </button>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              onAddPhotos(e.target.files);
+              if (photoInputRef.current) photoInputRef.current.value = "";
+            }}
+          />
           <button
             type="button"
             className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
@@ -661,6 +786,40 @@ export function ReturnTool() {
       next[index] = updated;
       return next;
     });
+  }, []);
+
+  const addPhotosToRow = useCallback(async (index: number, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    if (list.length === 0) {
+      toast.error("이미지 파일만 업로드할 수 있어요");
+      return;
+    }
+    try {
+      const dataUrls = await Promise.all(list.map((f) => resizeImageToDataUrl(f)));
+      let added = 0;
+      let skipped = 0;
+      setRows((prev) => {
+        const next = [...prev];
+        const r = next[index];
+        if (!r) return prev;
+        const remain = MAX_RETURN_PHOTOS - r.photos.length;
+        const take = dataUrls.slice(0, Math.max(remain, 0));
+        added = take.length;
+        skipped = dataUrls.length - take.length;
+        next[index] = { ...r, photos: [...r.photos, ...take] };
+        return next;
+      });
+      if (added === 0) {
+        toast.error(`사진은 최대 ${MAX_RETURN_PHOTOS}장까지 첨부할 수 있어요`);
+      } else if (skipped > 0) {
+        toast.success(`사진 ${added}장 추가 (${skipped}장은 ${MAX_RETURN_PHOTOS}장 한도 초과로 제외)`);
+      } else {
+        toast.success(`사진 ${added}장 추가`);
+      }
+    } catch {
+      toast.error("사진 처리 중 오류가 발생했어요");
+    }
   }, []);
 
   const removeRow = useCallback((index: number) => {
@@ -1001,6 +1160,7 @@ export function ReturnTool() {
                         onSelect={() => void onPreviewIndex(i)}
                         onEdit={() => setEditingRowIdx(i)}
                         onRemove={() => removeRow(i)}
+                        onAddPhotos={(files) => void addPhotosToRow(i, files)}
                       />
                     ))}
                   </div>

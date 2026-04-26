@@ -721,6 +721,7 @@ const MOCK_RETURN_ROW_BASE: Omit<ReturnRow, "approval"> = {
   cost: "350,000원",
   costAnnotation: "",
   payment: "법인카드",
+  photos: [],
   hasEmpty: false,
   fieldWarnings: [],
 };

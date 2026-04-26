@@ -106,6 +106,31 @@ function buildStyles(cfg: ReturnLayoutSettings) {
       color: cfg.approval.annotationColor,
       marginTop: 2,
     },
+    /* ── 2페이지: 첨부 사진 ── */
+    photoPageTitle: {
+      fontSize: cfg.title.fontSize,
+      fontWeight: cfg.title.fontWeight as 700,
+      letterSpacing: cfg.title.letterSpacing,
+      marginBottom: 12,
+    },
+    photoGrid: {
+      flexDirection: "row" as const,
+      flexWrap: "wrap" as const,
+      gap: 8,
+    },
+    photoCell: {
+      borderWidth: b,
+      borderColor: BC,
+      backgroundColor: "#ffffff",
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      overflow: "hidden" as const,
+    },
+    photoImg: {
+      width: "100%",
+      height: "100%",
+      objectFit: "contain" as const,
+    },
     /* ── 데이터 테이블 ── */
     table: {
       borderTopWidth: b,
@@ -457,6 +482,40 @@ export function BusinessReturnDocument({ row, layout }: BusinessReturnDocumentPr
           </View>
         </View>
       </Page>
+      {row.photos && row.photos.length > 0 ? (
+        <PhotoPage photos={row.photos} styles={styles} />
+      ) : null}
     </Document>
+  );
+}
+
+function PhotoPage({
+  photos,
+  styles,
+}: {
+  photos: string[];
+  styles: ReturnType<typeof buildStyles>;
+}) {
+  // A4 595 x 842pt. 페이지 패딩(MM ≈ 56.7pt) 후 가용폭 ≈ 481.7pt, 가용높이 ≈ 728.7pt
+  // 제목 영역(약 36pt) 제외 후 그리드 영역 ≈ 692pt
+  const n = Math.min(photos.length, 6);
+  const cols = n === 1 ? 1 : 2;
+  const rows = Math.ceil(n / cols);
+  const gap = 8;
+  const gridWidth = 481.7;
+  const gridHeight = 692;
+  const cellW = (gridWidth - gap * (cols - 1)) / cols;
+  const cellH = (gridHeight - gap * (rows - 1)) / rows;
+  return (
+    <Page size="A4" style={styles.page}>
+      <Text style={styles.photoPageTitle}>첨부 사진</Text>
+      <View style={styles.photoGrid}>
+        {photos.slice(0, 6).map((src, i) => (
+          <View key={i} style={[styles.photoCell, { width: cellW, height: cellH }]}>
+            <Image src={src} style={styles.photoImg} />
+          </View>
+        ))}
+      </View>
+    </Page>
   );
 }
