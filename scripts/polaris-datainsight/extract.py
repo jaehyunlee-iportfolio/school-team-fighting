@@ -146,11 +146,11 @@ def table_to_markdown(table_content: dict[str, Any], structure: dict[str, Any] |
         rspan = max(1, m.get("rowspan") or 1)
         cspan = max(1, m.get("colspan") or 1)
         text = _cell_text(cell)
-        for dr in range(rspan):
-            for dc in range(cspan):
-                rr, cc = r + dr, c + dc
-                if 0 <= rr < rows and 0 <= cc < cols:
-                    grid[rr][cc] = text
+        if 0 <= r < rows and 0 <= c < cols:
+            label = text
+            if (rspan > 1 or cspan > 1) and text:
+                label = f"{text} [{rspan}×{cspan}]"
+            grid[r][c] = label
 
     out: list[str] = []
     out.append("| " + " | ".join(grid[0]) + " |")
