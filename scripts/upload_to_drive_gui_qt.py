@@ -11,7 +11,13 @@ from __future__ import annotations
 import html
 import os
 import sys
+import unicodedata
 from pathlib import Path
+
+
+def nfc(s: str) -> str:
+    """macOS는 파일 시스템 한글을 NFD로 저장 → 클립보드 자모 분리 방지를 위해 NFC 정규화."""
+    return unicodedata.normalize("NFC", s) if s else s
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -308,12 +314,12 @@ class MainWindow(QMainWindow):
     def _pick_src(self) -> None:
         p = QFileDialog.getExistingDirectory(self, "PDF가 들어 있는 폴더 선택")
         if p:
-            self.src_input.setText(p)
+            self.src_input.setText(nfc(p))
 
     def _pick_drive(self) -> None:
         p = QFileDialog.getExistingDirectory(self, "Drive 폴더 선택 (부모 또는 조부모)")
         if p:
-            self.drive_input.setText(p)
+            self.drive_input.setText(nfc(p))
 
     def _pick_json(self) -> None:
         p, _ = QFileDialog.getOpenFileName(
@@ -323,7 +329,7 @@ class MainWindow(QMainWindow):
             "JSON 보고서 (*.json);;모든 파일 (*.*)",
         )
         if p:
-            self.rb_json_input.setText(p)
+            self.rb_json_input.setText(nfc(p))
 
     def _open_csv(self) -> None:
         if self.last_csv_path:

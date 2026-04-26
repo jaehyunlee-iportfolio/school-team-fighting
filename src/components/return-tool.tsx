@@ -613,9 +613,18 @@ function ReturnRowCard({
           {pageInfo && pageInfo.compacted && (
             <Badge variant="secondary" className="text-[10px] sm:text-xs">압축</Badge>
           )}
-          {pageInfo && pageInfo.pageCount >= 2 && (
-            <Badge variant="destructive" className="text-[10px] sm:text-xs">{pageInfo.pageCount}장</Badge>
-          )}
+          {pageInfo && pageInfo.pageCount >= 2 && (() => {
+            const expected = 1 + (r.photos.length > 0 ? 1 : 0);
+            const overflow = pageInfo.pageCount > expected;
+            return (
+              <Badge
+                variant={overflow ? "destructive" : "secondary"}
+                className="text-[10px] sm:text-xs"
+              >
+                {pageInfo.pageCount}장
+              </Badge>
+            );
+          })()}
           {r.hasEmpty ? (
             <Badge variant="destructive" className="text-[10px] sm:text-xs">누락</Badge>
           ) : (
@@ -739,7 +748,7 @@ export function ReturnTool() {
   const [csvDragOver, setCsvDragOver] = useState(false);
   const [genPending, setGenPending] = useState(false);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
-  const [resultFiles, setResultFiles] = useState<{ name: string; pageCount: number; compacted: boolean }[]>([]);
+  const [resultFiles, setResultFiles] = useState<{ name: string; pageCount: number; compacted: boolean; hasPhotos: boolean }[]>([]);
   const [previewI, setPreviewI] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
@@ -947,14 +956,16 @@ export function ReturnTool() {
     setGenProgress({ current: 0, total: rows.length });
     try {
       const z = new JSZip();
-      const files: { name: string; pageCount: number; compacted: boolean }[] = [];
+      const files: { name: string; pageCount: number; compacted: boolean; hasPhotos: boolean }[] = [];
       for (let i = 0; i < rows.length; i++) {
         setGenProgress({ current: i + 1, total: rows.length });
+        const hasPhotos = rows[i].photos.length > 0;
+        const expectedPages = 1 + (hasPhotos ? 1 : 0);
         let blob = await makeBlobFor(rows[i]);
         let pageCount = await getPdfPageCount(blob);
         let compacted = false;
-        // 2페이지 이상이면 compact 레이아웃으로 한 번 더 시도해서 1페이지에 맞춰봄
-        if (pageCount > 1 && layout) {
+        // 본문이 1페이지를 넘어 예상보다 많은 페이지가 나온 경우만 compact 시도
+        if (pageCount > expectedPages && layout) {
           const compactBlob = await makeBlobFor(rows[i], compactReturnLayout(layout));
           const compactCount = await getPdfPageCount(compactBlob);
           if (compactCount <= pageCount) {
@@ -965,7 +976,7 @@ export function ReturnTool() {
         }
         const name = returnPdfName(rows[i]);
         z.file(name, blob);
-        files.push({ name, pageCount, compacted });
+        files.push({ name, pageCount, compacted, hasPhotos });
       }
       const zipBlob = await z.generateAsync({ type: "blob" });
       const href = URL.createObjectURL(zipBlob);
@@ -1230,8 +1241,8 @@ export function ReturnTool() {
               <p className="text-sm text-muted-foreground">
                 총 {resultFiles.length}개의 PDF가 ZIP으로 저장됐어요.
                 {(() => {
-                  const over = resultFiles.filter((f) => f.pageCount >= 2).length;
-                  return over > 0 ? ` · 2장 이상 ${over}건` : "";
+                  const over = resultFiles.filter((f) => f.pageCount > 1 + (f.hasPhotos ? 1 : 0)).length;
+                  return over > 0 ? ` · 예상 페이지 초과 ${over}건` : "";
                 })()}
               </p>
               <ul className="mt-4 max-h-96 space-y-1 overflow-y-auto">
@@ -1243,7 +1254,10 @@ export function ReturnTool() {
                       <Badge variant="secondary" className="shrink-0 text-[10px]">압축 적용</Badge>
                     )}
                     {f.pageCount >= 2 && (
-                      <Badge variant="destructive" className="shrink-0 text-[10px]">
+                      <Badge
+                        variant={f.pageCount > 1 + (f.hasPhotos ? 1 : 0) ? "destructive" : "secondary"}
+                        className="shrink-0 text-[10px]"
+                      >
                         {f.pageCount}장
                       </Badge>
                     )}

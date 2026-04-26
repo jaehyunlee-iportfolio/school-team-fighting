@@ -7,7 +7,13 @@ from __future__ import annotations
 
 import json
 import sys
+import unicodedata
 from pathlib import Path
+
+
+def nfc(s: str) -> str:
+    """macOS는 파일 시스템 한글을 NFD로 저장 → 클립보드 자모 분리 방지를 위해 NFC 정규화."""
+    return unicodedata.normalize("NFC", s) if s else s
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -191,7 +197,7 @@ class MainWindow(QMainWindow):
             f"지원 문서 ({exts});;모든 파일 (*.*)",
         )
         if path:
-            self.file_path_input.setText(path)
+            self.file_path_input.setText(nfc(path))
 
     def _pick_outdir(self) -> None:
         d = QFileDialog.getExistingDirectory(
@@ -200,7 +206,7 @@ class MainWindow(QMainWindow):
             self.output_dir_input.text(),
         )
         if d:
-            self.output_dir_input.setText(d)
+            self.output_dir_input.setText(nfc(d))
 
     def _open_outdir(self) -> None:
         out = Path(self.output_dir_input.text())
@@ -208,7 +214,7 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(out)))
 
     def _log(self, msg: str) -> None:
-        self.log.appendPlainText(msg)
+        self.log.appendPlainText(nfc(msg))
 
     def _set_progress_busy(self, busy: bool) -> None:
         if busy:
