@@ -108,13 +108,13 @@ function buildStyles(cfg: ReturnLayoutSettings) {
     },
     /* ── 2페이지: 첨부 사진 ── */
     photoTitleWrap: {
-      marginBottom: 18,
+      marginBottom: 10,
     },
     photoPageTitle: {
-      fontSize: cfg.title.fontSize,
+      fontSize: cfg.title.fontSize * 0.5,
       fontWeight: cfg.title.fontWeight as 700,
-      letterSpacing: cfg.title.letterSpacing,
-      lineHeight: 1.4,
+      letterSpacing: cfg.title.letterSpacing * 0.5,
+      lineHeight: 1.2,
     },
     photoGrid: {
       flexDirection: "row" as const,
@@ -505,14 +505,16 @@ function PhotoPage({
   const PAGE_W = 595;
   const PAGE_H = 842;
   const padPt = cfg.page.marginMm * 2.8346;
-  // 제목: 30pt 폰트 × lineHeight 1.4 ≈ 42pt + 여유 18pt
-  const titleAreaPt = cfg.title.fontSize * (cfg.page.baseLineHeight ?? 1.4) + 18;
+  // 제목: 50% 축소 폰트 × lineHeight 1.2 + marginBottom 10pt
+  const titleAreaPt = cfg.title.fontSize * 0.5 * 1.2 + 10;
+  // 오버플로우 방지용 안전 여유 (셀 테두리 누적 + flex wrap 라운딩 보정)
+  const SAFETY_PT = 12;
   // 사진 수와 무관하게 2열 × 3행 고정. 빈 셀은 미렌더.
   const COLS = 2;
   const ROWS = 3;
   const gap = 8;
   const gridWidth = PAGE_W - padPt * 2;
-  const gridHeight = PAGE_H - padPt * 2 - titleAreaPt;
+  const gridHeight = PAGE_H - padPt * 2 - titleAreaPt - SAFETY_PT;
   const cellW = (gridWidth - gap * (COLS - 1)) / COLS;
   const cellH = (gridHeight - gap * (ROWS - 1)) / ROWS;
   return (
