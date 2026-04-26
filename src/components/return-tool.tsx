@@ -306,6 +306,10 @@ function ReturnRowEditDialog({
   };
 
   const dialogPhotoInputRef = useRef<HTMLInputElement>(null);
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const handleDialogAddPhotos = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
@@ -315,18 +319,16 @@ function ReturnRowEditDialog({
     }
     try {
       const dataUrls = await Promise.all(list.map((f) => resizeImageToDataUrl(f)));
-      let added = 0;
-      let skipped = 0;
-      setDraft((d) => {
-        const remain = MAX_RETURN_PHOTOS - d.photos.length;
-        const take = dataUrls.slice(0, Math.max(remain, 0));
-        added = take.length;
-        skipped = dataUrls.length - take.length;
-        return { ...d, photos: [...d.photos, ...take] };
-      });
+      const remain = Math.max(MAX_RETURN_PHOTOS - draftRef.current.photos.length, 0);
+      const take = dataUrls.slice(0, remain);
+      const added = take.length;
+      const skipped = dataUrls.length - added;
       if (added === 0) {
         toast.error(`사진은 최대 ${MAX_RETURN_PHOTOS}장까지 첨부할 수 있어요`);
-      } else if (skipped > 0) {
+        return;
+      }
+      setDraft((d) => ({ ...d, photos: [...d.photos, ...take].slice(0, MAX_RETURN_PHOTOS) }));
+      if (skipped > 0) {
         toast.success(`사진 ${added}장 추가 (${skipped}장 제외)`);
       }
     } catch {
@@ -727,6 +729,10 @@ function StepIndicator({
 export function ReturnTool() {
   const [step, setStep] = useState<AppStep>("input");
   const [rows, setRows] = useState<ReturnRow[]>([]);
+  const rowsRef = useRef<ReturnRow[]>([]);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
   const [settings, setSettings] = useState<ReturnSettings | null>(null);
   const [layout, setLayout] = useState<ReturnLayoutSettings | null>(null);
   const [parsePending, setParsePending] = useState(false);
@@ -797,22 +803,24 @@ export function ReturnTool() {
     }
     try {
       const dataUrls = await Promise.all(list.map((f) => resizeImageToDataUrl(f)));
-      let added = 0;
-      let skipped = 0;
+      const current = rowsRef.current[index];
+      if (!current) return;
+      const remain = Math.max(MAX_RETURN_PHOTOS - current.photos.length, 0);
+      const take = dataUrls.slice(0, remain);
+      const added = take.length;
+      const skipped = dataUrls.length - added;
+      if (added === 0) {
+        toast.error(`사진은 최대 ${MAX_RETURN_PHOTOS}장까지 첨부할 수 있어요`);
+        return;
+      }
       setRows((prev) => {
         const next = [...prev];
         const r = next[index];
         if (!r) return prev;
-        const remain = MAX_RETURN_PHOTOS - r.photos.length;
-        const take = dataUrls.slice(0, Math.max(remain, 0));
-        added = take.length;
-        skipped = dataUrls.length - take.length;
-        next[index] = { ...r, photos: [...r.photos, ...take] };
+        next[index] = { ...r, photos: [...r.photos, ...take].slice(0, MAX_RETURN_PHOTOS) };
         return next;
       });
-      if (added === 0) {
-        toast.error(`사진은 최대 ${MAX_RETURN_PHOTOS}장까지 첨부할 수 있어요`);
-      } else if (skipped > 0) {
+      if (skipped > 0) {
         toast.success(`사진 ${added}장 추가 (${skipped}장은 ${MAX_RETURN_PHOTOS}장 한도 초과로 제외)`);
       } else {
         toast.success(`사진 ${added}장 추가`);
