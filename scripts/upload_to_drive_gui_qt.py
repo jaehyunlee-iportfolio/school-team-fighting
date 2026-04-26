@@ -122,6 +122,7 @@ LOG_COLORS = {
 
 
 def append_log(widget: QTextEdit, msg: str, level: str = "") -> None:
+    msg = nfc(msg)
     color = LOG_COLORS.get(level, "#000000")
     safe = html.escape(msg).replace(" ", "&nbsp;") if msg.strip() == "" else html.escape(msg)
     widget.append(f'<span style="color:{color};">{safe}</span>')
@@ -400,6 +401,7 @@ class MainWindow(QMainWindow):
         append_log(self.log, line, tag)
 
     def _on_org_done(self, results: list, csv_path: object, json_path: object) -> None:
+        # Path 객체는 NFC 정규화 불필요 (파일 시스템 호환성 유지)
         self.last_csv_path = Path(str(csv_path))
         self.last_json_path = Path(str(json_path))
 
