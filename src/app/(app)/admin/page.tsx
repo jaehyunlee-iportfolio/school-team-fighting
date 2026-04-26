@@ -31,8 +31,6 @@ import {
   type SomyeongLayoutSettings,
   type ReturnSettings,
   type ReturnLayoutSettings,
-  type ReturnApprovalCell,
-  type ReturnApprovalCellType,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -2276,19 +2274,19 @@ function AdminUsersSection({
 }
 
 /* ===================================================================
-   Return Approval Settings Section (출장복명서 기본 결재라인)
+   Return Approval Settings Section (출장복명서 결재 서명 — 이름별 자동 매핑)
    =================================================================== */
 
-const RETURN_CELL_TITLES = ["담당", "팀장", "본부장"] as const;
-
-function ReturnApprovalCellAdminEditor({
-  index,
-  cell,
+function ReturnSignatureUploader({
+  label,
+  description,
+  url,
   onChange,
 }: {
-  index: number;
-  cell: ReturnApprovalCell;
-  onChange: (next: ReturnApprovalCell) => void;
+  label: string;
+  description: string;
+  url: string;
+  onChange: (next: string) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [cropOpen, setCropOpen] = useState(false);
@@ -2306,100 +2304,92 @@ function ReturnApprovalCellAdminEditor({
     }
   };
 
-  const isFixed = index === 0;
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">셀 {index + 1} · 기본 {RETURN_CELL_TITLES[index]}</CardTitle>
-        <CardDescription>
-          {isFixed ? "담당 셀은 글자 고정. 도구에서 출장자 성명이 자동 매핑돼요." : "행별로 도구에서 오버라이드할 수 있어요."}
-        </CardDescription>
+        <CardTitle className="text-base">{label}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs">헤더 라벨</Label>
-          <Input value={cell.label} onChange={(e) => onChange({ ...cell, label: e.target.value })} />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">내용 종류</Label>
-          <div className="flex gap-2">
-            {(["text", "image", "diagonal"] as ReturnApprovalCellType[]).map((t) => {
-              const disabled = isFixed && t !== "text";
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onChange({ ...cell, type: t })}
-                  className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
-                    cell.type === t ? "border-foreground bg-foreground text-background" : "border-border bg-card hover:bg-muted"
-                  } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-                >
-                  {t === "text" ? "글자" : t === "image" ? "이미지" : "대각선(/)"}
-                </button>
-              );
-            })}
+      <CardContent>
+        <div className="flex items-start gap-4">
+          <div
+            className="shrink-0 size-20 rounded-lg border flex items-center justify-center overflow-hidden"
+            style={{
+              backgroundImage: url
+                ? "linear-gradient(45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(-45deg, hsl(var(--muted)) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, hsl(var(--muted)) 75%), linear-gradient(-45deg, transparent 75%, hsl(var(--muted)) 75%)"
+                : undefined,
+              backgroundSize: "12px 12px",
+              backgroundPosition: "0 0, 0 6px, 6px -6px, -6px 0px",
+              backgroundColor: url ? undefined : "hsl(var(--muted))",
+            }}
+          >
+            {url ? (
+              <img src={url} alt={`${label} 서명`} className="size-full object-contain" />
+            ) : (
+              <ImageIcon className="size-6 text-muted-foreground" />
+            )}
           </div>
-        </div>
-        {cell.type === "text" && (
-          <div className="space-y-1.5">
-            <Label className="text-xs">기본 본문 (담당 셀은 출장자 성명 자동 매핑이라 비워두세요)</Label>
-            <Input value={cell.text} onChange={(e) => onChange({ ...cell, text: e.target.value })} />
-          </div>
-        )}
-        {cell.type === "image" && (
-          <div className="space-y-1.5">
-            <Label className="text-xs">기본 서명 이미지</Label>
-            <div className="flex items-center gap-3">
-              <div className="size-16 shrink-0 overflow-hidden rounded border bg-muted/30 flex items-center justify-center">
-                {cell.imageUrl ? (
-                  <img src={cell.imageUrl} alt="서명" className="size-full object-contain" />
-                ) : (
-                  <ImageIcon className="size-5 text-muted-foreground/50" />
-                )}
-              </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFile(f);
-                }}
-              />
-              <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => fileRef.current?.click()}>
-                <Upload className="size-3.5" />
-                {cell.imageUrl ? "교체" : "업로드"}
-              </Button>
-              {cell.imageUrl && (
-                <>
-                  <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => { setRawDataUrl(cell.imageUrl); setCropOpen(true); }}>
-                    <Scissors className="size-3.5" />
-                    편집
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => onChange({ ...cell, imageUrl: "" })}>
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </>
-              )}
-            </div>
-            <SignatureCropDialog
-              open={cropOpen}
-              rawDataUrl={rawDataUrl}
-              onConfirm={(dataUrl) => {
-                onChange({ ...cell, imageUrl: dataUrl });
-                setCropOpen(false);
-                toast.success("서명 이미지 설정 완료");
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
               }}
-              onCancel={() => setCropOpen(false)}
             />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="size-3.5" />
+              {url ? "교체" : "업로드"}
+            </Button>
+            {url && (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => {
+                    setRawDataUrl(url);
+                    setCropOpen(true);
+                  }}
+                >
+                  <Scissors className="size-3.5" />
+                  편집
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 text-destructive hover:text-destructive"
+                  onClick={() => onChange("")}
+                >
+                  <Trash2 className="size-3.5" />
+                  삭제
+                </Button>
+              </>
+            )}
           </div>
-        )}
-        <div className="space-y-1.5">
-          <Label className="text-xs">셀 하단 작은 글씨 (선택, 예: 전결)</Label>
-          <Input value={cell.annotation} onChange={(e) => onChange({ ...cell, annotation: e.target.value })} />
         </div>
+
+        <SignatureCropDialog
+          open={cropOpen}
+          rawDataUrl={rawDataUrl}
+          onConfirm={(dataUrl) => {
+            onChange(dataUrl);
+            setCropOpen(false);
+            toast.success("서명 이미지 설정 완료");
+          }}
+          onCancel={() => setCropOpen(false)}
+        />
       </CardContent>
     </Card>
   );
@@ -2412,16 +2402,51 @@ function ReturnApprovalSettingsSection({
   settings: ReturnSettings;
   onChange: (s: ReturnSettings) => void;
 }) {
-  const setCell = (i: 0 | 1 | 2, next: ReturnApprovalCell) => {
-    const arr = [...settings.approval] as [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
-    arr[i] = next;
-    onChange({ ...settings, approval: arr });
+  const setSig = (key: keyof ReturnSettings["signatures"], url: string) => {
+    onChange({
+      ...settings,
+      signatures: { ...settings.signatures, [key]: url },
+    });
   };
+
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <ReturnApprovalCellAdminEditor index={0} cell={settings.approval[0]} onChange={(c) => setCell(0, c)} />
-      <ReturnApprovalCellAdminEditor index={1} cell={settings.approval[1]} onChange={(c) => setCell(1, c)} />
-      <ReturnApprovalCellAdminEditor index={2} cell={settings.approval[2]} onChange={(c) => setCell(2, c)} />
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">이름 기반 자동 매핑 규칙</CardTitle>
+          <CardDescription>
+            출장자 성명에 따라 결재라인이 자동 구성돼요. 행별로 도구에서 오버라이드할 수 있어요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            <li>• <span className="font-semibold text-foreground">장인선</span> 출장: 담당(장인선) · 팀장(/) · 본부장(장인선 서명)</li>
+            <li>• <span className="font-semibold text-foreground">김성윤</span> 출장: 담당(김성윤) · 팀장(/) · 대표이사(김성윤 서명)</li>
+            <li>• 그 외 출장자: 담당(이름) · 팀장(채영지 서명) · 본부장(장인선 서명)</li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <ReturnSignatureUploader
+          label="팀장 — 채영지"
+          description="다른 출장자의 팀장 셀에 사용"
+          url={settings.signatures.manager}
+          onChange={(u) => setSig("manager", u)}
+        />
+        <ReturnSignatureUploader
+          label="본부장 — 장인선"
+          description="장인선 본인 출장 + 다른 출장자의 본부장 셀에 사용"
+          url={settings.signatures.director}
+          onChange={(u) => setSig("director", u)}
+        />
+        <ReturnSignatureUploader
+          label="대표이사 — 김성윤"
+          description="김성윤 본인 출장에만 사용"
+          url={settings.signatures.ceo}
+          onChange={(u) => setSig("ceo", u)}
+        />
+      </div>
     </div>
   );
 }

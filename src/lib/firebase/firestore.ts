@@ -484,9 +484,23 @@ export type ReturnApprovalCell = {
   annotation: string;
 };
 
+/**
+ * 이름별 결재라인 자동 매핑에 사용되는 서명 이미지 슬롯.
+ * - manager: 채영지 (팀장 위치)
+ * - director: 장인선 (본부장 위치, 본인 출장 시에도 사용)
+ * - ceo: 김성윤 (대표이사 위치, 본인 출장 시에만 사용)
+ */
+export type ReturnSignatures = {
+  manager: string;
+  director: string;
+  ceo: string;
+};
+
 export type ReturnSettings = {
-  /** 셀 0(담당), 1(팀장), 2(본부장) 기본값 */
+  /** 셀 0(담당), 1(팀장), 2(본부장) 기본값 — 호환을 위해 유지하지만 이름 매핑 결과가 우선 적용됨 */
   approval: [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
+  /** 이름 기반 자동 매핑용 서명 이미지 */
+  signatures: ReturnSignatures;
 };
 
 export const DEFAULT_RETURN_SETTINGS: ReturnSettings = {
@@ -495,6 +509,7 @@ export const DEFAULT_RETURN_SETTINGS: ReturnSettings = {
     { label: "팀장", type: "diagonal", text: "", imageUrl: "", annotation: "" },
     { label: "본부장", type: "image", text: "", imageUrl: "", annotation: "" },
   ],
+  signatures: { manager: "", director: "", ceo: "" },
 };
 
 export async function getReturnSettings(): Promise<ReturnSettings> {
@@ -506,7 +521,12 @@ export async function getReturnSettings(): Promise<ReturnSettings> {
     ...def,
     ...((rawApproval[i] as Partial<ReturnApprovalCell>) ?? {}),
   })) as [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
-  return { approval };
+  const rawSig = (data.signatures as Partial<ReturnSignatures>) ?? {};
+  const signatures: ReturnSignatures = {
+    ...DEFAULT_RETURN_SETTINGS.signatures,
+    ...rawSig,
+  };
+  return { approval, signatures };
 }
 
 export async function saveReturnSettings(settings: ReturnSettings): Promise<void> {

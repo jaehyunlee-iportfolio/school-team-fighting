@@ -140,28 +140,58 @@ export function recomputeReturnWarnings(
 }
 
 /* ─────────────────────────────────────────────────────────────────
- * 결재 셀 기본값 적용 (담당 셀은 출장자 성명 자동 매핑)
+ * 결재 셀 기본값 적용 — 출장자 이름으로 결재라인 자동 매핑
+ *  - 장인선: [장인선 텍스트, 대각선, 장인선 서명(본부장)]
+ *  - 김성윤: [김성윤 텍스트, 대각선, 김성윤 서명(대표이사)]
+ *  - 그 외:  [출장자 텍스트, 채영지 서명(팀장), 장인선 서명(본부장)]
  * ─────────────────────────────────────────────────────────────── */
 
 function applyDefaultApproval(
-  defaults: ReturnSettings["approval"],
+  settings: ReturnSettings,
   writerName: string
 ): [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell] {
-  const cloned = defaults.map((c) => ({ ...c })) as [
-    ReturnApprovalCell,
-    ReturnApprovalCell,
-    ReturnApprovalCell
-  ];
-  // 담당(셀 0) text는 출장자 성명으로 자동 매핑 (어드민 기본값에 text가 없으면 이름 사용)
-  if (cloned[0].type === "text" && !cloned[0].text) {
-    cloned[0].text = writerName;
-  } else if (cloned[0].type === "text" && cloned[0].text === "") {
-    cloned[0].text = writerName;
+  const sig = settings.signatures;
+  const cellText = (label: string, text: string): ReturnApprovalCell => ({
+    label,
+    type: "text",
+    text,
+    imageUrl: "",
+    annotation: "",
+  });
+  const cellDiagonal = (label: string): ReturnApprovalCell => ({
+    label,
+    type: "diagonal",
+    text: "",
+    imageUrl: "",
+    annotation: "",
+  });
+  const cellImage = (label: string, url: string): ReturnApprovalCell => ({
+    label,
+    type: "image",
+    text: "",
+    imageUrl: url,
+    annotation: "",
+  });
+
+  if (writerName === "장인선") {
+    return [
+      cellText("담당", writerName),
+      cellDiagonal("팀장"),
+      cellImage("본부장", sig.director),
+    ];
   }
-  // type=text이면 무조건 출장자 이름이 우선 (어드민 기본값에서 사용자가 명시한 경우 제외)
-  // 단순화: text가 비어있을 때만 채움
-  if (!cloned[0].text) cloned[0].text = writerName;
-  return cloned;
+  if (writerName === "김성윤") {
+    return [
+      cellText("담당", writerName),
+      cellDiagonal("팀장"),
+      cellImage("대표이사", sig.ceo),
+    ];
+  }
+  return [
+    cellText("담당", writerName),
+    cellImage("팀장", sig.manager),
+    cellImage("본부장", sig.director),
+  ];
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -171,7 +201,7 @@ function applyDefaultApproval(
 function buildRow(
   rowIndex: number,
   raw: Record<string, unknown>,
-  approvalDefaults: ReturnSettings["approval"]
+  settings: ReturnSettings
 ): ReturnRow {
   const get = (key: string) => String(raw[key] ?? "").trim();
   const primaryKey = get("Primary Key");
@@ -186,7 +216,7 @@ function buildRow(
   const payment = get("정산방법");
 
   const period = normalizePeriod(periodRaw);
-  const approval = applyDefaultApproval(approvalDefaults, name);
+  const approval = applyDefaultApproval(settings, name);
 
   return recomputeReturnWarnings({
     rowIndex,
@@ -213,7 +243,7 @@ function buildRow(
 
 export function parseReturnCsv(
   text: string,
-  approvalDefaults: ReturnSettings["approval"]
+  settings: ReturnSettings
 ): ReturnRow[] {
   const result = Papa.parse<Record<string, string>>(text, {
     header: true,
@@ -226,14 +256,14 @@ export function parseReturnCsv(
     if (!r) continue;
     // Primary Key 또는 성명 둘 다 비면 스킵 (빈 줄 안전망)
     if (!r["Primary Key"]?.trim() && !r["출장자_성명"]?.trim()) continue;
-    rows.push(buildRow(i, r, approvalDefaults));
+    rows.push(buildRow(i, r, settings));
   }
   return rows;
 }
 
 export function parseReturnJson(
   text: string,
-  approvalDefaults: ReturnSettings["approval"]
+  settings: ReturnSettings
 ): ReturnRow[] {
   const parsed: unknown = JSON.parse(text);
   if (!Array.isArray(parsed)) {
@@ -246,7 +276,7 @@ export function parseReturnJson(
     const pk = String(r["Primary Key"] ?? "").trim();
     const nm = String(r["출장자_성명"] ?? "").trim();
     if (!pk && !nm) continue;
-    rows.push(buildRow(i, r, approvalDefaults));
+    rows.push(buildRow(i, r, settings));
   }
   return rows;
 }
@@ -255,11 +285,11 @@ export function parseReturnJson(
 export function parseReturnInput(
   filename: string,
   text: string,
-  approvalDefaults: ReturnSettings["approval"]
+  settings: ReturnSettings
 ): ReturnRow[] {
   const ext = filename.toLowerCase().split(".").pop();
-  if (ext === "json") return parseReturnJson(text, approvalDefaults);
-  return parseReturnCsv(text, approvalDefaults);
+  if (ext === "json") return parseReturnJson(text, settings);
+  return parseReturnCsv(text, settings);
 }
 
 export { COLUMN_KEYS };

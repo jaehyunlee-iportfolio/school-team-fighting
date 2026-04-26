@@ -600,7 +600,7 @@ export function ReturnTool() {
       setParsePending(true);
       try {
         const text = await readFileText(file);
-        const parsed = parseReturnInput(file.name, text, settings.approval);
+        const parsed = parseReturnInput(file.name, text, settings);
         if (!parsed.length) {
           toast.error("출장복명서 데이터를 찾지 못했어요.");
           return;
@@ -804,34 +804,29 @@ export function ReturnTool() {
               <>
                 <Separator />
                 <section className="space-y-3">
-                  <h2 className="text-sm font-medium">기본 결재라인 미리보기</h2>
+                  <h2 className="text-sm font-medium">결재 서명 미리보기</h2>
                   <p className="text-xs text-muted-foreground">
-                    행별로 검토 단계에서 오버라이드 가능. 담당 셀의 본문은 출장자 성명으로 자동 매핑돼요.
+                    출장자 이름에 따라 자동 매핑됨 — 장인선·김성윤 본인 출장은 팀장 셀이 대각선이 되고, 그 외에는 채영지(팀장) + 장인선(본부장) 서명 사용. 행별 검토 단계에서 오버라이드 가능.
                   </p>
                   <div className="grid grid-cols-3 gap-2">
-                    {settings.approval.map((cell, i) => (
-                      <div key={i} className="rounded-lg border bg-card p-3">
-                        <p className="mb-1 text-xs font-semibold">{cell.label || CELL_TITLES[i]}</p>
-                        <p className="text-[11px] text-muted-foreground">
-                          타입: {cell.type === "text" ? "글자" : cell.type === "image" ? "이미지" : "대각선"}
-                        </p>
-                        {cell.type === "text" && cell.text && (
-                          <p className="mt-1 text-[11px]">{cell.text}</p>
-                        )}
-                        {cell.type === "image" && (
-                          <div className="mt-1 size-12 overflow-hidden rounded border bg-muted/30">
-                            {cell.imageUrl ? (
-                              <img src={cell.imageUrl} alt="서명" className="size-full object-contain" />
-                            ) : (
-                              <div className="flex size-full items-center justify-center">
-                                <ImageIcon className="size-4 text-muted-foreground/50" />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {cell.annotation && (
-                          <p className="mt-1 text-[10px] text-muted-foreground">└ {cell.annotation}</p>
-                        )}
+                    {(
+                      [
+                        { key: "manager", label: "팀장 (채영지)", url: settings.signatures.manager },
+                        { key: "director", label: "본부장 (장인선)", url: settings.signatures.director },
+                        { key: "ceo", label: "대표이사 (김성윤)", url: settings.signatures.ceo },
+                      ] as const
+                    ).map((s) => (
+                      <div key={s.key} className="rounded-lg border bg-card p-3">
+                        <p className="mb-1.5 text-xs font-semibold">{s.label}</p>
+                        <div className="size-16 overflow-hidden rounded border bg-muted/30">
+                          {s.url ? (
+                            <img src={s.url} alt={s.label} className="size-full object-contain" />
+                          ) : (
+                            <div className="flex size-full items-center justify-center">
+                              <ImageIcon className="size-4 text-muted-foreground/50" />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

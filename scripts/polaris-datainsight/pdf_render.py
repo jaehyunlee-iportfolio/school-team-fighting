@@ -1,5 +1,5 @@
 """PDF 변환:
-  A. 원본 hwp/hwpx → PDF (LibreOffice CLI)
+  A. hwp → HTML(pyhwp) → PDF(weasyprint) — hwpx는 미지원
   B. 추출 JSON → 보고서 PDF (reportlab)
 """
 from __future__ import annotations
@@ -7,51 +7,73 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
 
-# ===== A. 원본 → PDF (LibreOffice) =====
+# ===== A. hwp → HTML → PDF =====
 
-LIBREOFFICE_CANDIDATES = [
-    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-    "/usr/local/bin/soffice",
-    "/opt/homebrew/bin/soffice",
-    "soffice",
-    "libreoffice",
-]
-
-
-def find_libreoffice() -> str | None:
-    for c in LIBREOFFICE_CANDIDATES:
-        if c.startswith("/") and os.path.exists(c):
+def _find_hwp5html() -> str | None:
+    candidates = [
+        shutil.which("hwp5html"),
+        f"{Path.home()}/Library/Python/3.12/bin/hwp5html",
+        f"{Path.home()}/.local/bin/hwp5html",
+        "/usr/local/bin/hwp5html",
+        "/opt/homebrew/bin/hwp5html",
+    ]
+    for c in candidates:
+        if c and Path(c).exists():
             return c
-        if not c.startswith("/") and shutil.which(c):
-            return shutil.which(c)
     return None
 
 
 def convert_original_to_pdf(input_path: Path, output_dir: Path, timeout: int = 300) -> Path:
-    soffice = find_libreoffice()
-    if not soffice:
+    """hwp → HTML → PDF. hwpx는 지원 안 함."""
+    ext = input_path.suffix.lower()
+    if ext == ".hwpx":
         raise RuntimeError(
-            "LibreOffice가 설치되어 있지 않습니다.\n"
-            "터미널에서 설치: brew install --cask libreoffice"
+            ".hwpx는 pyhwp가 지원하지 않습니다.\n"
+            "B(보고서 PDF)를 사용하거나, 한글 앱에서 .hwp로 다운저장 후 시도하세요."
         )
+    if ext != ".hwp":
+        raise RuntimeError(f"지원하지 않는 형식: {ext}")
+
+    hwp5html = _find_hwp5html()
+    if not hwp5html:
+        raise RuntimeError(
+            "hwp5html(pyhwp)가 설치되어 있지 않습니다.\n"
+            "설치: pip3 install --user pyhwp"
+        )
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
-        [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(output_dir), str(input_path)],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-    expected = output_dir / f"{input_path.stem}.pdf"
-    if not expected.exists():
-        raise RuntimeError(
-            f"PDF 생성 실패 (returncode={result.returncode})\n"
-            f"stdout: {result.stdout[:500]}\nstderr: {result.stderr[:500]}"
+    pdf_path = output_dir / f"{input_path.stem}.pdf"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        html_dir = Path(tmp) / "html"  # hwp5html requires non-existent dir
+        result = subprocess.run(
+            [hwp5html, "--output", str(html_dir), str(input_path)],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
-    return expected
+        index = html_dir / "index.xhtml"
+        if not index.exists():
+            raise RuntimeError(
+                f"hwp5html 변환 실패 (returncode={result.returncode})\n"
+                f"stderr: {result.stderr[:500]}"
+            )
+        try:
+            from weasyprint import HTML
+        except ImportError as e:
+            raise RuntimeError(
+                f"weasyprint를 import할 수 없습니다: {e}\n"
+                "설치: pip3 install --user weasyprint"
+            )
+        HTML(filename=str(index)).write_pdf(str(pdf_path))
+
+    return pdf_path
 
 
 # ===== B. 추출 JSON → 보고서 PDF (reportlab) =====
@@ -73,7 +95,6 @@ def render_report_pdf(data: dict[str, Any], output_path: Path, image_dir: Path |
         TableStyle,
     )
 
-    # reportlab 내장 한글 CID 폰트 (외부 파일 불필요)
     pdfmetrics.registerFont(UnicodeCIDFont("HYSMyeongJo-Medium"))
     pdfmetrics.registerFont(UnicodeCIDFont("HYGothic-Medium"))
     KFONT = "HYSMyeongJo-Medium"
@@ -206,7 +227,7 @@ def _build_table(content: dict[str, Any], structure: dict[str, Any], cell_style)
             if rspan > 1 or cspan > 1:
                 span_cmds.append(("SPAN", (c, r), (c + cspan - 1, r + rspan - 1)))
 
-    available_w = 180 * mm  # A4 - margins
+    available_w = 180 * mm
     col_w = available_w / cols
     style_cmds: list[tuple] = [
         ("VALIGN", (0, 0), (-1, -1), "TOP"),

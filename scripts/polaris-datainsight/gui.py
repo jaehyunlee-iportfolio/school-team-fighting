@@ -70,7 +70,7 @@ class App:
         actions.pack(fill="x")
         self.run_btn = ttk.Button(actions, text="추출 시작", command=self._run)
         self.run_btn.pack(side="left")
-        self.pdf_a_btn = ttk.Button(actions, text="A. 원본 → PDF", command=self._run_pdf_original)
+        self.pdf_a_btn = ttk.Button(actions, text="A. hwp → PDF (HTML 경유)", command=self._run_pdf_original)
         self.pdf_a_btn.pack(side="left", padx=4)
         self.pdf_b_btn = ttk.Button(actions, text="B. 보고서 PDF", command=self._run_pdf_report, state="disabled")
         self.pdf_b_btn.pack(side="left", padx=4)
