@@ -610,7 +610,7 @@ export const DEFAULT_RETURN_LAYOUT: ReturnLayoutSettings = {
     fontSize: 10,
     lineHeight: 1.55,
     indentPerDepth: 14,
-    depthMarkers: ["1.", "-", "▷"],
+    depthMarkers: ["1.", "-", "-"],
     itemSpacing: 2,
   },
   notes: {
