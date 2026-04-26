@@ -14,7 +14,9 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))  # for _tk_macos
 
+from _tk_macos import enable_macos_shortcuts
 from extract import (
     SUPPORTED_EXTS,
     ExtractResult,
@@ -223,6 +225,7 @@ class App:
 
 def main() -> None:
     root = tk.Tk()
+    enable_macos_shortcuts(root)
     App(root)
     root.mainloop()
 

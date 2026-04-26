@@ -31,6 +31,7 @@ from _drive_lib import (
     write_csv_report,
     write_json_report,
 )
+from _tk_macos import enable_macos_shortcuts
 
 
 def open_in_finder(path: Path) -> None:
@@ -410,6 +411,7 @@ def main() -> int:
         root.tk.call("tk", "scaling", 1.2)
     except tk.TclError:
         pass
+    enable_macos_shortcuts(root)
     App(root)
     root.mainloop()
     return 0
