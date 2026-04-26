@@ -393,6 +393,7 @@ export function SomyeongTool() {
   const [settings, setSettings] = useState<SomyeongSettings | null>(null);
   const [layout, setLayout] = useState<SomyeongLayoutSettings | null>(null);
   const [parsePending, setParsePending] = useState(false);
+  const [csvDragOver, setCsvDragOver] = useState(false);
   const [genPending, setGenPending] = useState(false);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
   const [resultFiles, setResultFiles] = useState<string[]>([]);
@@ -597,7 +598,20 @@ export function SomyeongTool() {
               <button
                 type="button"
                 onClick={() => csvInputRef.current?.click()}
-                className="flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/20 px-4 py-10 transition-colors hover:border-primary hover:bg-muted/40"
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setCsvDragOver(true); }}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setCsvDragOver(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setCsvDragOver(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCsvDragOver(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (f && f.name.toLowerCase().endsWith(".csv")) handleCsvFile(f);
+                }}
+                className={cn(
+                  "flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted/20 px-4 py-10 transition-colors hover:border-primary hover:bg-muted/40",
+                  csvDragOver && "border-primary bg-muted/40"
+                )}
               >
                 {parsePending ? (
                   <Loader2 className="size-8 animate-spin text-muted-foreground" />
@@ -605,7 +619,7 @@ export function SomyeongTool() {
                   <FileUp className="size-8 text-muted-foreground" />
                 )}
                 <p className="text-sm font-medium">
-                  {parsePending ? "파일 읽는 중..." : "CSV 파일을 클릭하여 업로드"}
+                  {parsePending ? "파일 읽는 중..." : "CSV 파일을 클릭 또는 드래그하여 업로드"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   증빙폴더번호, 건명, 상세내용, 첨부서류, 세목 컬럼이 필요해요.

@@ -571,6 +571,7 @@ export function ReturnTool() {
   const [settings, setSettings] = useState<ReturnSettings | null>(null);
   const [layout, setLayout] = useState<ReturnLayoutSettings | null>(null);
   const [parsePending, setParsePending] = useState(false);
+  const [csvDragOver, setCsvDragOver] = useState(false);
   const [genPending, setGenPending] = useState(false);
   const [genProgress, setGenProgress] = useState<{ current: number; total: number } | null>(null);
   const [resultFiles, setResultFiles] = useState<string[]>([]);
@@ -757,7 +758,22 @@ export function ReturnTool() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed bg-muted/20 px-4 py-10 hover:border-primary hover:bg-muted/40"
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setCsvDragOver(true); }}
+                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setCsvDragOver(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setCsvDragOver(false); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCsvDragOver(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (!f) return;
+                  const name = f.name.toLowerCase();
+                  if (name.endsWith(".csv") || name.endsWith(".json")) handleFile(f);
+                }}
+                className={cn(
+                  "flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed bg-muted/20 px-4 py-10 hover:border-primary hover:bg-muted/40",
+                  csvDragOver && "border-primary bg-muted/40"
+                )}
               >
                 {parsePending ? (
                   <Loader2 className="size-8 animate-spin text-muted-foreground" />
@@ -765,7 +781,7 @@ export function ReturnTool() {
                   <FileUp className="size-8 text-muted-foreground" />
                 )}
                 <p className="text-sm font-medium">
-                  {parsePending ? "파일 읽는 중..." : "CSV 또는 JSON 파일 클릭하여 업로드"}
+                  {parsePending ? "파일 읽는 중..." : "CSV 또는 JSON 파일 클릭 또는 드래그하여 업로드"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Primary Key, 출장자_소속, 출장자_성명, 출장기간, 출장지, 출장목적, 업무내용, 특이사항, 출장경비, 정산방법

@@ -143,9 +143,21 @@ type FileFieldProps = {
 
 function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
   const clear = () => {
     void onFile(null);
     if (inputRef.current) inputRef.current.value = "";
+  };
+  const acceptsFile = (f: File) => {
+    if (!accept) return true;
+    const tokens = accept.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const name = f.name.toLowerCase();
+    const type = (f.type || "").toLowerCase();
+    return tokens.some((t) => {
+      if (t.startsWith(".")) return name.endsWith(t);
+      if (t.endsWith("/*")) return type.startsWith(t.slice(0, -1));
+      return type === t;
+    });
   };
   return (
     <div className="space-y-1.5">
@@ -168,7 +180,20 @@ function FileField({ id, label, hint, file, accept, onFile }: FileFieldProps) {
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="flex h-11 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 text-sm outline-none transition hover:bg-muted/50 focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10"
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragOver(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f && acceptsFile(f)) void onFile(f);
+        }}
+        className={cn(
+          "flex h-11 w-full items-center gap-3 rounded-xl border border-input bg-card px-4 text-sm outline-none transition hover:bg-muted/50 focus-visible:border-foreground/25 focus-visible:ring-2 focus-visible:ring-foreground/10",
+          dragOver && "border-foreground/40 bg-muted/60 ring-2 ring-foreground/10"
+        )}
       >
         <FileUp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         {file ? (
