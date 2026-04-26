@@ -14,15 +14,25 @@ import {
   saveSomyeongSettings,
   getSomyeongLayoutSettings,
   saveSomyeongLayoutSettings,
+  getReturnSettings,
+  saveReturnSettings,
+  getReturnLayoutSettings,
+  saveReturnLayoutSettings,
   DEFAULT_PDF_LAYOUT,
   DEFAULT_SOMYEONG_SETTINGS,
   DEFAULT_SOMYEONG_LAYOUT,
+  DEFAULT_RETURN_SETTINGS,
+  DEFAULT_RETURN_LAYOUT,
   SEOMOK_LIST,
   type ApprovalSettings,
   type GroupSettings,
   type PdfLayoutSettings,
   type SomyeongSettings,
   type SomyeongLayoutSettings,
+  type ReturnSettings,
+  type ReturnLayoutSettings,
+  type ReturnApprovalCell,
+  type ReturnApprovalCellType,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -107,25 +117,34 @@ export default function AdminPage() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [savingSomyeong, setSavingSomyeong] = useState(false);
   const [savingSomyeongLayout, setSavingSomyeongLayout] = useState(false);
-  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "common">("trip");
+  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "common">("trip");
   const [tripSub, setTripSub] = useState<"signApproval" | "layout">("signApproval");
   const [somyeongSub, setSomyeongSub] = useState<"info" | "layout">("info");
+  const [returnSub, setReturnSub] = useState<"approval" | "layout">("approval");
+  const [returnSettings, setReturnSettings] = useState<ReturnSettings | null>(null);
+  const [returnLayout, setReturnLayout] = useState<ReturnLayoutSettings | null>(null);
+  const [savingReturn, setSavingReturn] = useState(false);
+  const [savingReturnLayout, setSavingReturnLayout] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, emails, pdf, somyeong, somyeongLay] = await Promise.all([
+      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay] = await Promise.all([
         getApprovalSettings(),
         getAdminEmails(),
         getPdfLayoutSettings(),
         getSomyeongSettings(),
         getSomyeongLayoutSettings(),
+        getReturnSettings(),
+        getReturnLayoutSettings(),
       ]);
       setSettings(s);
       setAdminEmails(emails);
       setPdfLayout(pdf);
       setSomyeongSettings(somyeong);
       setSomyeongLayout(somyeongLay);
+      setReturnSettings(ret);
+      setReturnLayout(retLay);
     } catch (err) {
       toast.error("설정을 불러오는 데 실패했어요.");
       console.error(err);
@@ -158,7 +177,31 @@ export default function AdminPage() {
     );
   }
 
-  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout) return null;
+  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout) return null;
+
+  const handleSaveReturn = async () => {
+    setSavingReturn(true);
+    try {
+      await saveReturnSettings(returnSettings);
+      toast.success("출장복명서 결재라인 저장 완료");
+    } catch {
+      toast.error("저장 실패");
+    } finally {
+      setSavingReturn(false);
+    }
+  };
+
+  const handleSaveReturnLayout = async () => {
+    setSavingReturnLayout(true);
+    try {
+      await saveReturnLayoutSettings(returnLayout);
+      toast.success("출장복명서 레이아웃 저장 완료");
+    } catch {
+      toast.error("저장 실패");
+    } finally {
+      setSavingReturnLayout(false);
+    }
+  };
 
   const handleSaveSomyeong = async () => {
     setSavingSomyeong(true);
@@ -210,7 +253,8 @@ export default function AdminPage() {
 
   const isWideTab =
     (activeGroup === "trip" && tripSub === "layout") ||
-    (activeGroup === "somyeong" && somyeongSub === "layout");
+    (activeGroup === "somyeong" && somyeongSub === "layout") ||
+    (activeGroup === "return" && returnSub === "layout");
 
   return (
     <div
@@ -232,12 +276,13 @@ export default function AdminPage() {
       {/* 1단계: 도구 그룹 */}
       <Tabs
         value={activeGroup}
-        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "common")}
+        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "common")}
         className="flex flex-col space-y-4"
       >
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="trip">출장신청서</TabsTrigger>
           <TabsTrigger value="somyeong">소명서</TabsTrigger>
+          <TabsTrigger value="return">출장복명서</TabsTrigger>
           <TabsTrigger value="common">공통</TabsTrigger>
         </TabsList>
 
@@ -365,6 +410,67 @@ export default function AdminPage() {
                       저장
                     </Button>
                   </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        {/* ── 출장복명서 ── */}
+        <TabsContent value="return" className="space-y-4">
+          <Tabs
+            value={returnSub}
+            onValueChange={(v) => setReturnSub(v as "approval" | "layout")}
+            className="flex flex-col space-y-4"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="approval">기본 결재라인</TabsTrigger>
+              <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="approval" className="space-y-4">
+              <ReturnApprovalSettingsSection
+                settings={returnSettings}
+                onChange={setReturnSettings}
+              />
+              <div className="flex items-center justify-between border-t pt-4">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setReturnSettings(DEFAULT_RETURN_SETTINGS);
+                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  기본값 초기화
+                </Button>
+                <Button onClick={handleSaveReturn} disabled={savingReturn} className="gap-2">
+                  {savingReturn ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  저장
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="layout">
+              <div className="space-y-4">
+                <ReturnLayoutSection layout={returnLayout} onChange={setReturnLayout} />
+                <div className="flex items-center justify-between border-t pt-4">
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      setReturnLayout(DEFAULT_RETURN_LAYOUT);
+                      toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                    }}
+                  >
+                    <RotateCcw className="size-4" />
+                    기본값 초기화
+                  </Button>
+                  <Button onClick={handleSaveReturnLayout} disabled={savingReturnLayout} className="gap-2">
+                    {savingReturnLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                    저장
+                  </Button>
                 </div>
               </div>
             </TabsContent>
@@ -2055,5 +2161,316 @@ function AdminUsersSection({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/* ===================================================================
+   Return Approval Settings Section (출장복명서 기본 결재라인)
+   =================================================================== */
+
+const RETURN_CELL_TITLES = ["담당", "팀장", "본부장"] as const;
+
+function ReturnApprovalCellAdminEditor({
+  index,
+  cell,
+  onChange,
+}: {
+  index: number;
+  cell: ReturnApprovalCell;
+  onChange: (next: ReturnApprovalCell) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [rawDataUrl, setRawDataUrl] = useState("");
+
+  const handleFile = async (file: File) => {
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setRawDataUrl(dataUrl);
+      setCropOpen(true);
+    } catch {
+      toast.error("이미지 읽기 실패");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const isFixed = index === 0;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">셀 {index + 1} · 기본 {RETURN_CELL_TITLES[index]}</CardTitle>
+        <CardDescription>
+          {isFixed ? "담당 셀은 글자 고정. 도구에서 출장자 성명이 자동 매핑돼요." : "행별로 도구에서 오버라이드할 수 있어요."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">헤더 라벨</Label>
+          <Input value={cell.label} onChange={(e) => onChange({ ...cell, label: e.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">내용 종류</Label>
+          <div className="flex gap-2">
+            {(["text", "image", "diagonal"] as ReturnApprovalCellType[]).map((t) => {
+              const disabled = isFixed && t !== "text";
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange({ ...cell, type: t })}
+                  className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+                    cell.type === t ? "border-foreground bg-foreground text-background" : "border-border bg-card hover:bg-muted"
+                  } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                >
+                  {t === "text" ? "글자" : t === "image" ? "이미지" : "대각선(/)"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {cell.type === "text" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">기본 본문 (담당 셀은 출장자 성명 자동 매핑이라 비워두세요)</Label>
+            <Input value={cell.text} onChange={(e) => onChange({ ...cell, text: e.target.value })} />
+          </div>
+        )}
+        {cell.type === "image" && (
+          <div className="space-y-1.5">
+            <Label className="text-xs">기본 서명 이미지</Label>
+            <div className="flex items-center gap-3">
+              <div className="size-16 shrink-0 overflow-hidden rounded border bg-muted/30 flex items-center justify-center">
+                {cell.imageUrl ? (
+                  <img src={cell.imageUrl} alt="서명" className="size-full object-contain" />
+                ) : (
+                  <ImageIcon className="size-5 text-muted-foreground/50" />
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                }}
+              />
+              <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => fileRef.current?.click()}>
+                <Upload className="size-3.5" />
+                {cell.imageUrl ? "교체" : "업로드"}
+              </Button>
+              {cell.imageUrl && (
+                <>
+                  <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => { setRawDataUrl(cell.imageUrl); setCropOpen(true); }}>
+                    <Scissors className="size-3.5" />
+                    편집
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => onChange({ ...cell, imageUrl: "" })}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
+            <SignatureCropDialog
+              open={cropOpen}
+              rawDataUrl={rawDataUrl}
+              onConfirm={(dataUrl) => {
+                onChange({ ...cell, imageUrl: dataUrl });
+                setCropOpen(false);
+                toast.success("서명 이미지 설정 완료");
+              }}
+              onCancel={() => setCropOpen(false)}
+            />
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <Label className="text-xs">셀 하단 작은 글씨 (선택, 예: 전결)</Label>
+          <Input value={cell.annotation} onChange={(e) => onChange({ ...cell, annotation: e.target.value })} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReturnApprovalSettingsSection({
+  settings,
+  onChange,
+}: {
+  settings: ReturnSettings;
+  onChange: (s: ReturnSettings) => void;
+}) {
+  const setCell = (i: 0 | 1 | 2, next: ReturnApprovalCell) => {
+    const arr = [...settings.approval] as [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
+    arr[i] = next;
+    onChange({ ...settings, approval: arr });
+  };
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <ReturnApprovalCellAdminEditor index={0} cell={settings.approval[0]} onChange={(c) => setCell(0, c)} />
+      <ReturnApprovalCellAdminEditor index={1} cell={settings.approval[1]} onChange={(c) => setCell(1, c)} />
+      <ReturnApprovalCellAdminEditor index={2} cell={settings.approval[2]} onChange={(c) => setCell(2, c)} />
+    </div>
+  );
+}
+
+/* ===================================================================
+   Return Layout Section (출장복명서 PDF 레이아웃)
+   =================================================================== */
+
+function ReturnLayoutSection({
+  layout,
+  onChange,
+}: {
+  layout: ReturnLayoutSettings;
+  onChange: (l: ReturnLayoutSettings) => void;
+}) {
+  const set = <K extends keyof ReturnLayoutSettings>(
+    section: K,
+    patch: Partial<ReturnLayoutSettings[K]>
+  ) => onChange({ ...layout, [section]: { ...layout[section], ...patch } });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">페이지</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">폰트</Label>
+              <Select value={layout.page.fontFamily} onValueChange={(v) => { if (v) set("page", { fontFamily: v }); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PDF_FONT_FAMILIES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <NumField label="기본 크기" value={layout.page.baseFontSize} onChange={(v) => set("page", { baseFontSize: v })} step={0.5} unit="pt" />
+            <NumField label="줄 높이" value={layout.page.baseLineHeight} onChange={(v) => set("page", { baseLineHeight: v })} step={0.1} />
+            <NumField label="여백" value={layout.page.marginMm} onChange={(v) => set("page", { marginMm: v })} unit="mm" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">제목</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="크기" value={layout.title.fontSize} onChange={(v) => set("title", { fontSize: v })} unit="pt" />
+            <NumField label="굵기" value={layout.title.fontWeight} onChange={(v) => set("title", { fontWeight: v })} step={100} min={100} />
+            <NumField label="자간" value={layout.title.letterSpacing} onChange={(v) => set("title", { letterSpacing: v })} unit="pt" />
+            <NumField label="하단 여백" value={layout.title.marginBottom} onChange={(v) => set("title", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">결재란</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="가로" value={layout.approval.tableWidth} onChange={(v) => set("approval", { tableWidth: v })} unit="pt" />
+            <NumField label="헤더 높이" value={layout.approval.headerMinHeight} onChange={(v) => set("approval", { headerMinHeight: v })} unit="pt" />
+            <NumField label="셀 높이" value={layout.approval.cellMinHeight} onChange={(v) => set("approval", { cellMinHeight: v })} unit="pt" />
+            <NumField label="헤더 글자" value={layout.approval.headerFontSize} onChange={(v) => set("approval", { headerFontSize: v })} unit="pt" />
+            <ColorField label="헤더 배경" value={layout.approval.headerBgColor} onChange={(v) => set("approval", { headerBgColor: v })} />
+            <NumField label="셀 패딩" value={layout.approval.cellPadding} onChange={(v) => set("approval", { cellPadding: v })} unit="pt" />
+            <NumField label="텍스트 글자" value={layout.approval.textFontSize} onChange={(v) => set("approval", { textFontSize: v })} unit="pt" />
+            <NumField label="이미지 최대 높이" value={layout.approval.imageMaxHeight} onChange={(v) => set("approval", { imageMaxHeight: v })} unit="pt" />
+            <NumField label="annotation 글자" value={layout.approval.annotationFontSize} onChange={(v) => set("approval", { annotationFontSize: v })} step={0.5} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">데이터 테이블</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="라벨 너비" value={layout.dataTable.labelWidth} onChange={(v) => set("dataTable", { labelWidth: v })} unit="pt" />
+            <NumField label="행 높이" value={layout.dataTable.rowMinHeight} onChange={(v) => set("dataTable", { rowMinHeight: v })} unit="pt" />
+            <ColorField label="라벨 배경" value={layout.dataTable.labelBgColor} onChange={(v) => set("dataTable", { labelBgColor: v })} />
+            <NumField label="라벨 글자" value={layout.dataTable.labelFontSize} onChange={(v) => set("dataTable", { labelFontSize: v })} unit="pt" />
+            <NumField label="라벨 굵기" value={layout.dataTable.labelFontWeight} onChange={(v) => set("dataTable", { labelFontWeight: v })} step={100} min={100} />
+            <NumField label="값 글자" value={layout.dataTable.valueFontSize} onChange={(v) => set("dataTable", { valueFontSize: v })} unit="pt" />
+            <NumField label="값 패딩 세로" value={layout.dataTable.valuePaddingV} onChange={(v) => set("dataTable", { valuePaddingV: v })} unit="pt" />
+            <NumField label="값 패딩 가로" value={layout.dataTable.valuePaddingH} onChange={(v) => set("dataTable", { valuePaddingH: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">업무내용 (계층 불릿)</CardTitle>
+          <CardDescription>depth별 들여쓰기 + 마커. 1단계 마커가 `1.` 형태이면 자동 번호 매김.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="최소 높이" value={layout.workContent.minHeight} onChange={(v) => set("workContent", { minHeight: v })} unit="pt" />
+            <NumField label="패딩 세로" value={layout.workContent.paddingV} onChange={(v) => set("workContent", { paddingV: v })} unit="pt" />
+            <NumField label="패딩 가로" value={layout.workContent.paddingH} onChange={(v) => set("workContent", { paddingH: v })} unit="pt" />
+            <NumField label="글자 크기" value={layout.workContent.fontSize} onChange={(v) => set("workContent", { fontSize: v })} unit="pt" />
+            <NumField label="줄 높이" value={layout.workContent.lineHeight} onChange={(v) => set("workContent", { lineHeight: v })} step={0.05} />
+            <NumField label="depth별 들여쓰기" value={layout.workContent.indentPerDepth} onChange={(v) => set("workContent", { indentPerDepth: v })} unit="pt" />
+            <NumField label="항목 간격" value={layout.workContent.itemSpacing} onChange={(v) => set("workContent", { itemSpacing: v })} unit="pt" />
+          </div>
+          <Separator />
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">depth 1 마커</Label>
+              <Input value={layout.workContent.depthMarkers[0]} onChange={(e) => set("workContent", { depthMarkers: [e.target.value, layout.workContent.depthMarkers[1], layout.workContent.depthMarkers[2]] })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">depth 2 마커</Label>
+              <Input value={layout.workContent.depthMarkers[1]} onChange={(e) => set("workContent", { depthMarkers: [layout.workContent.depthMarkers[0], e.target.value, layout.workContent.depthMarkers[2]] })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">depth 3 마커</Label>
+              <Input value={layout.workContent.depthMarkers[2]} onChange={(e) => set("workContent", { depthMarkers: [layout.workContent.depthMarkers[0], layout.workContent.depthMarkers[1], e.target.value] })} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">특이사항</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="최소 높이" value={layout.notes.minHeight} onChange={(v) => set("notes", { minHeight: v })} unit="pt" />
+            <NumField label="패딩 세로" value={layout.notes.paddingV} onChange={(v) => set("notes", { paddingV: v })} unit="pt" />
+            <NumField label="패딩 가로" value={layout.notes.paddingH} onChange={(v) => set("notes", { paddingH: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">테두리 / 누락 표시</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <NumField label="선 두께" value={layout.border.width} onChange={(v) => set("border", { width: v })} step={0.25} unit="pt" />
+            <ColorField label="선 색상" value={layout.border.color} onChange={(v) => set("border", { color: v })} />
+          </div>
+          <Separator />
+          <PlaceholderRow
+            label="빈 필드 대체 문구"
+            desc="필드가 비어있을 때 PDF에 표시되는 색상 강조 문구"
+            text={layout.placeholders.emptyField}
+            color={layout.placeholders.emptyFieldColor}
+            onTextChange={(v) => set("placeholders", { emptyField: v })}
+            onColorChange={(v) => set("placeholders", { emptyFieldColor: v })}
+          />
+          <Separator />
+          <PlaceholderRow
+            label="날짜 인식 실패 문구"
+            desc="출장기간을 날짜로 변환 못 했을 때"
+            text={layout.placeholders.dateInvalid}
+            color={layout.placeholders.dateInvalidColor}
+            onTextChange={(v) => set("placeholders", { dateInvalid: v })}
+            onColorChange={(v) => set("placeholders", { dateInvalidColor: v })}
+          />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

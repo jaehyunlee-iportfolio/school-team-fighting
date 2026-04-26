@@ -32,6 +32,11 @@ const NAV_ITEMS = [
     label: "소명서",
     icon: FileText,
   },
+  {
+    href: "/return",
+    label: "출장복명서",
+    icon: FileText,
+  },
 ];
 
 const ADMIN_ITEM = {

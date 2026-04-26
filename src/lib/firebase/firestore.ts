@@ -471,3 +471,169 @@ export async function saveSomyeongLayoutSettings(
 ): Promise<void> {
   await setDoc(doc(getFirebaseDb(), "settings", "somyeongLayout"), settings);
 }
+
+/* ---------- 출장복명서 settings ---------- */
+
+export type ReturnApprovalCellType = "text" | "image" | "diagonal";
+
+export type ReturnApprovalCell = {
+  label: string;
+  type: ReturnApprovalCellType;
+  text: string;
+  imageUrl: string;
+  annotation: string;
+};
+
+export type ReturnSettings = {
+  /** 셀 0(담당), 1(팀장), 2(본부장) 기본값 */
+  approval: [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
+};
+
+export const DEFAULT_RETURN_SETTINGS: ReturnSettings = {
+  approval: [
+    { label: "담당", type: "text", text: "", imageUrl: "", annotation: "" },
+    { label: "팀장", type: "diagonal", text: "", imageUrl: "", annotation: "" },
+    { label: "본부장", type: "image", text: "", imageUrl: "", annotation: "" },
+  ],
+};
+
+export async function getReturnSettings(): Promise<ReturnSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "return"));
+  if (!snap.exists()) return DEFAULT_RETURN_SETTINGS;
+  const data = snap.data() as Record<string, unknown>;
+  const rawApproval = (data.approval as unknown[]) ?? [];
+  const approval = DEFAULT_RETURN_SETTINGS.approval.map((def, i) => ({
+    ...def,
+    ...((rawApproval[i] as Partial<ReturnApprovalCell>) ?? {}),
+  })) as [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell];
+  return { approval };
+}
+
+export async function saveReturnSettings(settings: ReturnSettings): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "return"), settings);
+}
+
+/* ---------- 출장복명서 layout ---------- */
+
+export type ReturnLayoutSettings = {
+  page: {
+    fontFamily: string;
+    baseFontSize: number;
+    baseLineHeight: number;
+    marginMm: number;
+  };
+  border: {
+    width: number;
+    color: string;
+  };
+  title: {
+    fontSize: number;
+    fontWeight: number;
+    letterSpacing: number;
+    marginBottom: number;
+  };
+  approval: {
+    tableWidth: number;
+    headerMinHeight: number;
+    headerFontSize: number;
+    headerBgColor: string;
+    cellMinHeight: number;
+    cellPadding: number;
+    textFontSize: number;
+    imageMaxHeight: number;
+    annotationFontSize: number;
+    annotationColor: string;
+  };
+  dataTable: {
+    labelWidth: number;
+    rowMinHeight: number;
+    labelBgColor: string;
+    labelFontSize: number;
+    labelFontWeight: number;
+    valueFontSize: number;
+    valuePaddingV: number;
+    valuePaddingH: number;
+  };
+  workContent: {
+    minHeight: number;
+    paddingV: number;
+    paddingH: number;
+    fontSize: number;
+    lineHeight: number;
+    indentPerDepth: number;
+    depthMarkers: [string, string, string]; // depth 1/2/3 marker
+    itemSpacing: number;
+  };
+  notes: {
+    minHeight: number;
+    paddingV: number;
+    paddingH: number;
+  };
+  placeholders: {
+    emptyField: string;
+    emptyFieldColor: string;
+    dateInvalid: string;
+    dateInvalidColor: string;
+  };
+};
+
+export const DEFAULT_RETURN_LAYOUT: ReturnLayoutSettings = {
+  page: { fontFamily: "Pretendard", baseFontSize: 10, baseLineHeight: 1.4, marginMm: 18 },
+  border: { width: 0.75, color: "#000000" },
+  title: { fontSize: 30, fontWeight: 700, letterSpacing: 6, marginBottom: 18 },
+  approval: {
+    tableWidth: 200,
+    headerMinHeight: 22,
+    headerFontSize: 9,
+    headerBgColor: "#F2F2F2",
+    cellMinHeight: 50,
+    cellPadding: 3,
+    textFontSize: 10,
+    imageMaxHeight: 38,
+    annotationFontSize: 8,
+    annotationColor: "#333333",
+  },
+  dataTable: {
+    labelWidth: 90,
+    rowMinHeight: 28,
+    labelBgColor: "#E6E6E6",
+    labelFontSize: 11,
+    labelFontWeight: 600,
+    valueFontSize: 10.5,
+    valuePaddingV: 5,
+    valuePaddingH: 8,
+  },
+  workContent: {
+    minHeight: 280,
+    paddingV: 8,
+    paddingH: 10,
+    fontSize: 10,
+    lineHeight: 1.55,
+    indentPerDepth: 14,
+    depthMarkers: ["1.", "-", "▷"],
+    itemSpacing: 2,
+  },
+  notes: {
+    minHeight: 50,
+    paddingV: 5,
+    paddingH: 8,
+  },
+  placeholders: {
+    emptyField: "—",
+    emptyFieldColor: "#DC2626",
+    dateInvalid: "날짜 확인 불가",
+    dateInvalidColor: "#DC2626",
+  },
+};
+
+export async function getReturnLayoutSettings(): Promise<ReturnLayoutSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "returnLayout"));
+  if (!snap.exists()) return DEFAULT_RETURN_LAYOUT;
+  return deepMerge(DEFAULT_RETURN_LAYOUT, snap.data() as Record<string, unknown>);
+}
+
+export async function saveReturnLayoutSettings(
+  settings: ReturnLayoutSettings
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "returnLayout"), settings);
+}
