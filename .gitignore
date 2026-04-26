@@ -52,6 +52,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Claude Code runtime artifacts
+/.claude/
+
 # Polaris DataInsight test outputs
 /scripts/polaris-datainsight/output/*
 !/scripts/polaris-datainsight/output/.gitkeep

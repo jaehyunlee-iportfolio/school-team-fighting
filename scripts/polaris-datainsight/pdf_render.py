@@ -1,82 +1,9 @@
-"""PDF 변환:
-  A. hwp → HTML(pyhwp) → PDF(weasyprint) — hwpx는 미지원
-  B. 추출 JSON → 보고서 PDF (reportlab)
-"""
+"""추출 JSON → 보고서 PDF (reportlab)."""
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
-
-# ===== A. hwp → HTML → PDF =====
-
-def _find_hwp5html() -> str | None:
-    candidates = [
-        shutil.which("hwp5html"),
-        f"{Path.home()}/Library/Python/3.12/bin/hwp5html",
-        f"{Path.home()}/.local/bin/hwp5html",
-        "/usr/local/bin/hwp5html",
-        "/opt/homebrew/bin/hwp5html",
-    ]
-    for c in candidates:
-        if c and Path(c).exists():
-            return c
-    return None
-
-
-def convert_original_to_pdf(input_path: Path, output_dir: Path, timeout: int = 300) -> Path:
-    """hwp → HTML → PDF. hwpx는 지원 안 함."""
-    ext = input_path.suffix.lower()
-    if ext == ".hwpx":
-        raise RuntimeError(
-            ".hwpx는 pyhwp가 지원하지 않습니다.\n"
-            "B(보고서 PDF)를 사용하거나, 한글 앱에서 .hwp로 다운저장 후 시도하세요."
-        )
-    if ext != ".hwp":
-        raise RuntimeError(f"지원하지 않는 형식: {ext}")
-
-    hwp5html = _find_hwp5html()
-    if not hwp5html:
-        raise RuntimeError(
-            "hwp5html(pyhwp)가 설치되어 있지 않습니다.\n"
-            "설치: pip3 install --user pyhwp"
-        )
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = output_dir / f"{input_path.stem}.pdf"
-
-    with tempfile.TemporaryDirectory() as tmp:
-        html_dir = Path(tmp) / "html"  # hwp5html requires non-existent dir
-        result = subprocess.run(
-            [hwp5html, "--output", str(html_dir), str(input_path)],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        index = html_dir / "index.xhtml"
-        if not index.exists():
-            raise RuntimeError(
-                f"hwp5html 변환 실패 (returncode={result.returncode})\n"
-                f"stderr: {result.stderr[:500]}"
-            )
-        try:
-            from weasyprint import HTML
-        except ImportError as e:
-            raise RuntimeError(
-                f"weasyprint를 import할 수 없습니다: {e}\n"
-                "설치: pip3 install --user weasyprint"
-            )
-        HTML(filename=str(index)).write_pdf(str(pdf_path))
-
-    return pdf_path
-
-
-# ===== B. 추출 JSON → 보고서 PDF (reportlab) =====
 
 def render_report_pdf(data: dict[str, Any], output_path: Path, image_dir: Path | None = None) -> Path:
     from reportlab.lib import colors
