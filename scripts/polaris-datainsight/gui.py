@@ -24,6 +24,7 @@ from extract import (
     load_api_key,
     summarize,
 )
+from pdf_render import convert_original_to_pdf, render_report_pdf
 
 HERE = Path(__file__).parent
 DEFAULT_OUTPUT = HERE / "output"
@@ -69,6 +70,10 @@ class App:
         actions.pack(fill="x")
         self.run_btn = ttk.Button(actions, text="추출 시작", command=self._run)
         self.run_btn.pack(side="left")
+        self.pdf_a_btn = ttk.Button(actions, text="A. 원본 → PDF", command=self._run_pdf_original)
+        self.pdf_a_btn.pack(side="left", padx=4)
+        self.pdf_b_btn = ttk.Button(actions, text="B. 보고서 PDF", command=self._run_pdf_report, state="disabled")
+        self.pdf_b_btn.pack(side="left", padx=4)
         ttk.Button(actions, text="결과 폴더 열기", command=self._open_outdir).pack(side="left", padx=8)
         self.progress = ttk.Progressbar(actions, mode="indeterminate")
         self.progress.pack(side="left", fill="x", expand=True, padx=8)
@@ -145,6 +150,46 @@ class App:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def _run_pdf_original(self) -> None:
+        file_path = self.file_path.get().strip()
+        output_dir = self.output_dir.get().strip()
+        if not file_path or not Path(file_path).exists():
+            messagebox.showerror("오류", "파일을 선택하세요.")
+            return
+        self.pdf_a_btn.config(state="disabled")
+        self.progress.start(10)
+        self._log(f"[A. 원본 PDF 변환 시작] {Path(file_path).name}")
+
+        def worker() -> None:
+            try:
+                pdf = convert_original_to_pdf(Path(file_path), Path(output_dir))
+                self.q.put(("pdf_a_done", pdf))
+            except Exception as e:  # noqa: BLE001
+                self.q.put(("pdf_a_error", str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _run_pdf_report(self) -> None:
+        if not self.last_result:
+            messagebox.showerror("오류", "먼저 추출을 실행하세요.")
+            return
+        result = self.last_result
+        out_pdf = result.json_path.parent.parent / f"{result.json_path.stem.replace('.hwp', '').replace('.hwpx', '')}.report.pdf"
+        self.pdf_b_btn.config(state="disabled")
+        self.progress.start(10)
+        self._log(f"[B. 보고서 PDF 생성 시작]")
+
+        image_dir = result.json_path.parent
+
+        def worker() -> None:
+            try:
+                pdf = render_report_pdf(result.data, out_pdf, image_dir=image_dir)
+                self.q.put(("pdf_b_done", pdf))
+            except Exception as e:  # noqa: BLE001
+                self.q.put(("pdf_b_error", str(e)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def _poll(self) -> None:
         try:
             while True:
@@ -154,6 +199,14 @@ class App:
                     self._on_done(payload)
                 elif kind == "error":
                     self._on_error(str(payload))
+                elif kind == "pdf_a_done":
+                    self._on_pdf_done("A. 원본 PDF", Path(str(payload)), self.pdf_a_btn)
+                elif kind == "pdf_b_done":
+                    self._on_pdf_done("B. 보고서 PDF", Path(str(payload)), self.pdf_b_btn)
+                elif kind == "pdf_a_error":
+                    self._on_pdf_error("A. 원본 PDF", str(payload), self.pdf_a_btn)
+                elif kind == "pdf_b_error":
+                    self._on_pdf_error("B. 보고서 PDF", str(payload), self.pdf_b_btn)
         except queue.Empty:
             pass
         self.root.after(120, self._poll)
@@ -162,6 +215,7 @@ class App:
         self.progress.stop()
         self.run_btn.config(state="normal")
         self.last_result = result
+        self.pdf_b_btn.config(state="normal")
         self._log(f"[성공] ZIP: {result.zip_path}")
         self._log(f"  JSON: {result.json_path}")
         self._log(f"  이미지: {len(result.images)}개")
@@ -176,6 +230,19 @@ class App:
         self.run_btn.config(state="normal")
         self._log(f"[실패] {msg}")
         messagebox.showerror("추출 실패", msg)
+
+    def _on_pdf_done(self, label: str, pdf_path: Path, btn: ttk.Button) -> None:
+        self.progress.stop()
+        btn.config(state="normal")
+        self._log(f"[{label} 완료] {pdf_path}")
+        import subprocess
+        subprocess.run(["open", str(pdf_path)], check=False)
+
+    def _on_pdf_error(self, label: str, msg: str, btn: ttk.Button) -> None:
+        self.progress.stop()
+        btn.config(state="normal")
+        self._log(f"[{label} 실패] {msg}")
+        messagebox.showerror(f"{label} 실패", msg)
 
 
 def main() -> None:
