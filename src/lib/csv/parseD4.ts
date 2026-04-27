@@ -3,6 +3,7 @@ import Papa from "papaparse";
 
 import { drafterSignatureGraphemes, resolveWriterName } from "@/lib/names/parseName";
 import { getApprovalHeaderLabels, type ApprovalGroup } from "@/lib/approval/labels";
+import { parseExpenseLines } from "@/lib/trip/expense";
 
 function norm(s: string | undefined | null): string {
   if (s == null) return "";
@@ -211,10 +212,28 @@ function isDataRow(row: string[]): boolean {
   );
 }
 
+export type ExpenseCategory = "교통비" | "일비" | "식비" | "숙박비" | "기타";
+
+/** 사용내역(수령인)의 산출내역 라인 1개를 자동 분류한 결과 */
+export type ExpenseLine = {
+  /** 자동 분류된 카테고리 */
+  category: ExpenseCategory;
+  /** 교통수단 등 추출 라벨 (예: "KTX"). 없으면 "" */
+  label: string;
+  /** 이 라인 금액 (행 단독). CSV에서 추출 실패 시 0 */
+  amount: number;
+  /** 원본 라인 텍스트 — 검토용 */
+  rawText: string;
+  /** 자동 분류 신뢰도가 낮음 → "기타"로 분류, UI에 검토 배지 */
+  needsReview: boolean;
+};
+
 export type TripRow = {
   rowIndex: number;
   usageDate: string;
   partnerRaw: string;
+  /** 거래처를 콤마로 분리한 출장자 명단 */
+  partners: string[];
   orgName: string;
   outPlace: string;
   payMethod: string;
@@ -226,6 +245,10 @@ export type TripRow = {
   periodText: string;
   purposeText: string;
   evidenceNo: string;
+  /** 합계금액 (행 단독). 파싱 실패 시 0 */
+  totalAmount: number;
+  /** 산출내역 자동 분류 결과 */
+  expenseLines: ExpenseLine[];
   orgGroup: "ipf" | "dimi" | "unknown";
   approver1: string;
   approver2: string;
@@ -253,7 +276,20 @@ function rowToTrip(
   const { purpose: purposeText, outPlace } = extractTripFromDetail(d);
   const labels = getApprovalHeaderLabels(o, "auto");
 
-  const { periodText, singleDate, invalidDate } = normalizeUsageDate(u, datePh);
+  const { periodText, invalidDate } = normalizeUsageDate(u, datePh);
+
+  // 거래처 콤마 분리 (출장자 명단)
+  const partners = norm(p)
+    .split(/\s*,\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // 합계금액 (헤더 키 "합계금액")
+  const totalRaw = getByRe(row, kcols, /^합계금액$/);
+  const totalAmount = parseAmount(totalRaw);
+
+  // 산출내역 자동 분류
+  const expenseLines = parseExpenseLines(d, totalAmount);
 
   const wlist: string[] = [];
   if (w.from === "none")
@@ -271,6 +307,7 @@ function rowToTrip(
     rowIndex: i,
     usageDate: u,
     partnerRaw: p,
+    partners,
     orgName: o,
     outPlace,
     payMethod: getByRe(row, kcols, /지급/),
@@ -282,6 +319,8 @@ function rowToTrip(
     periodText: periodText.trim(),
     purposeText,
     evidenceNo,
+    totalAmount,
+    expenseLines,
     orgGroup: labels.group,
     approver1: labels.approver1,
     approver2: labels.approver2,
@@ -289,6 +328,15 @@ function rowToTrip(
     fieldWarnings: wlist,
     approvalGroupOverride: "auto",
   };
+}
+
+/** "143,200 " 같은 금액 문자열을 숫자로. 실패 시 0 */
+function parseAmount(s: string): number {
+  if (!s) return 0;
+  const cleaned = s.replace(/[^\d-]/g, "");
+  if (!cleaned) return 0;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
 }
 
 export function parseD4Csv(fileText: string, datePh?: DatePlaceholders): {

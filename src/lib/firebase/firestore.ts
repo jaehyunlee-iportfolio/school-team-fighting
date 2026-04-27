@@ -149,6 +149,38 @@ export type PdfLayoutSettings = {
     fontSize: number;
     lineHeight: number;
   };
+  /** 소요경비 표 — 출장신청서 PDF 하단 추가 표 */
+  expense: {
+    /** 표 마진 (intro 위 영역에서) */
+    marginTop: number;
+    /** 좌측 "소요경비" 병합 셀 폭 */
+    titleColWidth: number;
+    /** 좌측 셀 글자 폰트 사이즈 */
+    titleFontSize: number;
+    /** 좌측 셀 글자 자간 */
+    titleLetterSpacing: number;
+    /** 좌측 셀 라인 간격 */
+    titleLineHeight: number;
+    /** "구분" 컬럼 폭 */
+    categoryColWidth: number;
+    /** "합계" 컬럼 폭 */
+    totalColWidth: number;
+    /** 표 헤더(구분/내용/합계) 행 높이 */
+    headerRowHeight: number;
+    /** 데이터 행 높이 */
+    rowHeight: number;
+    /** 헤더 폰트 사이즈 */
+    headerFontSize: number;
+    /** 본문 폰트 사이즈 */
+    cellFontSize: number;
+    /** 본문 패딩 */
+    cellPaddingV: number;
+    cellPaddingH: number;
+    /** 헤더 / 좌측 셀 배경색 */
+    labelBgColor: string;
+    /** 검토 필요 강조 색상 (기타 / 비정상) */
+    reviewColor: string;
+  };
   logo: {
     enabled: boolean;
     width: number;
@@ -213,6 +245,23 @@ export const DEFAULT_PDF_LAYOUT: PdfLayoutSettings = {
   },
   intro: { fontSize: 11, marginTop: 42, marginBottom: 42 },
   purpose: { minHeight: 112, padding: 6, fontSize: 11, lineHeight: 1.4 },
+  expense: {
+    marginTop: 24,
+    titleColWidth: 32,
+    titleFontSize: 10,
+    titleLetterSpacing: 2,
+    titleLineHeight: 1.2,
+    categoryColWidth: 60,
+    totalColWidth: 80,
+    headerRowHeight: 24,
+    rowHeight: 26,
+    headerFontSize: 10,
+    cellFontSize: 10,
+    cellPaddingV: 4,
+    cellPaddingH: 6,
+    labelBgColor: "#E6E6E6",
+    reviewColor: "#B45309",
+  },
   logo: { enabled: true, width: 60, height: 60, marginRight: 8, offsetX: 0, offsetY: 0 },
   footer: { fontSize: 15, fontWeight: 700, marginTop: 42 },
   placeholders: {

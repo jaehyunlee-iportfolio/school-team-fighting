@@ -24,11 +24,18 @@ import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { getPdfPageCount } from "@/lib/pdf/page-count";
 import {
-  type TripRow,
   type DatePlaceholders,
+  type ExpenseCategory,
   parseD4Csv,
-  recomputeRowWithOverride,
 } from "@/lib/csv/parseD4";
+import {
+  type TripGroup,
+  type ExpenseRow as ExpenseTableRow,
+  buildTripGroups,
+  recomputeGroupExpense,
+  recomputeGroupWithApprovalOverride,
+  validateGroup,
+} from "@/lib/trip/expense";
 import { drafterSignatureGraphemes } from "@/lib/names/parseName";
 import { type ApprovalGroup, getApprovalHeaderLabels, detectGroupFromFilename, resolveGroup } from "@/lib/approval/labels";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -103,14 +110,11 @@ function fileSafe(s: string) {
   return s.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 60);
 }
 
-function pdfName(r: TripRow) {
-  const digits = r.usageDate.replace(/\D/g, "");
-  // YYMMDD 6자리: YYYYMMDD면 앞 2자리(세기) 떼고, 6자리면 그대로, 그 외엔 UNKNOWN
-  const date =
-    digits.length >= 8 ? digits.slice(2, 8) : digits.length === 6 ? digits : "UNKNOWN";
-  const name = r.writerName?.trim() ? fileSafe(r.writerName) : "UNKNOWN";
-  const place = r.outPlace?.trim() ? fileSafe(r.outPlace).slice(0, 20) : "UNKNOWN";
-  const ev = r.evidenceNo?.trim() ? fileSafe(r.evidenceNo) : "UNKNOWN";
+function pdfName(g: TripGroup, pk: string) {
+  const date = g.startYymmdd || "UNKNOWN";
+  const name = g.writerName?.trim() ? fileSafe(g.writerName) : "UNKNOWN";
+  const place = g.outPlace?.trim() ? fileSafe(g.outPlace).slice(0, 20) : "UNKNOWN";
+  const ev = pk?.trim() ? fileSafe(pk) : "UNKNOWN";
   return `${ev}_1. 내부결재문서_출장신청서_${name}_${place}_${date}.pdf`;
 }
 
@@ -129,8 +133,8 @@ const ALL_APPROVAL: { id: ApprovalGroup | "auto"; label: string }[] = [
   { id: "dimi", label: "디미교연 / (사)디지털미디어교육콘텐츠 교사연구협회" },
 ];
 
-function mapAllRows(list: TripRow[], m: ApprovalGroup | "auto"): TripRow[] {
-  return list.map((r) => recomputeRowWithOverride(r, m));
+function mapAllGroups(list: TripGroup[], m: ApprovalGroup | "auto"): TripGroup[] {
+  return list.map((g) => recomputeGroupWithApprovalOverride(g, m));
 }
 
 type FileFieldProps = {
@@ -319,9 +323,18 @@ function StepIndicator({
 }
 
 type EditableFields = Pick<
-  TripRow,
+  TripGroup,
   "writerName" | "orgName" | "memberText" | "periodText" | "outPlace" | "purposeText"
 >;
+
+type ExpenseTableEdit = {
+  교통비: ExpenseTableRow;
+  일비: ExpenseTableRow;
+  식비: ExpenseTableRow;
+  숙박비: ExpenseTableRow;
+  기타: ExpenseTableRow;
+};
+const EXPENSE_CATS: ExpenseCategory[] = ["교통비", "일비", "식비", "숙박비", "기타"];
 
 const EDITABLE_FIELD_META: { key: keyof EditableFields; label: string; multiline?: boolean }[] = [
   { key: "writerName", label: "작성자 성명" },
@@ -473,74 +486,103 @@ function DateRangeField({
   );
 }
 
-function recomputeWarnings(r: TripRow): TripRow {
-  const wlist: string[] = [];
-  if (!r.writerName) wlist.push("이름: 거래처 또는 사용내역(출장자명)을 찾지 못함");
-  if (!r.purposeText) wlist.push("「사용내역(수령인)」이 비어 있어요");
-  if (!r.outPlace) wlist.push("「출장지」가 비어 있어요");
-  if (!r.orgName) wlist.push("「집행기관(명)」이 비어 있어요");
-  if (!r.periodText) wlist.push("「사용일자」가 비어 있어요");
-  else if (r.periodText === "날짜 확인 불가")
-    wlist.push("「사용일자」가 날짜 형식이 아니에요 — 직접 확인해 주세요");
-  else if (r.periodText.includes("YYYY"))
-    wlist.push("「사용일자」에 날짜가 하나뿐이에요 — 종료일을 직접 입력해 주세요");
-  return { ...r, hasEmpty: wlist.length > 0, fieldWarnings: wlist };
-}
-
-function RowEditDialog({
-  row,
+function GroupEditDialog({
+  group,
   index,
   open,
   onOpenChange,
   onSave,
 }: {
-  row: TripRow;
+  group: TripGroup;
   index: number;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSave: (updated: TripRow) => void;
+  onSave: (updated: TripGroup) => void;
 }) {
   const [draft, setDraft] = useState<EditableFields>({
-    writerName: row.writerName,
-    orgName: row.orgName,
-    memberText: row.memberText,
-    periodText: row.periodText,
-    outPlace: row.outPlace,
-    purposeText: row.purposeText,
+    writerName: group.writerName,
+    orgName: group.orgName,
+    memberText: group.memberText,
+    periodText: group.periodText,
+    outPlace: group.outPlace,
+    purposeText: group.purposeText,
+  });
+  const [expense, setExpense] = useState<ExpenseTableEdit>({
+    교통비: group.expenseTable.교통비,
+    일비: group.expenseTable.일비,
+    식비: group.expenseTable.식비,
+    숙박비: group.expenseTable.숙박비,
+    기타: group.expenseTable.기타,
   });
 
   useEffect(() => {
     if (open) {
       setDraft({
-        writerName: row.writerName,
-        orgName: row.orgName,
-        memberText: row.memberText,
-        periodText: row.periodText,
-        outPlace: row.outPlace,
-        purposeText: row.purposeText,
+        writerName: group.writerName,
+        orgName: group.orgName,
+        memberText: group.memberText,
+        periodText: group.periodText,
+        outPlace: group.outPlace,
+        purposeText: group.purposeText,
+      });
+      setExpense({
+        교통비: group.expenseTable.교통비,
+        일비: group.expenseTable.일비,
+        식비: group.expenseTable.식비,
+        숙박비: group.expenseTable.숙박비,
+        기타: group.expenseTable.기타,
       });
     }
-  }, [open, row]);
+  }, [open, group]);
+
+  const expenseTotal =
+    expense.교통비.total + expense.일비.total + expense.식비.total +
+    expense.숙박비.total + expense.기타.total;
 
   const handleSave = () => {
-    const updated: TripRow = {
-      ...row,
+    const updatedExpenseTable = { ...expense, 합계: expenseTotal };
+    const hasNeedsReview =
+      expense.교통비.needsReview || expense.일비.needsReview ||
+      expense.식비.needsReview || expense.숙박비.needsReview ||
+      expense.기타.needsReview;
+    const next: TripGroup = validateGroup({
+      ...group,
       ...draft,
       drafter3: drafterSignatureGraphemes(draft.writerName, 3),
-      detail: draft.purposeText,
-    };
-    onSave(recomputeWarnings(updated));
+      expenseTable: updatedExpenseTable,
+      hasNeedsReview,
+    });
+    onSave(next);
     onOpenChange(false);
-    toast.success(`#${index + 1}번 행을 수정했어요`);
+    toast.success(`#${index + 1}번 그룹을 수정했어요`);
+  };
+
+  const handleRecomputeExpense = () => {
+    const recomputed = recomputeGroupExpense({ ...group, ...draft });
+    setExpense({
+      교통비: recomputed.expenseTable.교통비,
+      일비: recomputed.expenseTable.일비,
+      식비: recomputed.expenseTable.식비,
+      숙박비: recomputed.expenseTable.숙박비,
+      기타: recomputed.expenseTable.기타,
+    });
+    toast.success("소요경비 표를 자동 재계산했어요");
+  };
+
+  const updateExpenseRow = (cat: ExpenseCategory, patch: Partial<ExpenseTableRow>) => {
+    setExpense((cur) => ({
+      ...cur,
+      [cat]: { ...cur[cat], ...patch },
+    }));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>#{index + 1}번 행 수정</DialogTitle>
+          <DialogTitle>#{index + 1}번 그룹 수정 ({group.memberPKs.join(", ")})</DialogTitle>
           <DialogDescription>
-            내용을 직접 수정할 수 있어요. 수정하면 PDF에 바로 반영돼요.
+            그룹 내 {group.memberPKs.length}건이 동일한 출장신청서를 공유합니다. 수정하면 모든 PK 폴더에 같은 내용이 적용돼요.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -573,6 +615,71 @@ function RowEditDialog({
               )}
             </Fragment>
           ))}
+
+          {/* 소요경비 표 편집 */}
+          <Separator />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold">
+                소요경비 <span className="font-normal text-muted-foreground">합계 {expenseTotal.toLocaleString("ko-KR")}원</span>
+              </h3>
+              <Button type="button" size="sm" variant="outline" onClick={handleRecomputeExpense}>
+                자동 재계산
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              자동 분류 결과를 그대로 두거나 직접 수정하세요. {group.partnersMismatch && "⚠ 그룹 내 거래처(출장자) 불일치 — 검토 필요"}
+            </p>
+            <div className="overflow-hidden rounded-lg border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr>
+                    <th className="w-20 px-2 py-1.5 text-left font-medium">구분</th>
+                    <th className="px-2 py-1.5 text-left font-medium">내용</th>
+                    <th className="w-28 px-2 py-1.5 text-right font-medium">합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {EXPENSE_CATS.map((cat) => {
+                    const r = expense[cat];
+                    return (
+                      <tr key={cat} className={cn(r.needsReview && "bg-amber-50 dark:bg-amber-950/20")}>
+                        <td className="px-2 py-1 align-middle font-medium">{cat}</td>
+                        <td className="px-1 py-1">
+                          <Input
+                            value={r.contentText}
+                            onChange={(e) => updateExpenseRow(cat, { contentText: e.target.value })}
+                            placeholder="(비어둠)"
+                            className="h-8 text-xs"
+                          />
+                        </td>
+                        <td className="px-1 py-1">
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={r.total === 0 ? "" : r.total.toString()}
+                            onChange={(e) => {
+                              const n = Number(e.target.value.replace(/[^\d-]/g, "")) || 0;
+                              updateExpenseRow(cat, { total: n });
+                            }}
+                            placeholder="0"
+                            className="h-8 text-right text-xs tabular-nums"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="border-t bg-muted/30">
+                    <td className="px-2 py-1.5 font-semibold">합계</td>
+                    <td className="px-2 py-1.5"></td>
+                    <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                      {expenseTotal.toLocaleString("ko-KR")}원
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -585,8 +692,8 @@ function RowEditDialog({
   );
 }
 
-function MobileRowCard({
-  r,
+function GroupCard({
+  g,
   index,
   approvalMode,
   selected,
@@ -595,7 +702,7 @@ function MobileRowCard({
   onEdit,
   onRemove,
 }: {
-  r: TripRow;
+  g: TripGroup;
   index: number;
   approvalMode: ApprovalGroup | "auto";
   selected: boolean;
@@ -604,7 +711,7 @@ function MobileRowCard({
   onEdit: () => void;
   onRemove: () => void;
 }) {
-  const lab = getApprovalHeaderLabels(r.orgName, approvalMode);
+  const lab = getApprovalHeaderLabels(g.orgName, approvalMode);
   return (
     <div
       className={cn(
@@ -619,40 +726,50 @@ function MobileRowCard({
         type="button"
         className="absolute inset-0 touch-manipulation outline-none"
         onClick={onSelect}
-        aria-label={`${index + 1}번 행 선택`}
+        aria-label={`${index + 1}번 그룹 선택`}
       />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-medium">
             <span className="text-muted-foreground">#{index + 1}</span>{" "}
-            {r.writerName || "—"}{" "}
-            {r.drafter3 && (
-              <span className="text-muted-foreground">({r.drafter3})</span>
+            {g.writerName || "—"}{" "}
+            {g.drafter3 && (
+              <span className="text-muted-foreground">({g.drafter3})</span>
             )}
+            <span className="ml-1 text-xs text-muted-foreground">· {g.outPlace || "출장지 없음"}</span>
           </p>
           <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-            {r.orgName || "집행기관 없음"}
+            {g.orgName || "집행기관 없음"} · {g.periodText || "기간 없음"}
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {lab.approver1} · {lab.approver2}
           </p>
+          {g.memberPKs.length > 0 && (
+            <p className="mt-1 line-clamp-1 font-mono text-[10px] text-muted-foreground">
+              {g.memberPKs.join(", ")}
+              {g.memberPKs.length > 1 && (
+                <span className="ml-1 text-muted-foreground/70">({g.memberPKs.length}건 묶음)</span>
+              )}
+            </p>
+          )}
         </div>
         <div className="relative z-10 flex items-center gap-1.5 shrink-0">
-          {r.evidenceNo ? (
-            <Badge variant="secondary" className="font-mono text-[10px] sm:text-xs">
-              {r.evidenceNo}
-            </Badge>
-          ) : (
-            <Badge variant="destructive" className="font-mono text-[10px] sm:text-xs">
-              증빙번호 없음
-            </Badge>
-          )}
           {pageInfo && pageInfo.pageCount >= 2 && (
             <Badge variant="destructive" className="text-[10px] sm:text-xs">
               {pageInfo.pageCount}장
             </Badge>
           )}
-          {r.hasEmpty ? (
+          {g.partnersMismatch && (
+            <Badge variant="destructive" className="text-[10px] sm:text-xs">
+              거래처 불일치
+            </Badge>
+          )}
+          {g.hasNeedsReview && (
+            <Badge className="border-0 bg-amber-100 text-amber-800 text-[10px] sm:text-xs dark:bg-amber-950/50 dark:text-amber-200">
+              검토 필요
+            </Badge>
+          )}
+          {g.hasEmpty ? (
             <Badge variant="destructive" className="text-[10px] sm:text-xs">
               누락
             </Badge>
@@ -665,7 +782,7 @@ function MobileRowCard({
             type="button"
             className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/10"
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            aria-label={`${index + 1}번 행 수정`}
+            aria-label={`${index + 1}번 그룹 수정`}
           >
             <Pencil className="size-3.5" />
           </button>
@@ -673,15 +790,15 @@ function MobileRowCard({
             type="button"
             className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-destructive focus-visible:ring-2 focus-visible:ring-foreground/10"
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            aria-label={`${index + 1}번 행 삭제`}
+            aria-label={`${index + 1}번 그룹 삭제`}
           >
             <Trash2 className="size-3.5" />
           </button>
         </div>
       </div>
-      {r.hasEmpty && r.fieldWarnings.length > 0 && (
+      {g.hasEmpty && g.fieldWarnings.length > 0 && (
         <ul className="relative z-10 mt-2 list-inside list-disc text-[10px] text-warning-tint-foreground sm:text-xs">
-          {r.fieldWarnings.map((w) => (
+          {g.fieldWarnings.map((w) => (
             <li key={w} className="line-clamp-2">
               {w}
             </li>
@@ -700,7 +817,7 @@ export function TripTool() {
   const [a2, setA2] = useState<File | null>(null);
   const [a1Data, setA1Data] = useState<string>("");
   const [a2Data, setA2Data] = useState<string>("");
-  const [rows, setRows] = useState<TripRow[]>([]);
+  const [groups, setGroups] = useState<TripGroup[]>([]);
   const [approvalMode, setApprovalMode] =
     useState<ApprovalGroup | "auto">("auto");
   const [headerIdx, setHeaderIdx] = useState(-1);
@@ -736,23 +853,23 @@ export function TripTool() {
       ? Object.values(adminSettings.groups).some((g) => !!g[key])
       : false;
 
-  const removeRow = (index: number) => {
-    setRows((cur) => {
+  const removeGroup = (index: number) => {
+    setGroups((cur) => {
       const next = cur.filter((_, i) => i !== index);
       if (previewI >= next.length && next.length > 0) setPreviewI(next.length - 1);
       if (next.length === 0) setPreviewI(0);
       return next;
     });
-    toast("행을 삭제했어요", { description: `#${index + 1}번 행이 제거되었어요.` });
+    toast("그룹을 삭제했어요", { description: `#${index + 1}번 그룹이 제거되었어요.` });
   };
 
-  const updateRow = (index: number, updated: TripRow) => {
-    setRows((cur) => cur.map((r, i) => (i === index ? recomputeRowWithOverride(updated, approvalMode) : r)));
+  const updateGroup = (index: number, updated: TripGroup) => {
+    setGroups((cur) => cur.map((g, i) => (i === index ? recomputeGroupWithApprovalOverride(updated, approvalMode) : g)));
   };
 
   const reapplyApproval = (m: ApprovalGroup | "auto") => {
     setApprovalMode(m);
-    setRows((cur) => (cur.length ? mapAllRows(cur, m) : cur));
+    setGroups((cur) => (cur.length ? mapAllGroups(cur, m) : cur));
   };
 
   const onParse = async () => {
@@ -778,8 +895,8 @@ export function TripTool() {
           `파일명에서 "${fileGroup === "ipf" ? "(주)아이포트폴리오" : "(사)디지털미디어교육콘텐츠 교사연구협회"}" 그룹을 감지했어요`
         );
       }
-      const m = mapAllRows(p.rows, effectiveMode);
-      setRows(m);
+      const groupsList = mapAllGroups(buildTripGroups(p.rows), effectiveMode);
+      setGroups(groupsList);
       if (a1) {
         const d = await readDataUrl(a1);
         setA1Data(d);
@@ -803,9 +920,9 @@ export function TripTool() {
     }
   };
 
-  const hasAnyEmpty = useMemo(() => rows.some((r) => r.hasEmpty), [rows]);
-  const okCount = useMemo(() => rows.filter((r) => !r.hasEmpty).length, [rows]);
-  const warnCount = useMemo(() => rows.filter((r) => r.hasEmpty).length, [rows]);
+  const hasAnyEmpty = useMemo(() => groups.some((g) => g.hasEmpty), [groups]);
+  const okCount = useMemo(() => groups.filter((g) => !g.hasEmpty).length, [groups]);
+  const warnCount = useMemo(() => groups.filter((g) => g.hasEmpty).length, [groups]);
   const askStartGenerate = () => {
     if (hasAnyEmpty) {
       setShowEmptyWarn(true);
@@ -815,8 +932,8 @@ export function TripTool() {
   };
 
   const resolveSignatures = useCallback(
-    (r: TripRow) => {
-      const resolvedGroup = resolveGroup(r.orgName, approvalMode);
+    (g: TripGroup) => {
+      const resolvedGroup = resolveGroup(g.orgName, approvalMode);
       const groupSigs = adminSettings?.groups[resolvedGroup];
       const src1 = a1Data || groupSigs?.approver1ImageUrl || undefined;
       const src2 = a2Data || groupSigs?.approver2ImageUrl || undefined;
@@ -827,13 +944,14 @@ export function TripTool() {
   );
 
   const makeBlobFor = useCallback(
-    async (r: TripRow) => {
+    async (g: TripGroup) => {
       registerPdfFonts();
-      const d = recomputeRowWithOverride(r, approvalMode);
-      const { src1, src2, logo } = resolveSignatures(r);
+      const d = recomputeGroupWithApprovalOverride(g, approvalMode);
+      const { src1, src2, logo } = resolveSignatures(g);
       return pdf(
         <BusinessTripDocument
           row={d}
+          expenseTable={d.expenseTable}
           approver1Src={src1}
           approver2Src={src2}
           logoSrc={logo}
@@ -846,60 +964,43 @@ export function TripTool() {
 
   const doGenerate = async () => {
     setShowEmptyWarn(false);
-    if (!rows.length) {
+    if (!groups.length) {
       toast.error("데이터가 없어요.");
       return;
     }
     setGenPending(true);
     setListDone([]);
-    setGenProgress({ current: 0, total: rows.length });
+    // 진행률은 그룹 단위(블롭 생성 횟수) 기준
+    setGenProgress({ current: 0, total: groups.length });
     try {
-      if (mode === "direct") {
-        const z = new JSZip();
-        const done: { n: string; i: number; pageCount: number }[] = [];
-        for (let i = 0; i < rows.length; i++) {
-          setGenProgress({ current: i + 1, total: rows.length });
-          const r = rows[i];
-          const b = await makeBlobFor(r);
-          const n = pdfName(r);
-          z.file(n, b);
-          const pageCount = await getPdfPageCount(b);
-          done.push({ n, i: i + 1, pageCount });
+      const z = new JSZip();
+      const done: { n: string; i: number; pageCount: number }[] = [];
+      let totalFiles = 0;
+      for (let i = 0; i < groups.length; i++) {
+        setGenProgress({ current: i + 1, total: groups.length });
+        const g = groups[i];
+        const blob = await makeBlobFor(g);
+        const pageCount = await getPdfPageCount(blob);
+        // 그룹의 모든 멤버 PK마다 같은 blob을 다른 파일명으로 ZIP에 add
+        const pks = g.memberPKs.length > 0 ? g.memberPKs : [g.representativePK || `GROUP-${i + 1}`];
+        for (const pk of pks) {
+          const n = pdfName(g, pk);
+          z.file(n, blob);
+          done.push({ n, i: ++totalFiles, pageCount });
+          if (mode !== "direct") setListDone((d) => [...d, { n, i: totalFiles, pageCount }]);
         }
-        const zipB = await z.generateAsync({ type: "blob" });
-        const href = URL.createObjectURL(zipB);
-        const a = document.createElement("a");
-        a.href = href;
-        a.download = zipName();
-        a.click();
-        URL.revokeObjectURL(href);
-        toast.success(
-          `PDF ${rows.length}장이 담긴 ZIP 파일을 다운로드합니다.`
-        );
-        setListDone(done);
-        setStep("result");
-        return;
       }
-      // preview 모드도 ZIP으로 다운로드
-      const z2 = new JSZip();
-      for (let i = 0; i < rows.length; i++) {
-        setGenProgress({ current: i + 1, total: rows.length });
-        const b = await makeBlobFor(rows[i]);
-        const n = pdfName(rows[i]);
-        z2.file(n, b);
-        const pageCount = await getPdfPageCount(b);
-        setListDone((d) => [...d, { n, i: i + 1, pageCount }]);
-      }
-      const zipB2 = await z2.generateAsync({ type: "blob" });
-      const href2 = URL.createObjectURL(zipB2);
-      const a2Elem = document.createElement("a");
-      a2Elem.href = href2;
-      a2Elem.download = zipName();
-      a2Elem.click();
-      URL.revokeObjectURL(href2);
+      const zipB = await z.generateAsync({ type: "blob" });
+      const href = URL.createObjectURL(zipB);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = zipName();
+      a.click();
+      URL.revokeObjectURL(href);
       toast.success(
-        `PDF ${rows.length}장이 담긴 ZIP 파일을 다운로드합니다.`
+        `${groups.length}개 그룹 → PDF ${done.length}장이 담긴 ZIP 다운로드`
       );
+      if (mode === "direct") setListDone(done);
       setStep("result");
     } catch (e) {
       console.error(e);
@@ -914,24 +1015,24 @@ export function TripTool() {
 
   const onPreviewIndex = useCallback(
     async (i: number) => {
-      if (i < 0 || i >= rows.length) return;
+      if (i < 0 || i >= groups.length) return;
       setPreviewI(i);
       setPreviewPending(true);
       try {
         registerPdfFonts();
-        const b = await makeBlobFor(rows[i]);
+        const b = await makeBlobFor(groups[i]);
         setPreviewUrl((old) => {
           if (old) URL.revokeObjectURL(old);
           return URL.createObjectURL(b);
         });
       } catch (e) {
         console.error(e);
-        toast.error("이 행의 PDF를 만들지 못했어요. 잠시 뒤 다시 눌러 주세요");
+        toast.error("이 그룹의 PDF를 만들지 못했어요. 잠시 뒤 다시 눌러 주세요");
       } finally {
         setPreviewPending(false);
       }
     },
-    [rows, makeBlobFor]
+    [groups, makeBlobFor]
   );
 
   useEffect(() => {
@@ -947,31 +1048,31 @@ export function TripTool() {
     if (
       mode !== "preview" ||
       step !== "validate" ||
-      !rows.length ||
+      !groups.length ||
       previewStart.current
     ) {
       return;
     }
     previewStart.current = true;
     void onPreviewIndex(0);
-  }, [mode, step, rows, onPreviewIndex, rows.length]);
+  }, [mode, step, groups, onPreviewIndex]);
 
-  // 검토 진입 시 모든 행의 PDF 페이지 수 측정 (배경)
+  // 검토 진입 시 모든 그룹의 PDF 페이지 수 측정 (배경)
   useEffect(() => {
-    if (step !== "validate" || !rows.length) return;
+    if (step !== "validate" || !groups.length) return;
     const token = ++measureToken.current;
     setPageInfo({});
-    setPageInfoProgress({ done: 0, total: rows.length });
+    setPageInfoProgress({ done: 0, total: groups.length });
     let cancelled = false;
     (async () => {
-      for (let i = 0; i < rows.length; i++) {
+      for (let i = 0; i < groups.length; i++) {
         if (cancelled || measureToken.current !== token) return;
         try {
-          const blob = await makeBlobFor(rows[i]);
+          const blob = await makeBlobFor(groups[i]);
           const pageCount = await getPdfPageCount(blob);
           if (cancelled || measureToken.current !== token) return;
           setPageInfo((prev) => ({ ...prev, [i]: { pageCount } }));
-          setPageInfoProgress({ done: i + 1, total: rows.length });
+          setPageInfoProgress({ done: i + 1, total: groups.length });
         } catch (e) {
           console.error("page count measure failed", i, e);
         }
@@ -983,7 +1084,7 @@ export function TripTool() {
     return () => {
       cancelled = true;
     };
-  }, [step, rows, makeBlobFor]);
+  }, [step, groups, makeBlobFor]);
 
   const goToStep = useCallback(
     (target: AppStep) => {
@@ -1182,9 +1283,9 @@ export function TripTool() {
           {/* Header */}
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-bold sm:text-xl">
-              {rows.length > 0 ? `${rows.length}건 읽었어요` : "2. 검토"}
+              {groups.length > 0 ? `${groups.length}건 읽었어요` : "2. 검토"}
             </h2>
-            {rows.length > 0 && (
+            {groups.length > 0 && (
               <>
                 <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300">
                   <Check className="size-3" aria-hidden />
@@ -1200,14 +1301,14 @@ export function TripTool() {
             )}
           </div>
 
-          {rows.length === 0 && (
+          {groups.length === 0 && (
             <p className="text-sm text-muted-foreground">
               읽힌 게 없어요. CSV가 D-4 형식인지 확인해 주세요.
             </p>
           )}
 
           {/* Desktop: side-by-side / Mobile: stacked */}
-          {rows.length > 0 && (
+          {groups.length > 0 && (
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
               {/* Left: PDF Preview */}
               {mode === "preview" && (
@@ -1216,7 +1317,7 @@ export function TripTool() {
                     <p className="text-sm font-medium text-foreground">
                       PDF 미리보기
                       <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        행 {previewI + 1} / {rows.length}
+                        행 {previewI + 1} / {groups.length}
                         {previewPending ? " · 만드는 중" : ""}
                       </span>
                     </p>
@@ -1233,14 +1334,14 @@ export function TripTool() {
                         <ChevronLeft className="size-4" />
                       </Button>
                       <span className="min-w-12 text-center text-xs font-medium tabular-nums">
-                        {previewI + 1} / {rows.length}
+                        {previewI + 1} / {groups.length}
                       </span>
                       <Button
                         size="sm"
                         variant="ghost"
                         type="button"
                         className="h-7 px-2"
-                        disabled={previewI >= rows.length - 1}
+                        disabled={previewI >= groups.length - 1}
                         onClick={() => void onPreviewIndex(previewI + 1)}
                         aria-label="다음 행"
                       >
@@ -1284,17 +1385,17 @@ export function TripTool() {
                 </div>
                 <div className="max-h-[min(80vh,56rem)] overflow-y-auto rounded-xl border border-border/80 p-2 lg:max-h-[calc(100vh-14rem)]">
                   <div className="grid gap-2" role="list" aria-label="행 목록">
-                    {rows.map((r, i) => (
+                    {groups.map((g, i) => (
                       <div key={i} role="listitem">
-                        <MobileRowCard
-                          r={r}
+                        <GroupCard
+                          g={g}
                           index={i}
                           approvalMode={approvalMode}
                           selected={mode === "preview" && previewI === i}
                           pageInfo={pageInfo[i]}
                           onSelect={() => mode === "preview" ? void onPreviewIndex(i) : undefined}
                           onEdit={() => setEditingRowIdx(i)}
-                          onRemove={() => removeRow(i)}
+                          onRemove={() => removeGroup(i)}
                         />
                       </div>
                     ))}
@@ -1334,7 +1435,7 @@ export function TripTool() {
                   size="lg"
                   className="w-full sm:w-auto sm:min-w-40"
                   type="button"
-                  disabled={genPending || !rows.length}
+                  disabled={genPending || !groups.length}
                   onClick={() => askStartGenerate()}
                 >
                   {genPending ? (
@@ -1354,9 +1455,9 @@ export function TripTool() {
                   size="lg"
                   className="w-full sm:w-auto sm:min-w-48"
                   type="button"
-                  disabled={genPending || !rows.length}
+                  disabled={genPending || !groups.length}
                   onClick={async () => {
-                    if (!rows.length) return;
+                    if (!groups.length) return;
                     if (!previewUrl) await onPreviewIndex(0);
                     await doGenerate();
                   }}
@@ -1411,7 +1512,7 @@ export function TripTool() {
             <Button
               onClick={() => {
                 setStep("input");
-                setRows([]);
+                setGroups([]);
                 setListDone([]);
                 setPreviewUrl(null);
                 setCsv(null);
@@ -1431,14 +1532,14 @@ export function TripTool() {
         </div>
       )}
 
-      {editingRowIdx !== null && rows[editingRowIdx] && (
-        <RowEditDialog
-          row={rows[editingRowIdx]}
+      {editingRowIdx !== null && groups[editingRowIdx] && (
+        <GroupEditDialog
+          group={groups[editingRowIdx]}
           index={editingRowIdx}
           open
           onOpenChange={(v) => { if (!v) setEditingRowIdx(null); }}
           onSave={(updated) => {
-            updateRow(editingRowIdx, updated);
+            updateGroup(editingRowIdx, updated);
             if (mode === "preview") void onPreviewIndex(editingRowIdx);
           }}
         />

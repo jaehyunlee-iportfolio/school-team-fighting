@@ -11,6 +11,7 @@ import {
 } from "@react-pdf/renderer";
 import type { ReactNode } from "react";
 import type { TripRow } from "@/lib/csv/parseD4";
+import type { ExpenseTable } from "@/lib/trip/expense";
 import {
   type PdfLayoutSettings,
   DEFAULT_PDF_LAYOUT,
@@ -182,14 +183,88 @@ function buildStyles(cfg: PdfLayoutSettings) {
       fontSize: cfg.footer.fontSize,
       fontWeight: cfg.footer.fontWeight as 700,
     },
+    /* ── 소요경비 표 (dataTable 내부 통합 — 외곽 보더 없음) ── */
+    eTable: {
+      width: "100%" as const,
+      flexDirection: "row" as const,
+    },
+    eTitleCell: {
+      width: cfg.expense.titleColWidth,
+      backgroundColor: cfg.expense.labelBgColor,
+      borderColor: BORDER,
+      borderRightWidth: b,
+      borderBottomWidth: b,
+      justifyContent: "center" as const,
+      alignItems: "center" as const,
+    },
+    eTitleText: {
+      fontSize: cfg.expense.titleFontSize,
+      letterSpacing: cfg.expense.titleLetterSpacing,
+      lineHeight: cfg.expense.titleLineHeight,
+      textAlign: "center" as const,
+    },
+    eRows: { flex: 1, flexDirection: "column" as const },
+    eRow: { flexDirection: "row" as const },
+    eHeaderCell: {
+      backgroundColor: cfg.expense.labelBgColor,
+      borderColor: BORDER,
+      borderRightWidth: b,
+      borderBottomWidth: b,
+      height: cfg.expense.headerRowHeight,
+      justifyContent: "center" as const,
+      alignItems: "center" as const,
+    },
+    eHeaderCellLast: { borderRightWidth: 0 },
+    eHeaderText: { fontSize: cfg.expense.headerFontSize, textAlign: "center" as const },
+    eCategoryCell: {
+      width: cfg.expense.categoryColWidth,
+      backgroundColor: cfg.expense.labelBgColor,
+      borderColor: BORDER,
+      borderRightWidth: b,
+      borderBottomWidth: b,
+      height: cfg.expense.rowHeight,
+      justifyContent: "center" as const,
+      alignItems: "center" as const,
+    },
+    eContentCell: {
+      flex: 1,
+      borderColor: BORDER,
+      borderRightWidth: b,
+      borderBottomWidth: b,
+      height: cfg.expense.rowHeight,
+      paddingVertical: cfg.expense.cellPaddingV,
+      paddingHorizontal: cfg.expense.cellPaddingH,
+      justifyContent: "center" as const,
+    },
+    eTotalCell: {
+      width: cfg.expense.totalColWidth,
+      borderColor: BORDER,
+      borderBottomWidth: b,
+      height: cfg.expense.rowHeight,
+      paddingVertical: cfg.expense.cellPaddingV,
+      paddingHorizontal: cfg.expense.cellPaddingH,
+      justifyContent: "center" as const,
+      alignItems: "flex-end" as const,
+    },
+    eCellText: { fontSize: cfg.expense.cellFontSize, textAlign: "left" as const },
+    eCellTextRight: { fontSize: cfg.expense.cellFontSize, textAlign: "right" as const },
+    eReviewText: { color: cfg.expense.reviewColor },
     content: { width: "100%" as const },
   });
 }
 
 const clip = (s: string, n: number) => (s.length <= n ? s : s.slice(0, n) + "…");
 
+/** PDF 렌더링에 필요한 row/group의 공통 필드 */
+export type TripPdfData = Pick<
+  TripRow,
+  "periodText" | "orgName" | "writerName" | "drafter3" | "memberText" | "outPlace" | "purposeText" | "approver1" | "approver2"
+>;
+
 export type BusinessTripDocumentProps = {
-  row: TripRow;
+  row: TripPdfData;
+  /** 소요경비 표 (그룹 단위로 빌드된 결과). 없으면 표 미렌더 */
+  expenseTable?: ExpenseTable;
   approver1Src?: string;
   approver2Src?: string;
   logoSrc?: string;
@@ -198,6 +273,7 @@ export type BusinessTripDocumentProps = {
 
 export function BusinessTripDocument({
   row,
+  expenseTable,
   approver1Src,
   approver2Src,
   logoSrc,
@@ -370,6 +446,7 @@ export function BusinessTripDocument({
                 <Text style={[styles.dValS, placeFb.color ? { color: placeFb.color } : {}]}>{placeFb.text}</Text>
               </ValCell>
             </DataTableRow>
+            {expenseTable ? <ExpenseSection table={expenseTable} styles={styles} /> : null}
             <View style={styles.pRow}>
               <View style={styles.pLabel}>
                 <Text style={styles.dLabelT}>출장 목적</Text>
@@ -388,5 +465,64 @@ export function BusinessTripDocument({
         </View>
       </Page>
     </Document>
+  );
+}
+
+function ExpenseSection({
+  table,
+  styles,
+}: {
+  table: ExpenseTable;
+  styles: ReturnType<typeof buildStyles>;
+}) {
+  const fmt = (n: number) => (n > 0 ? `${n.toLocaleString("ko-KR")}원` : "");
+  const all: { label: string; content: string; total: number; needsReview: boolean }[] = [
+    { label: "교통비", content: table.교통비.contentText, total: table.교통비.total, needsReview: table.교통비.needsReview },
+    { label: "일비", content: table.일비.contentText, total: table.일비.total, needsReview: table.일비.needsReview },
+    { label: "식비", content: table.식비.contentText, total: table.식비.total, needsReview: table.식비.needsReview },
+    { label: "숙박비", content: table.숙박비.contentText, total: table.숙박비.total, needsReview: table.숙박비.needsReview },
+    { label: "기타", content: table.기타.contentText, total: table.기타.total, needsReview: table.기타.needsReview },
+  ];
+  // 빈 행(내용 없고 합계 0)은 제거
+  const rows = all.filter((r) => r.content.trim() || r.total > 0);
+  // 합계 행은 항상 표시
+  rows.push({ label: "합계", content: "", total: table.합계, needsReview: false });
+  return (
+    <View style={styles.eTable}>
+      <View style={styles.eTitleCell}>
+        <Text style={styles.eTitleText}>{"소\n요\n경\n비"}</Text>
+      </View>
+      <View style={styles.eRows}>
+        {/* 헤더 행 */}
+        <View style={styles.eRow}>
+          <View style={[styles.eHeaderCell, { width: 60 }]}>
+            <Text style={styles.eHeaderText}>구분</Text>
+          </View>
+          <View style={[styles.eHeaderCell, { flex: 1 }]}>
+            <Text style={styles.eHeaderText}>내용</Text>
+          </View>
+          <View style={[styles.eHeaderCell, styles.eHeaderCellLast, { width: 80 }]}>
+            <Text style={styles.eHeaderText}>합계</Text>
+          </View>
+        </View>
+        {rows.map((r, i) => (
+          <View key={i} style={styles.eRow}>
+            <View style={styles.eCategoryCell}>
+              <Text style={styles.eHeaderText}>{r.label}</Text>
+            </View>
+            <View style={styles.eContentCell}>
+              {r.content ? (
+                <Text style={[styles.eCellText, r.needsReview ? styles.eReviewText : {}]}>{r.content}</Text>
+              ) : null}
+            </View>
+            <View style={styles.eTotalCell}>
+              {r.total > 0 ? (
+                <Text style={styles.eCellTextRight}>{fmt(r.total)}</Text>
+              ) : null}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
