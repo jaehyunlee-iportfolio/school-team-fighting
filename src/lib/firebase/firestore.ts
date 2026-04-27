@@ -1065,10 +1065,10 @@ export type ExpenseLayoutSettings = {
 export const DEFAULT_EXPENSE_LAYOUT: ExpenseLayoutSettings = {
   page: { fontFamily: "Pretendard", baseFontSize: 10, baseLineHeight: 1.4, marginMm: 18 },
   border: { width: 0.5, color: "#000000" },
-  logo: { width: 64, height: 32, offsetX: 0, offsetY: 0 },
-  title: { fontSize: 26, fontWeight: 700, letterSpacing: 0, marginBottom: 6 },
-  subtitle: { fontSize: 11, color: "#444444", marginBottom: 22 },
-  sectionHeading: { fontSize: 13, fontWeight: 700, marginTop: 16, marginBottom: 8 },
+  logo: { width: 60, height: 30, offsetX: 0, offsetY: 0 },
+  title: { fontSize: 24, fontWeight: 700, letterSpacing: 0, marginBottom: 8 },
+  subtitle: { fontSize: 11, color: "#444444", marginBottom: 14 },
+  sectionHeading: { fontSize: 13, fontWeight: 700, marginTop: 12, marginBottom: 6 },
   basicInfo: {
     labelWidth: 70,
     fontSize: 10.5,

@@ -41,22 +41,17 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* 헤더: 좌측 로고 + 우측 큰 제목 */}
-        <View style={styles.headerRow}>
-          <View style={styles.logoBox}>
-            {group.logoImageUrl ? (
+        {/* 헤더: 로고 absolute 좌상단 + 제목/부제 가운데 정렬 */}
+        <View style={styles.headerWrap}>
+          {group.logoImageUrl ? (
+            <View style={styles.logoAbs}>
               <Image src={group.logoImageUrl} style={styles.logoImg} />
-            ) : null}
-          </View>
-          <View style={styles.headerCenter}>
-            <Text style={styles.title}>지출결의서</Text>
-            <Text style={styles.subtitle}>
-              2025 찾아가는 학교 컨설팅 사업 | 건국대학교 사업단
-            </Text>
-          </View>
-          <View style={styles.logoBox}>
-            {/* 우측 균형용 빈 박스 (로고 좌측 정렬을 살리려고) */}
-          </View>
+            </View>
+          ) : null}
+          <Text style={styles.title}>지출결의서</Text>
+          <Text style={styles.subtitle}>
+            2025 찾아가는 학교 컨설팅 사업 | 건국대학교 사업단
+          </Text>
         </View>
 
         {/* 1. 기본 정보 */}
@@ -278,36 +273,39 @@ function makeStyles(layout: ExpenseLayoutSettings) {
       padding: layout.page.marginMm * 2.83465, // mm → pt
       color: "#222222",
     },
-    headerRow: {
-      flexDirection: "row",
+    headerWrap: {
+      position: "relative",
       alignItems: "center",
-      marginBottom: 8,
+      marginBottom: layout.subtitle.marginBottom,
+      // 로고가 절대 위치이므로 제목 영역에 최소 높이 보장 (로고 잘림 방지)
+      minHeight: layout.logo.height,
+      justifyContent: "center",
     },
-    logoBox: {
+    logoAbs: {
+      position: "absolute",
+      left: layout.logo.offsetX,
+      top: layout.logo.offsetY,
       width: layout.logo.width,
       height: layout.logo.height,
-      marginLeft: layout.logo.offsetX,
-      marginTop: layout.logo.offsetY,
     },
     logoImg: {
       width: "100%",
       height: "100%",
       objectFit: "contain",
     },
-    headerCenter: {
-      flex: 1,
-      alignItems: "center",
-    },
     title: {
       fontSize: layout.title.fontSize,
       fontWeight: layout.title.fontWeight,
       letterSpacing: layout.title.letterSpacing,
+      lineHeight: 1.2,
+      textAlign: "center",
       marginBottom: layout.title.marginBottom,
     },
     subtitle: {
       fontSize: layout.subtitle.fontSize,
       color: layout.subtitle.color,
-      marginBottom: layout.subtitle.marginBottom,
+      lineHeight: 1.4,
+      textAlign: "center",
     },
     sectionHeading: {
       fontSize: layout.sectionHeading.fontSize,
