@@ -706,3 +706,151 @@ export async function saveReturnLayoutSettings(
 ): Promise<void> {
   await setDoc(doc(getFirebaseDb(), "settings", "returnLayout"), settings);
 }
+
+/* ===================================================================
+   소프트웨어 활용 희망 요청서 (D-3) 설정
+   =================================================================== */
+
+export type SwRequestSettings = {
+  titleText: string;
+  defaultTarget: string;     // "교원"
+  closingText: string;
+  recipientText: string;     // "(주)아이포트폴리오 귀하"
+};
+
+export const DEFAULT_SW_REQUEST_SETTINGS: SwRequestSettings = {
+  titleText: "소프트웨어 활용 희망 요청서",
+  defaultTarget: "교원",
+  closingText: "위와 같은 내용으로 소프트웨어 활용을 희망합니다.",
+  recipientText: "(주)아이포트폴리오 귀하",
+};
+
+export async function getSwRequestSettings(): Promise<SwRequestSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "swRequest"));
+  if (!snap.exists()) return DEFAULT_SW_REQUEST_SETTINGS;
+  return deepMerge(
+    DEFAULT_SW_REQUEST_SETTINGS as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as SwRequestSettings;
+}
+
+export async function saveSwRequestSettings(
+  settings: SwRequestSettings,
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "swRequest"), settings);
+}
+
+export type SwRequestLayoutSettings = {
+  page: {
+    fontFamily: string;
+    baseFontSize: number;
+    marginMm: number;
+  };
+  title: {
+    fontSize: number;
+    fontWeight: number;
+    marginBottom: number;
+    textAlign: "left" | "center" | "right";
+  };
+  infoTable: {
+    headerBg: string;
+    labelBg: string;
+    borderColor: string;
+    cellPaddingV: number;
+    cellPaddingH: number;
+    labelFontSize: number;
+    valueFontSize: number;
+    sectionTitleFontSize: number;
+    labelWidth: number;     // pt
+    rowHeight: number;
+    marginBottom: number;
+  };
+  itemsTable: {
+    headerBg: string;
+    borderColor: string;
+    cellPaddingV: number;
+    cellPaddingH: number;
+    headerFontSize: number;
+    valueFontSize: number;
+    rowHeight: number;
+    sectionTitleFontSize: number;
+    /** 4 columns: user / product / qty / period (in proportions, sum=1) */
+    colRatios: [number, number, number, number];
+    marginBottom: number;
+  };
+  closing: {
+    fontSize: number;
+    textAlign: "left" | "center" | "right";
+    marginTop: number;
+    marginBottom: number;
+  };
+  date: {
+    fontSize: number;
+    textAlign: "left" | "center" | "right";
+    marginBottom: number;
+  };
+  recipient: {
+    fontSize: number;
+    fontWeight: number;
+    textAlign: "left" | "center" | "right";
+    marginTop: number;
+  };
+  placeholders: {
+    emptyField: string;
+    emptyFieldColor: string;
+    target: string;
+  };
+};
+
+export const DEFAULT_SW_REQUEST_LAYOUT: SwRequestLayoutSettings = {
+  page: { fontFamily: "Pretendard", baseFontSize: 10, marginMm: 20 },
+  title: { fontSize: 18, fontWeight: 700, marginBottom: 32, textAlign: "center" },
+  infoTable: {
+    headerBg: "#E5E7EB",
+    labelBg: "#F3F4F6",
+    borderColor: "#9CA3AF",
+    cellPaddingV: 8,
+    cellPaddingH: 10,
+    labelFontSize: 10,
+    valueFontSize: 10,
+    sectionTitleFontSize: 11,
+    labelWidth: 90,
+    rowHeight: 28,
+    marginBottom: 28,
+  },
+  itemsTable: {
+    headerBg: "#E5E7EB",
+    borderColor: "#9CA3AF",
+    cellPaddingV: 8,
+    cellPaddingH: 8,
+    headerFontSize: 10,
+    valueFontSize: 10,
+    rowHeight: 26,
+    sectionTitleFontSize: 11,
+    colRatios: [0.18, 0.42, 0.14, 0.26],
+    marginBottom: 24,
+  },
+  closing: { fontSize: 11, textAlign: "center", marginTop: 36, marginBottom: 32 },
+  date: { fontSize: 11, textAlign: "right", marginBottom: 24 },
+  recipient: { fontSize: 12, fontWeight: 700, textAlign: "right", marginTop: 4 },
+  placeholders: {
+    emptyField: "(빈칸)",
+    emptyFieldColor: "#DC2626",
+    target: "교원",
+  },
+};
+
+export async function getSwRequestLayoutSettings(): Promise<SwRequestLayoutSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "swRequestLayout"));
+  if (!snap.exists()) return DEFAULT_SW_REQUEST_LAYOUT;
+  return deepMerge(
+    DEFAULT_SW_REQUEST_LAYOUT as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as SwRequestLayoutSettings;
+}
+
+export async function saveSwRequestLayoutSettings(
+  settings: SwRequestLayoutSettings,
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "swRequestLayout"), settings);
+}

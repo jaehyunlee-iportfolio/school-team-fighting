@@ -18,11 +18,17 @@ import {
   saveReturnSettings,
   getReturnLayoutSettings,
   saveReturnLayoutSettings,
+  getSwRequestSettings,
+  saveSwRequestSettings,
+  getSwRequestLayoutSettings,
+  saveSwRequestLayoutSettings,
   DEFAULT_PDF_LAYOUT,
   DEFAULT_SOMYEONG_SETTINGS,
   DEFAULT_SOMYEONG_LAYOUT,
   DEFAULT_RETURN_SETTINGS,
   DEFAULT_RETURN_LAYOUT,
+  DEFAULT_SW_REQUEST_SETTINGS,
+  DEFAULT_SW_REQUEST_LAYOUT,
   SEOMOK_LIST,
   type ApprovalSettings,
   type GroupSettings,
@@ -31,6 +37,8 @@ import {
   type SomyeongLayoutSettings,
   type ReturnSettings,
   type ReturnLayoutSettings,
+  type SwRequestSettings,
+  type SwRequestLayoutSettings,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -38,9 +46,11 @@ import { pdf } from "@react-pdf/renderer";
 import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import { SomyeongDocument } from "@/components/pdf/somyeong-document";
 import { BusinessReturnDocument } from "@/components/pdf/business-return-document";
+import { SwRequestDocument } from "@/components/pdf/sw-request-document";
 import type { TripRow } from "@/lib/csv/parseD4";
 import type { SomyeongRow } from "@/lib/csv/parseSomyeong";
 import type { ReturnRow } from "@/lib/csv/parseReturn";
+import type { SwRequestRow } from "@/lib/sw/types";
 import ReactCrop, { type PercentCrop, type PixelCrop, convertToPixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import {
@@ -117,19 +127,24 @@ export default function AdminPage() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [savingSomyeong, setSavingSomyeong] = useState(false);
   const [savingSomyeongLayout, setSavingSomyeongLayout] = useState(false);
-  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "common">("trip");
+  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "swRequest" | "common">("trip");
   const [tripSub, setTripSub] = useState<"signApproval" | "layout">("signApproval");
   const [somyeongSub, setSomyeongSub] = useState<"info" | "layout">("info");
   const [returnSub, setReturnSub] = useState<"approval" | "layout">("approval");
+  const [swRequestSub, setSwRequestSub] = useState<"info" | "layout">("info");
   const [returnSettings, setReturnSettings] = useState<ReturnSettings | null>(null);
   const [returnLayout, setReturnLayout] = useState<ReturnLayoutSettings | null>(null);
   const [savingReturn, setSavingReturn] = useState(false);
   const [savingReturnLayout, setSavingReturnLayout] = useState(false);
+  const [swRequestSettings, setSwRequestSettings] = useState<SwRequestSettings | null>(null);
+  const [swRequestLayout, setSwRequestLayout] = useState<SwRequestLayoutSettings | null>(null);
+  const [savingSwRequest, setSavingSwRequest] = useState(false);
+  const [savingSwRequestLayout, setSavingSwRequestLayout] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay] = await Promise.all([
+      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay, swReq, swReqLay] = await Promise.all([
         getApprovalSettings(),
         getAdminEmails(),
         getPdfLayoutSettings(),
@@ -137,6 +152,8 @@ export default function AdminPage() {
         getSomyeongLayoutSettings(),
         getReturnSettings(),
         getReturnLayoutSettings(),
+        getSwRequestSettings(),
+        getSwRequestLayoutSettings(),
       ]);
       setSettings(s);
       setAdminEmails(emails);
@@ -145,6 +162,8 @@ export default function AdminPage() {
       setSomyeongLayout(somyeongLay);
       setReturnSettings(ret);
       setReturnLayout(retLay);
+      setSwRequestSettings(swReq);
+      setSwRequestLayout(swReqLay);
     } catch (err) {
       toast.error("설정을 불러오는 데 실패했어요.");
       console.error(err);
@@ -177,7 +196,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout) return null;
+  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout || !swRequestSettings || !swRequestLayout) return null;
 
   const handleSaveReturn = async () => {
     setSavingReturn(true);
@@ -200,6 +219,30 @@ export default function AdminPage() {
       toast.error("저장 실패");
     } finally {
       setSavingReturnLayout(false);
+    }
+  };
+
+  const handleSaveSwRequest = async () => {
+    setSavingSwRequest(true);
+    try {
+      await saveSwRequestSettings(swRequestSettings);
+      toast.success("소프트웨어 요청서 설정 저장 완료");
+    } catch {
+      toast.error("저장 실패");
+    } finally {
+      setSavingSwRequest(false);
+    }
+  };
+
+  const handleSaveSwRequestLayout = async () => {
+    setSavingSwRequestLayout(true);
+    try {
+      await saveSwRequestLayoutSettings(swRequestLayout);
+      toast.success("소프트웨어 요청서 레이아웃 저장 완료");
+    } catch {
+      toast.error("저장 실패");
+    } finally {
+      setSavingSwRequestLayout(false);
     }
   };
 
@@ -254,7 +297,8 @@ export default function AdminPage() {
   const isWideTab =
     (activeGroup === "trip" && tripSub === "layout") ||
     (activeGroup === "somyeong" && somyeongSub === "layout") ||
-    (activeGroup === "return" && returnSub === "layout");
+    (activeGroup === "return" && returnSub === "layout") ||
+    (activeGroup === "swRequest" && swRequestSub === "layout");
 
   return (
     <div
@@ -276,13 +320,14 @@ export default function AdminPage() {
       {/* 1단계: 도구 그룹 */}
       <Tabs
         value={activeGroup}
-        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "common")}
+        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "swRequest" | "common")}
         className="flex flex-col space-y-4"
       >
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="trip">출장신청서</TabsTrigger>
           <TabsTrigger value="somyeong">소명서</TabsTrigger>
           <TabsTrigger value="return">출장복명서</TabsTrigger>
+          <TabsTrigger value="swRequest">SW 요청서</TabsTrigger>
           <TabsTrigger value="common">공통</TabsTrigger>
         </TabsList>
 
@@ -475,6 +520,74 @@ export default function AdminPage() {
                     </Button>
                     <Button onClick={handleSaveReturnLayout} disabled={savingReturnLayout} className="gap-2">
                       {savingReturnLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      저장
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        {/* ── SW 요청서 ── */}
+        <TabsContent value="swRequest" className="space-y-4">
+          <Tabs
+            value={swRequestSub}
+            onValueChange={(v) => setSwRequestSub(v as "info" | "layout")}
+            className="flex flex-col space-y-4"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="info">기본 문구</TabsTrigger>
+              <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="info" className="space-y-4">
+              <SwRequestInfoSection
+                settings={swRequestSettings}
+                onChange={setSwRequestSettings}
+              />
+              <div className="flex items-center justify-between border-t pt-4">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setSwRequestSettings(DEFAULT_SW_REQUEST_SETTINGS);
+                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  기본값 초기화
+                </Button>
+                <Button onClick={handleSaveSwRequest} disabled={savingSwRequest} className="gap-2">
+                  {savingSwRequest ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  저장
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="layout">
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <SwRequestPreview layout={swRequestLayout} settings={swRequestSettings} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <SwRequestLayoutSection layout={swRequestLayout} onChange={setSwRequestLayout} />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setSwRequestLayout(DEFAULT_SW_REQUEST_LAYOUT);
+                        toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                      }}
+                    >
+                      <RotateCcw className="size-4" />
+                      기본값 초기화
+                    </Button>
+                    <Button onClick={handleSaveSwRequestLayout} disabled={savingSwRequestLayout} className="gap-2">
+                      {savingSwRequestLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                       저장
                     </Button>
                   </div>
@@ -803,6 +916,327 @@ function ReturnPreview({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ===================================================================
+   SW Request 미리보기 + 정보·레이아웃 섹션
+   =================================================================== */
+
+const MOCK_SW_REQUEST_ROW: SwRequestRow = {
+  rowIndex: 0,
+  evidenceNo: "D-3-1",
+  schoolRaw: "인천갈월초",
+  schoolName: "인천갈월초등학교",
+  applicantName: "홍길동",
+  applicantPhone: "010-0000-0000",
+  applicantTarget: "교원",
+  quoteDateRaw: "2026 년 04 월 27 일",
+  quoteYymmdd: "260427",
+  quoteY: "2026",
+  quoteM: "4",
+  quoteD: "27",
+  items: [
+    { user: "홍길동", product: "패들렛 platinum", quantity: "2개", period: "6개월", warnings: [] },
+    { user: "홍길동", product: "ZEP 퀴즈 베이직", quantity: "2개", period: "5개월", warnings: [] },
+    { user: "홍길동", product: "Chat GPT Plus", quantity: "1개", period: "5개월", warnings: [] },
+  ],
+  hasEmpty: false,
+  fieldWarnings: [],
+};
+
+function SwRequestPreview({
+  layout,
+  settings,
+}: {
+  layout: SwRequestLayoutSettings;
+  settings: SwRequestSettings;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const prevUrl = useRef<string | null>(null);
+  const generation = useRef(0);
+
+  useEffect(() => {
+    const gen = ++generation.current;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        registerPdfFonts();
+        const blob = await pdf(
+          <SwRequestDocument row={MOCK_SW_REQUEST_ROW} settings={settings} layout={layout} />,
+        ).toBlob();
+        if (gen !== generation.current) return;
+        const newUrl = URL.createObjectURL(blob);
+        setUrl(newUrl);
+        if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+        prevUrl.current = newUrl;
+      } catch (e) {
+        if (gen !== generation.current) return;
+        setError(e instanceof Error ? e.message : "PDF 생성 실패");
+      } finally {
+        if (gen === generation.current) setLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [layout, settings]);
+
+  useEffect(() => {
+    return () => {
+      if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <FileText className="size-4" />
+        미리보기 (목 데이터)
+      </div>
+      <div className="relative overflow-hidden rounded-lg border bg-muted/30" style={{ aspectRatio: "1 / 1.414" }}>
+        {url && (
+          <iframe
+            src={url}
+            title="소프트웨어 요청서 PDF 미리보기"
+            className="absolute inset-0 size-full"
+          />
+        )}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {error && !loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <AlertCircle className="size-6 text-destructive" />
+            <p className="text-xs text-destructive">{error}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SwRequestInfoSection({
+  settings,
+  onChange,
+}: {
+  settings: SwRequestSettings;
+  onChange: (s: SwRequestSettings) => void;
+}) {
+  const set = <K extends keyof SwRequestSettings>(k: K, v: SwRequestSettings[K]) =>
+    onChange({ ...settings, [k]: v });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>기본 문구</CardTitle>
+        <CardDescription>모든 학교 PDF에 공통으로 들어가는 문구를 설정합니다.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs">제목</Label>
+          <Input value={settings.titleText} onChange={(e) => set("titleText", e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">신청 대상 (기본값)</Label>
+          <Input value={settings.defaultTarget} onChange={(e) => set("defaultTarget", e.target.value)} />
+          <p className="text-[11px] text-muted-foreground">
+            행별로 비어있을 때 채워지는 기본값. 검토 단계에서 행마다 수정 가능.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">마무리 문구</Label>
+          <Input value={settings.closingText} onChange={(e) => set("closingText", e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">수신처</Label>
+          <Input value={settings.recipientText} onChange={(e) => set("recipientText", e.target.value)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SwRequestLayoutSection({
+  layout,
+  onChange,
+}: {
+  layout: SwRequestLayoutSettings;
+  onChange: (l: SwRequestLayoutSettings) => void;
+}) {
+  const set = <K extends keyof SwRequestLayoutSettings>(
+    k: K,
+    patch: Partial<SwRequestLayoutSettings[K]>,
+  ) => onChange({ ...layout, [k]: { ...layout[k], ...patch } });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle>페이지</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">폰트</Label>
+            <Select
+              value={layout.page.fontFamily}
+              onValueChange={(v) => { if (v) set("page", { fontFamily: v }); }}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PDF_FONT_FAMILIES.map((f) => (
+                  <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">기본 폰트 크기</Label>
+            <Input type="number" value={layout.page.baseFontSize}
+              onChange={(e) => set("page", { baseFontSize: Number(e.target.value) || 10 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">여백 (mm)</Label>
+            <Input type="number" value={layout.page.marginMm}
+              onChange={(e) => set("page", { marginMm: Number(e.target.value) || 20 })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>제목</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">크기</Label>
+            <Input type="number" value={layout.title.fontSize}
+              onChange={(e) => set("title", { fontSize: Number(e.target.value) || 18 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">하단 여백</Label>
+            <Input type="number" value={layout.title.marginBottom}
+              onChange={(e) => set("title", { marginBottom: Number(e.target.value) || 32 })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>신청자 정보 표</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">헤더 배경</Label>
+            <Input value={layout.infoTable.headerBg}
+              onChange={(e) => set("infoTable", { headerBg: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">라벨 배경</Label>
+            <Input value={layout.infoTable.labelBg}
+              onChange={(e) => set("infoTable", { labelBg: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">테두리 색</Label>
+            <Input value={layout.infoTable.borderColor}
+              onChange={(e) => set("infoTable", { borderColor: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">라벨 폭 (pt)</Label>
+            <Input type="number" value={layout.infoTable.labelWidth}
+              onChange={(e) => set("infoTable", { labelWidth: Number(e.target.value) || 90 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">행 높이</Label>
+            <Input type="number" value={layout.infoTable.rowHeight}
+              onChange={(e) => set("infoTable", { rowHeight: Number(e.target.value) || 28 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">하단 여백</Label>
+            <Input type="number" value={layout.infoTable.marginBottom}
+              onChange={(e) => set("infoTable", { marginBottom: Number(e.target.value) || 28 })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>요청 사항 표</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">헤더 배경</Label>
+            <Input value={layout.itemsTable.headerBg}
+              onChange={(e) => set("itemsTable", { headerBg: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">테두리 색</Label>
+            <Input value={layout.itemsTable.borderColor}
+              onChange={(e) => set("itemsTable", { borderColor: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">행 높이</Label>
+            <Input type="number" value={layout.itemsTable.rowHeight}
+              onChange={(e) => set("itemsTable", { rowHeight: Number(e.target.value) || 26 })} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-3">
+            <Label className="text-xs">컬럼 비율 (사용자 / 품목 / 수량 / 기간)</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {layout.itemsTable.colRatios.map((r, i) => (
+                <Input
+                  key={i}
+                  type="number"
+                  step="0.01"
+                  value={r}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 0.01;
+                    const next = [...layout.itemsTable.colRatios] as [number, number, number, number];
+                    next[i] = v;
+                    set("itemsTable", { colRatios: next });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>마무리 문구 / 날짜 / 수신처</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">마무리 폰트 크기</Label>
+            <Input type="number" value={layout.closing.fontSize}
+              onChange={(e) => set("closing", { fontSize: Number(e.target.value) || 11 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">마무리 상단 여백</Label>
+            <Input type="number" value={layout.closing.marginTop}
+              onChange={(e) => set("closing", { marginTop: Number(e.target.value) || 36 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">날짜 폰트</Label>
+            <Input type="number" value={layout.date.fontSize}
+              onChange={(e) => set("date", { fontSize: Number(e.target.value) || 11 })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">수신처 폰트</Label>
+            <Input type="number" value={layout.recipient.fontSize}
+              onChange={(e) => set("recipient", { fontSize: Number(e.target.value) || 12 })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>빈칸 표시</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">빈칸 텍스트</Label>
+            <Input value={layout.placeholders.emptyField}
+              onChange={(e) => set("placeholders", { emptyField: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">빈칸 색상</Label>
+            <Input value={layout.placeholders.emptyFieldColor}
+              onChange={(e) => set("placeholders", { emptyFieldColor: e.target.value })} />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

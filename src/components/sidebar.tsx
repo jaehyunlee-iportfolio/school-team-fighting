@@ -42,6 +42,11 @@ const NAV_ITEMS = [
     label: "이력서",
     icon: FileText,
   },
+  {
+    href: "/sw-request",
+    label: "소프트웨어 활용 요청서",
+    icon: FileText,
+  },
 ];
 
 const ADMIN_ITEM = {
