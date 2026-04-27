@@ -168,6 +168,7 @@ export function recomputeReturnWarnings(
 const SKIP_APPROVER1_BY_GROUP: Record<ApprovalGroup, Set<string>> = {
   ipf: new Set(["장인선", "김성윤"]),
   dimi: new Set(["박준호"]),
+  unknown: new Set(),
 };
 
 function applyDefaultApproval(

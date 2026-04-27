@@ -48,11 +48,14 @@ import { cn } from "@/lib/utils";
 import {
   getReturnSettings,
   getReturnLayoutSettings,
+  getApprovalSettings,
+  type ApprovalSettings,
   type ReturnApprovalCell,
   type ReturnApprovalCellType,
   type ReturnSettings,
   type ReturnLayoutSettings,
 } from "@/lib/firebase/firestore";
+import { type ApprovalGroup, detectGroupFromFilename } from "@/lib/approval/labels";
 
 type AppStep = "input" | "validate" | "result";
 
@@ -744,6 +747,8 @@ export function ReturnTool() {
   }, [rows]);
   const [settings, setSettings] = useState<ReturnSettings | null>(null);
   const [layout, setLayout] = useState<ReturnLayoutSettings | null>(null);
+  const [approvalSettings, setApprovalSettings] = useState<ApprovalSettings | null>(null);
+  const [approvalMode, setApprovalMode] = useState<ApprovalGroup | "auto">("auto");
   const [parsePending, setParsePending] = useState(false);
   const [csvDragOver, setCsvDragOver] = useState(false);
   const [genPending, setGenPending] = useState(false);
@@ -767,6 +772,7 @@ export function ReturnTool() {
   useEffect(() => {
     getReturnSettings().then(setSettings).catch(console.error);
     getReturnLayoutSettings().then(setLayout).catch(console.error);
+    getApprovalSettings().then(setApprovalSettings).catch(console.error);
   }, []);
 
   const handleFile = useCallback(
@@ -778,7 +784,13 @@ export function ReturnTool() {
       setParsePending(true);
       try {
         const text = await readFileText(file);
-        const parsed = parseReturnInput(file.name, text, settings);
+        // 파일명에서 그룹 자동 감지 (디미교연/iPF) — 사용자가 dropdown으로 변경 가능
+        const fileGroup = detectGroupFromFilename(file.name);
+        const effectiveMode = fileGroup ?? approvalMode;
+        if (fileGroup && approvalMode === "auto") {
+          setApprovalMode(fileGroup);
+        }
+        const parsed = parseReturnInput(file.name, text, settings, approvalSettings, effectiveMode);
         if (!parsed.length) {
           toast.error("출장복명서 데이터를 찾지 못했어요.");
           return;
@@ -1120,6 +1132,26 @@ export function ReturnTool() {
                 어드민에서 출장복명서 기본 결재라인을 먼저 저장해주세요.
               </div>
             )}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-medium">결재 그룹</h2>
+                <select
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  value={approvalMode}
+                  onChange={(e) => setApprovalMode(e.target.value as ApprovalGroup | "auto")}
+                >
+                  <option value="auto">자동 (출장자 소속 / 파일명 기반)</option>
+                  <option value="ipf">iPF — 팀장 / 본부장</option>
+                  <option value="dimi">디미교연 — 사무국장 / 대표이사</option>
+                </select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                자동: 행별 출장자_소속에서 감지. 파일명에 그룹 키워드가 있으면 우선 적용. 직접 선택해 모든 행에 강제 적용도 가능.
+              </p>
+            </section>
+
+            <Separator />
+
             <section className="space-y-3">
               <h2 className="text-sm font-medium">CSV 또는 JSON 파일</h2>
               <button
