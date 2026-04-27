@@ -914,17 +914,55 @@ export const DEFAULT_EXPENSE_SETTINGS: ExpenseSettings = {
   },
 };
 
-export async function getExpenseSettings(): Promise<ExpenseSettings> {
-  const snap = await getDoc(doc(getFirebaseDb(), "settings", "expense"));
-  if (!snap.exists()) return DEFAULT_EXPENSE_SETTINGS;
+/**
+ * Expense settings는 4 이미지 × 2 그룹 = 8 이미지(base64 data URL)를 담아
+ * 단일 문서 1 MiB 한계를 쉽게 초과한다. 그래서 그룹별로 별도 문서로 저장:
+ *   settings/expense_ipf
+ *   settings/expense_dimi
+ * (기존 settings/expense 단일 문서는 호환을 위해 fallback으로 읽음)
+ */
+async function readExpenseGroup(
+  docId: string,
+  fallback: ExpenseGroupSettings,
+): Promise<ExpenseGroupSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", docId));
+  if (!snap.exists()) return fallback;
   return deepMerge(
-    DEFAULT_EXPENSE_SETTINGS as unknown as Record<string, unknown>,
+    fallback as unknown as Record<string, unknown>,
     snap.data() as Record<string, unknown>,
-  ) as unknown as ExpenseSettings;
+  ) as unknown as ExpenseGroupSettings;
+}
+
+export async function getExpenseSettings(): Promise<ExpenseSettings> {
+  // 우선 그룹별 분리 문서 시도
+  const [ipf, dimi, legacySnap] = await Promise.all([
+    readExpenseGroup("expense_ipf", DEFAULT_EXPENSE_SETTINGS.groups.ipf),
+    readExpenseGroup("expense_dimi", DEFAULT_EXPENSE_SETTINGS.groups.dimi),
+    getDoc(doc(getFirebaseDb(), "settings", "expense")),
+  ]);
+
+  // legacy 단일 문서가 있고 그룹별 문서가 비어있으면 마이그레이션용 머지
+  if (legacySnap.exists()) {
+    const legacy = deepMerge(
+      DEFAULT_EXPENSE_SETTINGS as unknown as Record<string, unknown>,
+      legacySnap.data() as Record<string, unknown>,
+    ) as unknown as ExpenseSettings;
+    return {
+      groups: {
+        ipf: { ...legacy.groups.ipf, ...ipf },
+        dimi: { ...legacy.groups.dimi, ...dimi },
+      },
+    };
+  }
+  return { groups: { ipf, dimi } };
 }
 
 export async function saveExpenseSettings(settings: ExpenseSettings): Promise<void> {
-  await setDoc(doc(getFirebaseDb(), "settings", "expense"), settings);
+  // 그룹별로 별도 문서에 저장 — 1 MiB 한계 우회
+  await Promise.all([
+    setDoc(doc(getFirebaseDb(), "settings", "expense_ipf"), settings.groups.ipf),
+    setDoc(doc(getFirebaseDb(), "settings", "expense_dimi"), settings.groups.dimi),
+  ]);
 }
 
 /* ---------- 지출결의서 layout ---------- */

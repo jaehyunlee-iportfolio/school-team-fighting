@@ -271,8 +271,10 @@ export default function AdminPage() {
     try {
       await saveExpenseSettings(expenseSettings);
       toast.success("지출결의서 설정 저장 완료");
-    } catch {
-      toast.error("저장 실패");
+    } catch (e) {
+      console.error("saveExpenseSettings failed:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`저장 실패: ${msg.slice(0, 200)}`);
     } finally {
       setSavingExpense(false);
     }
@@ -283,8 +285,10 @@ export default function AdminPage() {
     try {
       await saveExpenseLayoutSettings(expenseLayout);
       toast.success("지출결의서 레이아웃 저장 완료");
-    } catch {
-      toast.error("저장 실패");
+    } catch (e) {
+      console.error("saveExpenseLayoutSettings failed:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`저장 실패: ${msg.slice(0, 200)}`);
     } finally {
       setSavingExpenseLayout(false);
     }
