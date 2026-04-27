@@ -22,6 +22,10 @@ import {
   saveSwRequestSettings,
   getSwRequestLayoutSettings,
   saveSwRequestLayoutSettings,
+  getExpenseSettings,
+  saveExpenseSettings,
+  getExpenseLayoutSettings,
+  saveExpenseLayoutSettings,
   DEFAULT_PDF_LAYOUT,
   DEFAULT_SOMYEONG_SETTINGS,
   DEFAULT_SOMYEONG_LAYOUT,
@@ -29,6 +33,8 @@ import {
   DEFAULT_RETURN_LAYOUT,
   DEFAULT_SW_REQUEST_SETTINGS,
   DEFAULT_SW_REQUEST_LAYOUT,
+  DEFAULT_EXPENSE_SETTINGS,
+  DEFAULT_EXPENSE_LAYOUT,
   SEOMOK_LIST,
   type ApprovalSettings,
   type GroupSettings,
@@ -39,6 +45,9 @@ import {
   type ReturnLayoutSettings,
   type SwRequestSettings,
   type SwRequestLayoutSettings,
+  type ExpenseSettings,
+  type ExpenseGroupSettings,
+  type ExpenseLayoutSettings,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -47,10 +56,12 @@ import { BusinessTripDocument } from "@/components/pdf/business-trip-document";
 import { SomyeongDocument } from "@/components/pdf/somyeong-document";
 import { BusinessReturnDocument } from "@/components/pdf/business-return-document";
 import { SwRequestDocument } from "@/components/pdf/sw-request-document";
+import { ExpenseDocument } from "@/components/pdf/expense-document";
 import type { TripRow } from "@/lib/csv/parseD4";
 import type { SomyeongRow } from "@/lib/csv/parseSomyeong";
 import type { ReturnRow } from "@/lib/csv/parseReturn";
 import type { SwRequestRow } from "@/lib/sw/types";
+import type { ExpenseRow } from "@/lib/expense/types";
 import ReactCrop, { type PercentCrop, type PixelCrop, convertToPixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import {
@@ -127,11 +138,12 @@ export default function AdminPage() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [savingSomyeong, setSavingSomyeong] = useState(false);
   const [savingSomyeongLayout, setSavingSomyeongLayout] = useState(false);
-  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "swRequest" | "common">("trip");
+  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "swRequest" | "expense" | "common">("trip");
   const [tripSub, setTripSub] = useState<"signApproval" | "layout">("signApproval");
   const [somyeongSub, setSomyeongSub] = useState<"info" | "layout">("info");
   const [returnSub, setReturnSub] = useState<"approval" | "layout">("approval");
   const [swRequestSub, setSwRequestSub] = useState<"info" | "layout">("info");
+  const [expenseSub, setExpenseSub] = useState<"info" | "layout">("info");
   const [returnSettings, setReturnSettings] = useState<ReturnSettings | null>(null);
   const [returnLayout, setReturnLayout] = useState<ReturnLayoutSettings | null>(null);
   const [savingReturn, setSavingReturn] = useState(false);
@@ -140,11 +152,15 @@ export default function AdminPage() {
   const [swRequestLayout, setSwRequestLayout] = useState<SwRequestLayoutSettings | null>(null);
   const [savingSwRequest, setSavingSwRequest] = useState(false);
   const [savingSwRequestLayout, setSavingSwRequestLayout] = useState(false);
+  const [expenseSettings, setExpenseSettings] = useState<ExpenseSettings | null>(null);
+  const [expenseLayout, setExpenseLayout] = useState<ExpenseLayoutSettings | null>(null);
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [savingExpenseLayout, setSavingExpenseLayout] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay, swReq, swReqLay] = await Promise.all([
+      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay, swReq, swReqLay, exp, expLay] = await Promise.all([
         getApprovalSettings(),
         getAdminEmails(),
         getPdfLayoutSettings(),
@@ -154,6 +170,8 @@ export default function AdminPage() {
         getReturnLayoutSettings(),
         getSwRequestSettings(),
         getSwRequestLayoutSettings(),
+        getExpenseSettings(),
+        getExpenseLayoutSettings(),
       ]);
       setSettings(s);
       setAdminEmails(emails);
@@ -164,6 +182,8 @@ export default function AdminPage() {
       setReturnLayout(retLay);
       setSwRequestSettings(swReq);
       setSwRequestLayout(swReqLay);
+      setExpenseSettings(exp);
+      setExpenseLayout(expLay);
     } catch (err) {
       toast.error("설정을 불러오는 데 실패했어요.");
       console.error(err);
@@ -196,7 +216,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout || !swRequestSettings || !swRequestLayout) return null;
+  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout || !swRequestSettings || !swRequestLayout || !expenseSettings || !expenseLayout) return null;
 
   const handleSaveReturn = async () => {
     setSavingReturn(true);
@@ -243,6 +263,30 @@ export default function AdminPage() {
       toast.error("저장 실패");
     } finally {
       setSavingSwRequestLayout(false);
+    }
+  };
+
+  const handleSaveExpense = async () => {
+    setSavingExpense(true);
+    try {
+      await saveExpenseSettings(expenseSettings);
+      toast.success("지출결의서 설정 저장 완료");
+    } catch {
+      toast.error("저장 실패");
+    } finally {
+      setSavingExpense(false);
+    }
+  };
+
+  const handleSaveExpenseLayout = async () => {
+    setSavingExpenseLayout(true);
+    try {
+      await saveExpenseLayoutSettings(expenseLayout);
+      toast.success("지출결의서 레이아웃 저장 완료");
+    } catch {
+      toast.error("저장 실패");
+    } finally {
+      setSavingExpenseLayout(false);
     }
   };
 
@@ -298,7 +342,8 @@ export default function AdminPage() {
     (activeGroup === "trip" && tripSub === "layout") ||
     (activeGroup === "somyeong" && somyeongSub === "layout") ||
     (activeGroup === "return" && returnSub === "layout") ||
-    (activeGroup === "swRequest" && swRequestSub === "layout");
+    (activeGroup === "swRequest" && swRequestSub === "layout") ||
+    (activeGroup === "expense" && expenseSub === "layout");
 
   return (
     <div
@@ -320,14 +365,15 @@ export default function AdminPage() {
       {/* 1단계: 도구 그룹 */}
       <Tabs
         value={activeGroup}
-        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "swRequest" | "common")}
+        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "swRequest" | "expense" | "common")}
         className="flex flex-col space-y-4"
       >
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="trip">출장신청서</TabsTrigger>
           <TabsTrigger value="somyeong">소명서</TabsTrigger>
           <TabsTrigger value="return">출장복명서</TabsTrigger>
           <TabsTrigger value="swRequest">SW 요청서</TabsTrigger>
+          <TabsTrigger value="expense">지출결의서</TabsTrigger>
           <TabsTrigger value="common">공통</TabsTrigger>
         </TabsList>
 
@@ -588,6 +634,74 @@ export default function AdminPage() {
                     </Button>
                     <Button onClick={handleSaveSwRequestLayout} disabled={savingSwRequestLayout} className="gap-2">
                       {savingSwRequestLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      저장
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        {/* ── 지출결의서 ── */}
+        <TabsContent value="expense" className="space-y-4">
+          <Tabs
+            value={expenseSub}
+            onValueChange={(v) => setExpenseSub(v as "info" | "layout")}
+            className="flex flex-col space-y-4"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="info">기본 설정</TabsTrigger>
+              <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="info" className="space-y-4">
+              <ExpenseInfoSection
+                settings={expenseSettings}
+                onChange={setExpenseSettings}
+              />
+              <div className="flex items-center justify-between border-t pt-4">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setExpenseSettings(DEFAULT_EXPENSE_SETTINGS);
+                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  기본값 초기화
+                </Button>
+                <Button onClick={handleSaveExpense} disabled={savingExpense} className="gap-2">
+                  {savingExpense ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  저장
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="layout">
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <ExpensePreview layout={expenseLayout} group={expenseSettings.groups.ipf} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <ExpenseLayoutSection layout={expenseLayout} onChange={setExpenseLayout} />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setExpenseLayout(DEFAULT_EXPENSE_LAYOUT);
+                        toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                      }}
+                    >
+                      <RotateCcw className="size-4" />
+                      기본값 초기화
+                    </Button>
+                    <Button onClick={handleSaveExpenseLayout} disabled={savingExpenseLayout} className="gap-2">
+                      {savingExpenseLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                       저장
                     </Button>
                   </div>
@@ -3043,6 +3157,489 @@ function ReturnLayoutSection({
             color={layout.placeholders.dateInvalidColor}
             onTextChange={(v) => set("placeholders", { dateInvalid: v })}
             onColorChange={(v) => set("placeholders", { dateInvalidColor: v })}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ===================================================================
+   Expense (지출결의서) — 모크 데이터 + Preview + 기본정보·레이아웃 섹션
+   =================================================================== */
+
+const MOCK_EXPENSE_ROW: ExpenseRow = {
+  rowIndex: 0,
+  sourceTab: "D-1.외부 전문가 기술 활용비",
+  semok: "사업활동비",
+  sesemok: "외부 전문가 기술 활용비",
+  evidenceNo: "D-1-100",
+  vendor: "신예진",
+  useDate: "2025. 5. 24",
+  executionDate: "2026. 3. 31",
+  supply: 20000,
+  vat: null,
+  total: 20000,
+  useDetail:
+    "1. 전문가명(신예진)\n2. 산출내역 및 활용내용\n- 5/24: 코디강사역량강화세미나(참석) 교통비 20,000원(이동거리 50km 이내)",
+  payment: "계좌이체",
+  note: "교통비 지급(20,000원)",
+  serial: "IPF-20260331-R1234",
+  writerDate: "2026. 03. 27",
+  handlerApprovalDate: "2026. 03. 30",
+  approverApprovalDate: "2026. 03. 30",
+  hasEmpty: false,
+  fieldWarnings: [],
+};
+
+function ExpensePreview({
+  layout,
+  group,
+}: {
+  layout: ExpenseLayoutSettings;
+  group: ExpenseGroupSettings;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const prevUrl = useRef<string | null>(null);
+  const generation = useRef(0);
+
+  useEffect(() => {
+    const gen = ++generation.current;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        registerPdfFonts();
+        const blob = await pdf(
+          <ExpenseDocument row={MOCK_EXPENSE_ROW} group={group} layout={layout} />,
+        ).toBlob();
+        if (gen !== generation.current) return;
+        const newUrl = URL.createObjectURL(blob);
+        setUrl(newUrl);
+        if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+        prevUrl.current = newUrl;
+      } catch (e) {
+        if (gen !== generation.current) return;
+        setError(e instanceof Error ? e.message : "PDF 생성 실패");
+      } finally {
+        if (gen === generation.current) setLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [layout, group]);
+
+  useEffect(() => {
+    return () => {
+      if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <FileText className="size-4" />
+        미리보기 (목 데이터)
+      </div>
+      <div
+        className="relative overflow-hidden rounded-lg border bg-muted/30"
+        style={{ aspectRatio: "1 / 1.414" }}
+      >
+        {url && (
+          <iframe
+            src={url}
+            title="지출결의서 PDF 미리보기"
+            className="absolute inset-0 size-full"
+          />
+        )}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {error && !loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <AlertCircle className="size-6 text-destructive" />
+            <p className="text-xs text-destructive">{error}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExpenseGroupCard({
+  groupId,
+  group,
+  onChange,
+}: {
+  groupId: string;
+  group: ExpenseGroupSettings;
+  onChange: (g: ExpenseGroupSettings) => void;
+}) {
+  const groupLabel = groupId === "ipf"
+    ? "iPF / (주)아이포트폴리오"
+    : "디미교연 / (사)디지털미디어교육콘텐츠 교사연구협회";
+  const set = <K extends keyof ExpenseGroupSettings>(k: K, v: ExpenseGroupSettings[K]) => {
+    onChange({ ...group, [k]: v });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{groupLabel}</CardTitle>
+        <CardDescription>
+          작성자/결재자 정보, 일련번호 코드, 4종 이미지(로고·작성자서명·결재자서명·직인)
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">작성자명</Label>
+            <Input value={group.writerName} onChange={(e) => set("writerName", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">작성자 직책</Label>
+            <Input value={group.writerTitle} onChange={(e) => set("writerTitle", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">결재자명</Label>
+            <Input value={group.approverName} onChange={(e) => set("approverName", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">결재자 직책</Label>
+            <Input value={group.approverTitle} onChange={(e) => set("approverTitle", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">소속기관 코드 (3자, 일련번호 prefix)</Label>
+            <Input value={group.orgCode} onChange={(e) => set("orgCode", e.target.value)} placeholder="IPF" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">일련번호 알파벳 (1자)</Label>
+            <Input value={group.serialAlpha} onChange={(e) => set("serialAlpha", e.target.value)} placeholder="R" />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label className="text-xs">소속·상호 풀네임</Label>
+            <Input value={group.companyFullName} onChange={(e) => set("companyFullName", e.target.value)} />
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ExpenseImageField
+            label="로고"
+            value={group.logoImageUrl}
+            onChange={(v) => set("logoImageUrl", v)}
+          />
+          <ExpenseImageField
+            label="작성자 서명"
+            value={group.writerSigImageUrl}
+            onChange={(v) => set("writerSigImageUrl", v)}
+            useCrop
+          />
+          <ExpenseImageField
+            label="결재자 서명"
+            value={group.approverSigImageUrl}
+            onChange={(v) => set("approverSigImageUrl", v)}
+            useCrop
+          />
+          <ExpenseImageField
+            label="회사 직인"
+            value={group.stampImageUrl}
+            onChange={(v) => set("stampImageUrl", v)}
+            useCrop
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ExpenseImageField({
+  label,
+  value,
+  onChange,
+  useCrop,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  useCrop?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [rawDataUrl, setRawDataUrl] = useState("");
+
+  const handleFile = async (file: File) => {
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (useCrop) {
+        setRawDataUrl(dataUrl);
+        setCropOpen(true);
+      } else {
+        onChange(dataUrl);
+      }
+    } catch {
+      toast.error("이미지를 읽지 못했어요.");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex items-center gap-3">
+        <div className="size-16 shrink-0 overflow-hidden rounded border bg-muted/30 flex items-center justify-center">
+          {value ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt={label} className="size-full object-contain" />
+          ) : (
+            <ImageIcon className="size-5 text-muted-foreground/50" />
+          )}
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
+        />
+        <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => fileRef.current?.click()}>
+          <Upload className="size-3.5" />
+          {value ? "교체" : "업로드"}
+        </Button>
+        {value && useCrop && (
+          <Button type="button" size="sm" variant="outline" className="gap-1.5"
+            onClick={() => { setRawDataUrl(value); setCropOpen(true); }}>
+            <Scissors className="size-3.5" />
+            편집
+          </Button>
+        )}
+        {value && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            onClick={() => onChange("")}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
+      </div>
+      {useCrop && (
+        <SignatureCropDialog
+          open={cropOpen}
+          rawDataUrl={rawDataUrl}
+          onConfirm={(dataUrl) => {
+            onChange(dataUrl);
+            setCropOpen(false);
+            toast.success(`${label} 설정 완료`);
+          }}
+          onCancel={() => setCropOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ExpenseInfoSection({
+  settings,
+  onChange,
+}: {
+  settings: ExpenseSettings;
+  onChange: (s: ExpenseSettings) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <ExpenseGroupCard
+        groupId="ipf"
+        group={settings.groups.ipf}
+        onChange={(g) => onChange({ ...settings, groups: { ...settings.groups, ipf: g } })}
+      />
+      <ExpenseGroupCard
+        groupId="dimi"
+        group={settings.groups.dimi}
+        onChange={(g) => onChange({ ...settings, groups: { ...settings.groups, dimi: g } })}
+      />
+    </div>
+  );
+}
+
+function ExpenseLayoutSection({
+  layout,
+  onChange,
+}: {
+  layout: ExpenseLayoutSettings;
+  onChange: (l: ExpenseLayoutSettings) => void;
+}) {
+  const set = <K extends keyof ExpenseLayoutSettings>(
+    section: K,
+    patch: Partial<ExpenseLayoutSettings[K]>,
+  ) => onChange({ ...layout, [section]: { ...layout[section], ...patch } });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">페이지</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">폰트</Label>
+              <Select value={layout.page.fontFamily} onValueChange={(v) => { if (v) set("page", { fontFamily: v }); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PDF_FONT_FAMILIES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <NumField label="기본 크기" value={layout.page.baseFontSize} onChange={(v) => set("page", { baseFontSize: v })} step={0.5} unit="pt" />
+            <NumField label="줄 높이" value={layout.page.baseLineHeight} onChange={(v) => set("page", { baseLineHeight: v })} step={0.05} />
+            <NumField label="여백" value={layout.page.marginMm} onChange={(v) => set("page", { marginMm: v })} unit="mm" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">제목 / 부제</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="제목 크기" value={layout.title.fontSize} onChange={(v) => set("title", { fontSize: v })} unit="pt" />
+            <NumField label="제목 굵기" value={layout.title.fontWeight} onChange={(v) => set("title", { fontWeight: v })} step={100} min={100} />
+            <NumField label="제목 자간" value={layout.title.letterSpacing} onChange={(v) => set("title", { letterSpacing: v })} step={0.5} unit="pt" />
+            <NumField label="제목 하단 여백" value={layout.title.marginBottom} onChange={(v) => set("title", { marginBottom: v })} unit="pt" />
+            <NumField label="부제 크기" value={layout.subtitle.fontSize} onChange={(v) => set("subtitle", { fontSize: v })} unit="pt" />
+            <ColorField label="부제 색" value={layout.subtitle.color} onChange={(v) => set("subtitle", { color: v })} />
+            <NumField label="부제 하단 여백" value={layout.subtitle.marginBottom} onChange={(v) => set("subtitle", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">섹션 헤딩 (1. / 2. / 3. ...)</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="크기" value={layout.sectionHeading.fontSize} onChange={(v) => set("sectionHeading", { fontSize: v })} unit="pt" />
+            <NumField label="굵기" value={layout.sectionHeading.fontWeight} onChange={(v) => set("sectionHeading", { fontWeight: v })} step={100} min={100} />
+            <NumField label="상단 여백" value={layout.sectionHeading.marginTop} onChange={(v) => set("sectionHeading", { marginTop: v })} unit="pt" />
+            <NumField label="하단 여백" value={layout.sectionHeading.marginBottom} onChange={(v) => set("sectionHeading", { marginBottom: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">1. 기본 정보</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="라벨 너비" value={layout.basicInfo.labelWidth} onChange={(v) => set("basicInfo", { labelWidth: v })} unit="pt" />
+            <NumField label="글자 크기" value={layout.basicInfo.fontSize} onChange={(v) => set("basicInfo", { fontSize: v })} unit="pt" />
+            <NumField label="라벨 굵기" value={layout.basicInfo.fontWeight} onChange={(v) => set("basicInfo", { fontWeight: v })} step={100} min={100} />
+            <NumField label="줄 높이" value={layout.basicInfo.lineHeight} onChange={(v) => set("basicInfo", { lineHeight: v })} step={0.05} />
+            <NumField label="행 간격" value={layout.basicInfo.rowGap} onChange={(v) => set("basicInfo", { rowGap: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">2. 지출 목적</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="글자 크기" value={layout.purpose.fontSize} onChange={(v) => set("purpose", { fontSize: v })} unit="pt" />
+            <NumField label="줄 높이" value={layout.purpose.lineHeight} onChange={(v) => set("purpose", { lineHeight: v })} step={0.05} />
+            <NumField label="패딩 세로" value={layout.purpose.paddingV} onChange={(v) => set("purpose", { paddingV: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">3. 지출결의 내용 표</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="헤더 높이" value={layout.expenseTable.headerHeight} onChange={(v) => set("expenseTable", { headerHeight: v })} unit="pt" />
+            <NumField label="헤더 글자" value={layout.expenseTable.headerFontSize} onChange={(v) => set("expenseTable", { headerFontSize: v })} unit="pt" />
+            <ColorField label="헤더 배경" value={layout.expenseTable.headerBgColor} onChange={(v) => set("expenseTable", { headerBgColor: v })} />
+            <NumField label="행 높이" value={layout.expenseTable.rowHeight} onChange={(v) => set("expenseTable", { rowHeight: v })} unit="pt" />
+            <NumField label="셀 글자" value={layout.expenseTable.fontSize} onChange={(v) => set("expenseTable", { fontSize: v })} unit="pt" />
+            <NumField label="셀 패딩 세로" value={layout.expenseTable.paddingV} onChange={(v) => set("expenseTable", { paddingV: v })} unit="pt" />
+            <NumField label="셀 패딩 가로" value={layout.expenseTable.paddingH} onChange={(v) => set("expenseTable", { paddingH: v })} unit="pt" />
+            <NumField label="비고 행 높이" value={layout.expenseTable.noteRowHeight} onChange={(v) => set("expenseTable", { noteRowHeight: v })} unit="pt" />
+            <NumField label="비고 글자" value={layout.expenseTable.noteFontSize} onChange={(v) => set("expenseTable", { noteFontSize: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">4. 지출 방식</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="글자 크기" value={layout.paymentMethod.fontSize} onChange={(v) => set("paymentMethod", { fontSize: v })} unit="pt" />
+            <NumField label="패딩 세로" value={layout.paymentMethod.paddingV} onChange={(v) => set("paymentMethod", { paddingV: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">5. 지출 승인 표</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <NumField label="헤더 높이" value={layout.approvalTable.headerHeight} onChange={(v) => set("approvalTable", { headerHeight: v })} unit="pt" />
+            <NumField label="헤더 글자" value={layout.approvalTable.headerFontSize} onChange={(v) => set("approvalTable", { headerFontSize: v })} unit="pt" />
+            <ColorField label="헤더 배경" value={layout.approvalTable.headerBgColor} onChange={(v) => set("approvalTable", { headerBgColor: v })} />
+            <NumField label="행 높이" value={layout.approvalTable.rowHeight} onChange={(v) => set("approvalTable", { rowHeight: v })} unit="pt" />
+            <NumField label="셀 글자" value={layout.approvalTable.fontSize} onChange={(v) => set("approvalTable", { fontSize: v })} unit="pt" />
+            <NumField label="셀 패딩 세로" value={layout.approvalTable.paddingV} onChange={(v) => set("approvalTable", { paddingV: v })} unit="pt" />
+            <NumField label="셀 패딩 가로" value={layout.approvalTable.paddingH} onChange={(v) => set("approvalTable", { paddingH: v })} unit="pt" />
+            <NumField label="서명 이미지 max-h" value={layout.approvalTable.sigImageMaxHeight} onChange={(v) => set("approvalTable", { sigImageMaxHeight: v })} unit="pt" />
+            <NumField label="직인 이미지 max-h" value={layout.approvalTable.stampImageMaxHeight} onChange={(v) => set("approvalTable", { stampImageMaxHeight: v })} unit="pt" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">로고 / 푸터 / 테두리</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <NumField label="로고 너비" value={layout.logo.width} onChange={(v) => set("logo", { width: v })} unit="pt" />
+            <NumField label="로고 높이" value={layout.logo.height} onChange={(v) => set("logo", { height: v })} unit="pt" />
+            <NumField label="로고 X 오프셋" value={layout.logo.offsetX} onChange={(v) => set("logo", { offsetX: v })} unit="pt" />
+            <NumField label="로고 Y 오프셋" value={layout.logo.offsetY} onChange={(v) => set("logo", { offsetY: v })} unit="pt" />
+            <NumField label="푸터 글자" value={layout.footer.fontSize} onChange={(v) => set("footer", { fontSize: v })} unit="pt" />
+            <NumField label="푸터 굵기" value={layout.footer.fontWeight} onChange={(v) => set("footer", { fontWeight: v })} step={100} min={100} />
+            <ColorField label="푸터 색" value={layout.footer.color} onChange={(v) => set("footer", { color: v })} />
+            <NumField label="푸터 상단 여백" value={layout.footer.marginTop} onChange={(v) => set("footer", { marginTop: v })} unit="pt" />
+            <NumField label="테두리 두께" value={layout.border.width} onChange={(v) => set("border", { width: v })} step={0.25} unit="pt" />
+            <ColorField label="테두리 색" value={layout.border.color} onChange={(v) => set("border", { color: v })} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="text-base">누락 / 검증 표시</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <PlaceholderRow
+            label="빈 필드 대체 문구"
+            desc="필수 값이 비었을 때 PDF에 표시되는 색상 강조 문구"
+            text={layout.placeholders.emptyField}
+            color={layout.placeholders.emptyFieldColor}
+            onTextChange={(v) => set("placeholders", { emptyField: v })}
+            onColorChange={(v) => set("placeholders", { emptyFieldColor: v })}
+          />
+          <Separator />
+          <PlaceholderRow
+            label="비정상 값 강조"
+            desc="검증 실패 행에서 강조 색상으로 사용"
+            text={layout.placeholders.invalidValue}
+            color={layout.placeholders.invalidValueColor}
+            onTextChange={(v) => set("placeholders", { invalidValue: v })}
+            onColorChange={(v) => set("placeholders", { invalidValueColor: v })}
           />
         </CardContent>
       </Card>

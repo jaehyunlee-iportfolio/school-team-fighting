@@ -47,6 +47,11 @@ const NAV_ITEMS = [
     label: "소프트웨어 활용 요청서",
     icon: FileText,
   },
+  {
+    href: "/expense",
+    label: "지출결의서",
+    icon: FileText,
+  },
 ];
 
 const ADMIN_ITEM = {

@@ -854,3 +854,234 @@ export async function saveSwRequestLayoutSettings(
 ): Promise<void> {
   await setDoc(doc(getFirebaseDb(), "settings", "swRequestLayout"), settings);
 }
+
+/* ---------- 지출결의서 settings ---------- */
+
+export type ExpenseGroupSettings = {
+  // 텍스트
+  writerName: string;
+  writerTitle: string;
+  approverName: string;
+  approverTitle: string;
+  /** 일련번호 prefix 알파벳 3자 (예: IPF / DMI) */
+  orgCode: string;
+  /** 일련번호 알파벳 1자 (예: R / M) */
+  serialAlpha: string;
+  /** PDF "소속·상호"에 들어갈 풀네임 */
+  companyFullName: string;
+  // 이미지 (data URL)
+  logoImageUrl: string;
+  writerSigImageUrl: string;
+  approverSigImageUrl: string;
+  stampImageUrl: string;
+};
+
+export type ExpenseSettings = {
+  groups: {
+    ipf: ExpenseGroupSettings;
+    dimi: ExpenseGroupSettings;
+  };
+};
+
+export const DEFAULT_EXPENSE_SETTINGS: ExpenseSettings = {
+  groups: {
+    ipf: {
+      writerName: "채영지",
+      writerTitle: "팀장",
+      approverName: "장인선",
+      approverTitle: "본부장",
+      orgCode: "IPF",
+      serialAlpha: "R",
+      companyFullName: "(주)아이포트폴리오",
+      logoImageUrl: "",
+      writerSigImageUrl: "",
+      approverSigImageUrl: "",
+      stampImageUrl: "",
+    },
+    dimi: {
+      writerName: "박소연",
+      writerTitle: "사무국장",
+      approverName: "박준호",
+      approverTitle: "대표이사",
+      orgCode: "DMI",
+      serialAlpha: "M",
+      companyFullName: "(사)디지털미디어교육콘텐츠 교사연구협회",
+      logoImageUrl: "",
+      writerSigImageUrl: "",
+      approverSigImageUrl: "",
+      stampImageUrl: "",
+    },
+  },
+};
+
+export async function getExpenseSettings(): Promise<ExpenseSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "expense"));
+  if (!snap.exists()) return DEFAULT_EXPENSE_SETTINGS;
+  return deepMerge(
+    DEFAULT_EXPENSE_SETTINGS as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as ExpenseSettings;
+}
+
+export async function saveExpenseSettings(settings: ExpenseSettings): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "expense"), settings);
+}
+
+/* ---------- 지출결의서 layout ---------- */
+
+export type ExpenseLayoutSettings = {
+  page: {
+    fontFamily: string;
+    baseFontSize: number;
+    baseLineHeight: number;
+    marginMm: number;
+  };
+  border: { width: number; color: string };
+  /** 좌상단 로고 박스 */
+  logo: {
+    width: number;
+    height: number;
+    offsetX: number;
+    offsetY: number;
+  };
+  title: {
+    fontSize: number;
+    fontWeight: number;
+    letterSpacing: number;
+    marginBottom: number;
+  };
+  subtitle: {
+    fontSize: number;
+    color: string;
+    marginBottom: number;
+  };
+  /** "1. 기본 정보" 같은 섹션 헤딩 */
+  sectionHeading: {
+    fontSize: number;
+    fontWeight: number;
+    marginTop: number;
+    marginBottom: number;
+  };
+  /** 1. 기본 정보 4줄 (라벨/값) */
+  basicInfo: {
+    labelWidth: number;
+    fontSize: number;
+    fontWeight: number;
+    lineHeight: number;
+    rowGap: number;
+  };
+  /** 2. 지출 목적 본문 */
+  purpose: {
+    fontSize: number;
+    lineHeight: number;
+    paddingV: number;
+  };
+  /** 3. 지출결의 내용 표 */
+  expenseTable: {
+    headerHeight: number;
+    headerFontSize: number;
+    headerBgColor: string;
+    rowHeight: number;
+    fontSize: number;
+    paddingV: number;
+    paddingH: number;
+    /** 비고 행 높이 */
+    noteRowHeight: number;
+    noteFontSize: number;
+  };
+  /** 4. 지출 방식 */
+  paymentMethod: {
+    fontSize: number;
+    paddingV: number;
+  };
+  /** 5. 지출 승인 표 */
+  approvalTable: {
+    headerHeight: number;
+    headerFontSize: number;
+    headerBgColor: string;
+    rowHeight: number;
+    fontSize: number;
+    paddingV: number;
+    paddingH: number;
+    /** 서명 이미지 max-height */
+    sigImageMaxHeight: number;
+    /** 직인 이미지 max-height */
+    stampImageMaxHeight: number;
+  };
+  footer: {
+    fontSize: number;
+    fontWeight: number;
+    color: string;
+    marginTop: number;
+  };
+  placeholders: {
+    /** 빈 필수 값 표시용 */
+    emptyField: string;
+    emptyFieldColor: string;
+    /** 비정상 값(검증 실패) 표시용 */
+    invalidValue: string;
+    invalidValueColor: string;
+  };
+};
+
+export const DEFAULT_EXPENSE_LAYOUT: ExpenseLayoutSettings = {
+  page: { fontFamily: "Pretendard", baseFontSize: 10, baseLineHeight: 1.4, marginMm: 18 },
+  border: { width: 0.5, color: "#000000" },
+  logo: { width: 64, height: 32, offsetX: 0, offsetY: 0 },
+  title: { fontSize: 26, fontWeight: 700, letterSpacing: 0, marginBottom: 6 },
+  subtitle: { fontSize: 11, color: "#444444", marginBottom: 22 },
+  sectionHeading: { fontSize: 13, fontWeight: 700, marginTop: 16, marginBottom: 8 },
+  basicInfo: {
+    labelWidth: 70,
+    fontSize: 10.5,
+    fontWeight: 600,
+    lineHeight: 1.5,
+    rowGap: 2,
+  },
+  purpose: { fontSize: 10.5, lineHeight: 1.4, paddingV: 4 },
+  expenseTable: {
+    headerHeight: 26,
+    headerFontSize: 10,
+    headerBgColor: "#F5F5F5",
+    rowHeight: 38,
+    fontSize: 10,
+    paddingV: 5,
+    paddingH: 6,
+    noteRowHeight: 50,
+    noteFontSize: 10,
+  },
+  paymentMethod: { fontSize: 10.5, paddingV: 4 },
+  approvalTable: {
+    headerHeight: 24,
+    headerFontSize: 10,
+    headerBgColor: "#F5F5F5",
+    rowHeight: 50,
+    fontSize: 10,
+    paddingV: 4,
+    paddingH: 6,
+    sigImageMaxHeight: 30,
+    stampImageMaxHeight: 38,
+  },
+  footer: { fontSize: 9, fontWeight: 400, color: "#666666", marginTop: 14 },
+  placeholders: {
+    emptyField: "—",
+    emptyFieldColor: "#DC2626",
+    invalidValue: "확인 필요",
+    invalidValueColor: "#B45309",
+  },
+};
+
+export async function getExpenseLayoutSettings(): Promise<ExpenseLayoutSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "expenseLayout"));
+  if (!snap.exists()) return DEFAULT_EXPENSE_LAYOUT;
+  return deepMerge(
+    DEFAULT_EXPENSE_LAYOUT as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as ExpenseLayoutSettings;
+}
+
+export async function saveExpenseLayoutSettings(
+  settings: ExpenseLayoutSettings,
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "expenseLayout"), settings);
+}
