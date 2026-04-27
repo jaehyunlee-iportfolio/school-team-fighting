@@ -28,6 +28,17 @@ function loosenProduct(s: string): string {
     .replace(/[()（）\[\]【】.\-_/]/g, "");
 }
 
+/**
+ * 사용기간 텍스트의 끝에 붙은 "(N개월)" / "(N년)" / "(N주)" / "(N일)" 같은
+ * 괄호 토큰을 다음 줄로 내림. 셀 안에서 임의 위치에 자동 줄바꿈되는 걸 방지.
+ *   "25.09.25 - 26.03.24(6개월)" → "25.09.25 - 26.03.24\n(6개월)"
+ *   "6개월" / "25.11.5 ~ 25.12.4" → 그대로
+ */
+function formatPeriodText(s: string): string {
+  if (!s) return s;
+  return s.replace(/\s*(\([^()]*?(?:개월|년|주|일)[^()]*?\))\s*$/, "\n$1");
+}
+
 export function enrichSwRequestRows(
   rows: SwRequestRow[],
   applicants: SchoolApplicantsResult,
@@ -118,7 +129,7 @@ export function enrichSwRequestRows(
       return {
         ...it,
         user,
-        period,
+        period: formatPeriodText(period),
         warnings: itemWarnings,
       };
     });
