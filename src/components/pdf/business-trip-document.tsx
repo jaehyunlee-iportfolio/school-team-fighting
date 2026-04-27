@@ -188,8 +188,10 @@ function buildStyles(cfg: PdfLayoutSettings) {
       width: "100%" as const,
       flexDirection: "row" as const,
     },
+    /** "소요경비" 좌측 병합 셀 — 다른 라벨 셀(dLabel)과 같은 폭으로 맞춰
+     *  모든 행의 좌/우 컬럼 경계가 일직선이 되도록 함 */
     eTitleCell: {
-      width: cfg.expense.titleColWidth,
+      width: cfg.dataTable.labelWidth,
       backgroundColor: cfg.expense.labelBgColor,
       borderColor: BORDER,
       borderRightWidth: b,
@@ -446,7 +448,7 @@ export function BusinessTripDocument({
                 <Text style={[styles.dValS, placeFb.color ? { color: placeFb.color } : {}]}>{placeFb.text}</Text>
               </ValCell>
             </DataTableRow>
-            {expenseTable ? <ExpenseSection table={expenseTable} styles={styles} /> : null}
+            {expenseTable ? <ExpenseSection table={expenseTable} styles={styles} cfg={cfg} /> : null}
             <View style={styles.pRow}>
               <View style={styles.pLabel}>
                 <Text style={styles.dLabelT}>출장 목적</Text>
@@ -471,9 +473,11 @@ export function BusinessTripDocument({
 function ExpenseSection({
   table,
   styles,
+  cfg,
 }: {
   table: ExpenseTable;
   styles: ReturnType<typeof buildStyles>;
+  cfg: PdfLayoutSettings;
 }) {
   const fmt = (n: number) => (n > 0 ? `${n.toLocaleString("ko-KR")}원` : "");
   const all: { label: string; content: string; total: number; needsReview: boolean }[] = [
@@ -495,13 +499,13 @@ function ExpenseSection({
       <View style={styles.eRows}>
         {/* 헤더 행 */}
         <View style={styles.eRow}>
-          <View style={[styles.eHeaderCell, { width: 60 }]}>
+          <View style={[styles.eHeaderCell, { width: cfg.expense.categoryColWidth }]}>
             <Text style={styles.eHeaderText}>구분</Text>
           </View>
           <View style={[styles.eHeaderCell, { flex: 1 }]}>
             <Text style={styles.eHeaderText}>내용</Text>
           </View>
-          <View style={[styles.eHeaderCell, styles.eHeaderCellLast, { width: 80 }]}>
+          <View style={[styles.eHeaderCell, styles.eHeaderCellLast, { width: cfg.expense.totalColWidth }]}>
             <Text style={styles.eHeaderText}>합계</Text>
           </View>
         </View>
