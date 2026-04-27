@@ -186,9 +186,8 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               <Text style={styles.tableCellText}>{group.writerTitle}</Text>
             </View>
             <View style={[styles.tableCell, { width: "20%", justifyContent: "center", alignItems: "center" }]}>
-              {group.writerSigImageUrl ? (
-                <Image src={group.writerSigImageUrl} style={styles.sigImg} />
-              ) : null}
+              {/* 작성자(지출 담당자)는 서명 이미지 대신 이름 글자로 표시 */}
+              <Text style={styles.tableCellText}>{group.writerName}</Text>
             </View>
             <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{row.handlerApprovalDate}</Text>
