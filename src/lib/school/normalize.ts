@@ -53,9 +53,11 @@ function shortenSuffix(s: string): string {
 /**
  * candidates 중에서 raw 와 매칭되는 학교 풀네임을 찾는다.
  * 1) 정규화 정확 일치
- * 2) raw 의 정규화가 candidate 의 정규화의 prefix
- * 3) candidate 의 short 형이 raw 의 정규화의 prefix
- * 모두 실패 시 null.
+ * 2) substring 매칭 (양방향) — "창영초"(→정규화 "창영초등학교") 가
+ *    "인천창영초등학교" 의 substring 이면 매칭. 핵심 토큰 길이 ≥ 3 글자 가드.
+ * 3) 단축형 substring (양방향) — short("창영초등학교")="창영초" 가
+ *    short("인천창영초등학교")="인천창영초" 의 substring 이면 매칭.
+ * 동률(여러 후보)이면 가장 짧은 candidate 선택 (가장 specific).
  */
 export function findFullSchoolName(
   raw: string,
@@ -69,17 +71,24 @@ export function findFullSchoolName(
   const exact = normCands.find((c) => c.norm === normRaw);
   if (exact) return exact.raw;
 
-  // 2) raw 가 candidate 의 prefix (예: raw "인천갈월초등학교" 가 "인천갈월초등학교" — 위와 동일하지만 안전망)
-  const rawIsPrefix = normCands.find((c) => c.norm.startsWith(normRaw) && normRaw.length >= 3);
-  if (rawIsPrefix) return rawIsPrefix.raw;
+  // 2) substring (full) — raw가 cand의 substring 또는 그 반대
+  const MIN_LEN = 3;
+  if (normRaw.length >= MIN_LEN) {
+    const sub = normCands
+      .filter((c) => c.norm.includes(normRaw) || normRaw.includes(c.norm))
+      .sort((a, b) => a.norm.length - b.norm.length);
+    if (sub.length > 0) return sub[0].raw;
+  }
 
-  // 3) short 형 — candidate 단축형이 raw 단축형의 prefix 또는 동일
+  // 3) substring (short form) — "창영초" ⊂ "인천창영초"
   const shortRaw = shortenSuffix(normRaw);
-  const shortMatch = normCands.find((c) => {
-    const shortC = shortenSuffix(c.norm);
-    return shortC === shortRaw || shortC.startsWith(shortRaw) || shortRaw.startsWith(shortC);
-  });
-  if (shortMatch) return shortMatch.raw;
+  if (shortRaw.length >= MIN_LEN) {
+    const sub = normCands
+      .map((c) => ({ raw: c.raw, norm: c.norm, short: shortenSuffix(c.norm) }))
+      .filter((c) => c.short.includes(shortRaw) || shortRaw.includes(c.short))
+      .sort((a, b) => a.norm.length - b.norm.length);
+    if (sub.length > 0) return sub[0].raw;
+  }
 
   return null;
 }

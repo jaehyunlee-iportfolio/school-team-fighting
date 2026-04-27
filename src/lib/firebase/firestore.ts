@@ -821,11 +821,11 @@ export const DEFAULT_SW_REQUEST_LAYOUT: SwRequestLayoutSettings = {
   itemsTable: {
     headerBg: "#E5E7EB",
     borderColor: "#9CA3AF",
-    cellPaddingV: 8,
+    cellPaddingV: 4,
     cellPaddingH: 8,
     headerFontSize: 10,
     valueFontSize: 10,
-    rowHeight: 26,
+    rowHeight: 18,
     sectionTitleFontSize: 11,
     colRatios: [0.18, 0.42, 0.14, 0.26],
     marginBottom: 24,

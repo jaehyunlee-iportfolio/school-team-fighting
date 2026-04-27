@@ -17,7 +17,7 @@ import {
   type QuoteWorkbookResult,
 } from "@/lib/xlsx/parseQuoteWorkbook";
 import type { SchoolApplicantsResult } from "@/lib/csv/parseSchoolApplicants";
-import type { SwRequestRow } from "@/lib/sw/types";
+import type { SwLineItem, SwRequestRow } from "@/lib/sw/types";
 import type { SwRequestSettings } from "@/lib/firebase/firestore";
 
 function loosenProduct(s: string): string {
@@ -141,11 +141,14 @@ export function enrichSwRequestRows(
       );
     }
 
+    // 6. 같은 사용자 + 같은 품목 + 같은 기간 → 한 행으로 묶고 수량 합산
+    const grouped = groupItems(items);
+
     const hasEmpty =
       !schoolName ||
       !applicantName ||
-      items.length === 0 ||
-      items.some((x) => !x.product || !x.quantity || x.warnings.length > 0);
+      grouped.length === 0 ||
+      grouped.some((x) => !x.product || !x.quantity || x.warnings.length > 0);
 
     return {
       ...row,
@@ -158,11 +161,54 @@ export function enrichSwRequestRows(
       quoteM: m,
       quoteD: d,
       quoteYymmdd: yymmdd,
-      items,
+      items: grouped,
       hasEmpty,
       fieldWarnings,
     };
   });
+}
+
+/**
+ * 같은 (user, product, period) 항목을 한 행으로 합치고 수량 합산.
+ * 입력 순서를 유지하며 같은 키의 첫 위치에 누적.
+ *   [신성대/Padlet/6개월, 신성대/Padlet/6개월, 신성대/zep/5개월]
+ *   → [신성대/Padlet/6개월/2개, 신성대/zep/5개월/1개]
+ *
+ * 사용자(user) 가 비어있거나, 품목/기간 어느 한쪽이 다르면 묶지 않음.
+ */
+function groupItems(items: SwLineItem[]): SwLineItem[] {
+  const out: SwLineItem[] = [];
+  const indexMap = new Map<string, number>();
+
+  for (const it of items) {
+    const key = `${it.user}__${it.product}__${it.period}`;
+    if (it.user && indexMap.has(key)) {
+      const idx = indexMap.get(key)!;
+      const acc = out[idx];
+      const accQty = parseQuantityCount(acc.quantity);
+      const itQty = parseQuantityCount(it.quantity);
+      const sum = accQty + itQty;
+      out[idx] = {
+        ...acc,
+        quantity: `${sum}개`,
+        warnings: dedupe([...acc.warnings, ...it.warnings]),
+      };
+    } else {
+      indexMap.set(key, out.length);
+      out.push({ ...it });
+    }
+  }
+  return out;
+}
+
+function parseQuantityCount(q: string): number {
+  if (!q) return 1;
+  const m = q.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 1;
+}
+
+function dedupe<T>(arr: T[]): T[] {
+  return Array.from(new Set(arr));
 }
 
 /**

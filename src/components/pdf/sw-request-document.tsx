@@ -140,10 +140,12 @@ function buildStyles(cfg: SwRequestLayoutSettings) {
       fontSize: cfg.itemsTable.headerFontSize,
       fontWeight: 700 as 700,
       textAlign: "center" as const,
+      lineHeight: 1.15,
     },
     itemsValueText: {
       fontSize: cfg.itemsTable.valueFontSize,
       textAlign: "center" as const,
+      lineHeight: 1.15,
     },
     closing: {
       fontSize: cfg.closing.fontSize,
