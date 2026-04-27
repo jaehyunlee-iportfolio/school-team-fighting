@@ -188,10 +188,9 @@ function buildStyles(cfg: PdfLayoutSettings) {
       width: "100%" as const,
       flexDirection: "row" as const,
     },
-    /** "소요경비" 좌측 병합 셀 — 다른 라벨 셀(dLabel)과 같은 폭으로 맞춰
-     *  모든 행의 좌/우 컬럼 경계가 일직선이 되도록 함 */
+    /** "소요경비" 좌측 병합 셀 (좁은 세로 라벨) */
     eTitleCell: {
-      width: cfg.dataTable.labelWidth,
+      width: cfg.expense.titleColWidth,
       backgroundColor: cfg.expense.labelBgColor,
       borderColor: BORDER,
       borderRightWidth: b,
@@ -491,6 +490,9 @@ function ExpenseSection({
   const rows = all.filter((r) => r.content.trim() || r.total > 0);
   // 합계 행은 항상 표시
   rows.push({ label: "합계", content: "", total: table.합계, needsReview: false });
+  // "구분" 열 폭 = 라벨 영역 전체 폭 - "소요경비" 좌측 병합 셀 폭
+  // 이렇게 하면 (소요경비 + 구분) 합쳐 labelWidth와 같아져 좌/우 경계가 일반 라벨 셀과 일직선
+  const categoryColWidth = Math.max(0, cfg.dataTable.labelWidth - cfg.expense.titleColWidth);
   return (
     <View style={styles.eTable}>
       <View style={styles.eTitleCell}>
@@ -499,7 +501,7 @@ function ExpenseSection({
       <View style={styles.eRows}>
         {/* 헤더 행 */}
         <View style={styles.eRow}>
-          <View style={[styles.eHeaderCell, { width: cfg.expense.categoryColWidth }]}>
+          <View style={[styles.eHeaderCell, { width: categoryColWidth }]}>
             <Text style={styles.eHeaderText}>구분</Text>
           </View>
           <View style={[styles.eHeaderCell, { flex: 1 }]}>
@@ -511,7 +513,7 @@ function ExpenseSection({
         </View>
         {rows.map((r, i) => (
           <View key={i} style={styles.eRow}>
-            <View style={styles.eCategoryCell}>
+            <View style={[styles.eCategoryCell, { width: categoryColWidth }]}>
               <Text style={styles.eHeaderText}>{r.label}</Text>
             </View>
             <View style={styles.eContentCell}>
