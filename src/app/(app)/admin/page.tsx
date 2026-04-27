@@ -3334,6 +3334,12 @@ function ExpenseGroupCard({
             onChange={(v) => set("logoImageUrl", v)}
           />
           <ExpenseImageField
+            label="작성자 서명"
+            value={group.writerSigImageUrl}
+            onChange={(v) => set("writerSigImageUrl", v)}
+            useCrop
+          />
+          <ExpenseImageField
             label="결재자 서명"
             value={group.approverSigImageUrl}
             onChange={(v) => set("approverSigImageUrl", v)}
@@ -3346,9 +3352,6 @@ function ExpenseGroupCard({
             useCrop
           />
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          * 작성자(지출 담당자)는 서명 이미지 없이 이름 글자로만 PDF에 표시돼요.
-        </p>
       </CardContent>
     </Card>
   );

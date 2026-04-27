@@ -1,8 +1,13 @@
 import Papa from "papaparse";
 import {
+  type ApprovalSettings,
   type ReturnApprovalCell,
   type ReturnSettings,
 } from "@/lib/firebase/firestore";
+import {
+  type ApprovalGroup,
+  resolveGroup,
+} from "@/lib/approval/labels";
 
 export type ReturnRow = {
   rowIndex: number;
@@ -148,58 +153,77 @@ export function recomputeReturnWarnings(
 }
 
 /* ─────────────────────────────────────────────────────────────────
- * 결재 셀 기본값 적용 — 출장자 이름으로 결재라인 자동 매핑
- *  - 장인선: [장인선 텍스트, 대각선, 장인선 서명(본부장)]
- *  - 김성윤: [김성윤 텍스트, 대각선, 김성윤 서명(대표이사)]
- *  - 그 외:  [출장자 텍스트, 채영지 서명(팀장), 장인선 서명(본부장)]
+ * 결재 셀 기본값 적용 — 출장자 이름·그룹으로 결재라인 자동 매핑
+ *  공통: cell0 = 담당(작성자 텍스트)
+ *  iPF (팀장/본부장):
+ *    - 장인선: [장인선 텍스트, 대각선, 장인선 서명(본부장)]
+ *    - 김성윤: [김성윤 텍스트, 대각선, 김성윤 서명(대표이사)]
+ *    - 그 외: [출장자 텍스트, 팀장 서명, 본부장 서명]
+ *  디미교연 (사무국장/대표이사):
+ *    - 박준호: [박준호 텍스트, 대각선, 박준호 서명(대표이사)]
+ *    - 그 외: [출장자 텍스트, 사무국장 서명, 대표이사 서명]
  * ─────────────────────────────────────────────────────────────── */
+
+/** 결재자1 셀을 본인 결재로 인식해 대각선 처리할 작성자 이름 (그룹별) */
+const SKIP_APPROVER1_BY_GROUP: Record<ApprovalGroup, Set<string>> = {
+  ipf: new Set(["장인선", "김성윤"]),
+  dimi: new Set(["박준호"]),
+};
 
 function applyDefaultApproval(
   settings: ReturnSettings,
+  approvalSettings: ApprovalSettings | null,
+  group: ApprovalGroup,
   writerName: string
 ): [ReturnApprovalCell, ReturnApprovalCell, ReturnApprovalCell] {
-  const sig = settings.signatures;
   const cellText = (label: string, text: string): ReturnApprovalCell => ({
-    label,
-    type: "text",
-    text,
-    imageUrl: "",
-    annotation: "",
+    label, type: "text", text, imageUrl: "", annotation: "",
   });
   const cellDiagonal = (label: string): ReturnApprovalCell => ({
-    label,
-    type: "diagonal",
-    text: "",
-    imageUrl: "",
-    annotation: "",
+    label, type: "diagonal", text: "", imageUrl: "", annotation: "",
   });
   const cellImage = (label: string, url: string): ReturnApprovalCell => ({
-    label,
-    type: "image",
-    text: "",
-    imageUrl: url,
-    annotation: "",
+    label, type: "image", text: "", imageUrl: url, annotation: "",
   });
 
-  if (writerName === "장인선") {
+  // 그룹 라벨·서명 (admin ApprovalSettings 우선, 없으면 ReturnSettings.signatures fallback)
+  const groupCfg = approvalSettings?.groups[group];
+  const sig = settings.signatures;
+  const label1 = groupCfg?.approver1Label ?? (group === "dimi" ? "사무국장" : "팀장");
+  const label2 = groupCfg?.approver2Label ?? (group === "dimi" ? "대표이사" : "본부장");
+  const sig1 = groupCfg?.approver1ImageUrl || sig.manager;
+  const sig2 = groupCfg?.approver2ImageUrl || sig.director;
+
+  // iPF 김성윤은 본인이 대표이사 위치라 라벨·서명 별도 처리
+  if (group === "ipf" && writerName === "김성윤") {
     return [
       cellText("담당", writerName),
-      cellDiagonal("팀장"),
-      cellImage("본부장", sig.director),
+      cellDiagonal(label1),
+      cellImage("대표이사", sig.ceo || sig2),
     ];
   }
-  if (writerName === "김성윤") {
+
+  const skipCell1 = SKIP_APPROVER1_BY_GROUP[group].has(writerName);
+  if (skipCell1) {
     return [
       cellText("담당", writerName),
-      cellDiagonal("팀장"),
-      cellImage("대표이사", sig.ceo),
+      cellDiagonal(label1),
+      cellImage(label2, sig2),
     ];
   }
   return [
     cellText("담당", writerName),
-    cellImage("팀장", sig.manager),
-    cellImage("본부장", sig.director),
+    cellImage(label1, sig1),
+    cellImage(label2, sig2),
   ];
+}
+
+/** 작성자_소속 텍스트로부터 결재 그룹 자동 감지 */
+export function detectReturnGroup(orgText: string): ApprovalGroup {
+  const t = (orgText || "").replace(/\s+/g, "");
+  // 디미교연: "(사)디지털미디어교육콘텐츠" 또는 "디미교연" 키워드
+  if (/디지털미디어교육|디미교연/.test(t)) return "dimi";
+  return "ipf";
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -209,7 +233,9 @@ function applyDefaultApproval(
 function buildRow(
   rowIndex: number,
   raw: Record<string, unknown>,
-  settings: ReturnSettings
+  settings: ReturnSettings,
+  approvalSettings: ApprovalSettings | null,
+  groupOverride: ApprovalGroup | "auto"
 ): ReturnRow {
   const get = (key: string) => String(raw[key] ?? "").trim();
   const primaryKey = get("Primary Key");
@@ -225,7 +251,9 @@ function buildRow(
   const payment = get("정산방법");
 
   const period = normalizePeriod(periodRaw);
-  const approval = applyDefaultApproval(settings, name);
+  const group: ApprovalGroup =
+    groupOverride === "auto" ? resolveGroup(org, "auto") : groupOverride;
+  const approval = applyDefaultApproval(settings, approvalSettings, group, name);
 
   return recomputeReturnWarnings({
     rowIndex,
@@ -254,7 +282,9 @@ function buildRow(
 
 export function parseReturnCsv(
   text: string,
-  settings: ReturnSettings
+  settings: ReturnSettings,
+  approvalSettings: ApprovalSettings | null = null,
+  groupOverride: ApprovalGroup | "auto" = "auto"
 ): ReturnRow[] {
   const result = Papa.parse<Record<string, string>>(text, {
     header: true,
@@ -265,16 +295,17 @@ export function parseReturnCsv(
   for (let i = 0; i < data.length; i++) {
     const r = data[i];
     if (!r) continue;
-    // Primary Key 또는 성명 둘 다 비면 스킵 (빈 줄 안전망)
     if (!r["Primary Key"]?.trim() && !r["출장자_성명"]?.trim()) continue;
-    rows.push(buildRow(i, r, settings));
+    rows.push(buildRow(i, r, settings, approvalSettings, groupOverride));
   }
   return rows;
 }
 
 export function parseReturnJson(
   text: string,
-  settings: ReturnSettings
+  settings: ReturnSettings,
+  approvalSettings: ApprovalSettings | null = null,
+  groupOverride: ApprovalGroup | "auto" = "auto"
 ): ReturnRow[] {
   const parsed: unknown = JSON.parse(text);
   if (!Array.isArray(parsed)) {
@@ -287,7 +318,7 @@ export function parseReturnJson(
     const pk = String(r["Primary Key"] ?? "").trim();
     const nm = String(r["출장자_성명"] ?? "").trim();
     if (!pk && !nm) continue;
-    rows.push(buildRow(i, r, settings));
+    rows.push(buildRow(i, r, settings, approvalSettings, groupOverride));
   }
   return rows;
 }
@@ -296,11 +327,13 @@ export function parseReturnJson(
 export function parseReturnInput(
   filename: string,
   text: string,
-  settings: ReturnSettings
+  settings: ReturnSettings,
+  approvalSettings: ApprovalSettings | null = null,
+  groupOverride: ApprovalGroup | "auto" = "auto"
 ): ReturnRow[] {
   const ext = filename.toLowerCase().split(".").pop();
-  if (ext === "json") return parseReturnJson(text, settings);
-  return parseReturnCsv(text, settings);
+  if (ext === "json") return parseReturnJson(text, settings, approvalSettings, groupOverride);
+  return parseReturnCsv(text, settings, approvalSettings, groupOverride);
 }
 
 export { COLUMN_KEYS };
