@@ -306,18 +306,25 @@ function computeStartYymmdd(periodText: string): string {
   return `${yy}${mm}${dd}`;
 }
 
-/** 그룹 검증 — hasEmpty/fieldWarnings 계산 후 새 객체 반환 */
+/**
+ * 그룹 검증 — hasEmpty/fieldWarnings 계산 후 새 객체 반환.
+ *
+ * hasEmpty는 "필수 필드 누락"만 반영. partnersMismatch나 hasNeedsReview는
+ * 별도 배지(거래처 불일치 / 검토 필요)로 따로 표시되므로 hasEmpty에 포함하지 않음.
+ * fieldWarnings에는 모두 포함하여 누락 표시 시 함께 노출.
+ */
 export function validateGroup(g: TripGroup): TripGroup {
   const w: string[] = [];
-  if (!g.writerName.trim()) w.push("「작성자 성명」이 비어 있어요");
-  if (!g.orgName.trim()) w.push("「작성자 소속(집행기관)」이 비어 있어요");
-  if (!g.partners.length) w.push("「출장 인원(거래처)」이 비어 있어요");
-  if (!g.periodText.trim()) w.push("「출장 기간」이 비어 있어요");
-  if (!g.outPlace.trim()) w.push("「출장지」가 비어 있어요");
-  if (!g.purposeText.trim()) w.push("「출장 목적」이 비어 있어요");
+  let missing = 0;
+  if (!g.writerName.trim()) { w.push("「작성자 성명」이 비어 있어요"); missing++; }
+  if (!g.orgName.trim()) { w.push("「작성자 소속(집행기관)」이 비어 있어요"); missing++; }
+  if (!g.partners.length) { w.push("「출장 인원(거래처)」이 비어 있어요"); missing++; }
+  if (!g.periodText.trim()) { w.push("「출장 기간」이 비어 있어요"); missing++; }
+  if (!g.outPlace.trim()) { w.push("「출장지」가 비어 있어요"); missing++; }
+  if (!g.purposeText.trim()) { w.push("「출장 목적」이 비어 있어요"); missing++; }
   if (g.partnersMismatch) w.push("그룹 내 행 간 거래처(출장자)가 다릅니다 — 검토 필요");
   if (g.hasNeedsReview) w.push("자동 분류 실패 항목 있음 — 소요경비 표 검토 필요");
-  return { ...g, hasEmpty: w.length > 0, fieldWarnings: w };
+  return { ...g, hasEmpty: missing > 0, fieldWarnings: w };
 }
 
 /** 그룹의 expenseTable을 rows로부터 다시 계산 (사용자가 "재계산" 누르거나 partners/days 변경 시) */

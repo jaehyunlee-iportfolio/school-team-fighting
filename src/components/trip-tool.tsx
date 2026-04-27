@@ -570,10 +570,14 @@ function GroupEditDialog({
   };
 
   const updateExpenseRow = (cat: ExpenseCategory, patch: Partial<ExpenseTableRow>) => {
-    setExpense((cur) => ({
-      ...cur,
-      [cat]: { ...cur[cat], ...patch },
-    }));
+    setExpense((cur) => {
+      const merged = { ...cur[cat], ...patch };
+      // 사용자가 contentText에서 ⚠를 지우면 자동으로 검토 필요 해제 → PDF에서 검정색 렌더
+      if ("contentText" in patch) {
+        merged.needsReview = merged.contentText.includes("⚠");
+      }
+      return { ...cur, [cat]: merged };
+    });
   };
 
   return (
@@ -1014,13 +1018,14 @@ export function TripTool() {
   const previewStart = useRef(false);
 
   const onPreviewIndex = useCallback(
-    async (i: number) => {
-      if (i < 0 || i >= groups.length) return;
+    async (i: number, override?: TripGroup) => {
+      const target = override ?? groups[i];
+      if (!target || i < 0) return;
       setPreviewI(i);
       setPreviewPending(true);
       try {
         registerPdfFonts();
-        const b = await makeBlobFor(groups[i]);
+        const b = await makeBlobFor(target);
         setPreviewUrl((old) => {
           if (old) URL.revokeObjectURL(old);
           return URL.createObjectURL(b);
@@ -1539,8 +1544,11 @@ export function TripTool() {
           open
           onOpenChange={(v) => { if (!v) setEditingRowIdx(null); }}
           onSave={(updated) => {
-            updateGroup(editingRowIdx, updated);
-            if (mode === "preview") void onPreviewIndex(editingRowIdx);
+            // updateGroup은 비동기적으로 state를 갱신하므로,
+            // 미리보기는 갱신본을 직접 전달해 즉시 반영.
+            const next = recomputeGroupWithApprovalOverride(updated, approvalMode);
+            updateGroup(editingRowIdx, next);
+            if (mode === "preview") void onPreviewIndex(editingRowIdx, next);
           }}
         />
       )}
