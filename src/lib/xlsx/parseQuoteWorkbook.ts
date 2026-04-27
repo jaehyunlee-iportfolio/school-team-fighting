@@ -13,7 +13,11 @@
 
 import * as XLSX from "xlsx";
 import { normalizeSchoolName } from "@/lib/school/normalize";
-import type { QuoteSheet, QuoteSheetItem } from "@/lib/sw/types";
+import type {
+  QuoteSheet,
+  QuoteSheetItem,
+  QuoteSheetUser,
+} from "@/lib/sw/types";
 
 const META_SHEET_NAMES = new Set([
   "종합",
@@ -26,12 +30,19 @@ const META_SHEET_NAMES = new Set([
 
 const HEADER_ROW = 13;        // 1-based
 const DATA_START_ROW = 14;    // 1-based
-const MAX_DATA_ROW = 50;      // safety cap
+const MAX_DATA_ROW = 60;      // safety cap
 
+// 좌측 견적서 표
 const COL_NO = 1;
 const COL_PRODUCT = 2;
 const COL_QTY = 7;
 const COL_MONTH = 9;
+
+// 우측 사용자 명단
+const COL_LIST_NO = 15;       // O — "No." (값 "예시"면 skip)
+const COL_LIST_NAME = 16;     // P — "이름"
+const COL_LIST_PHONE = 17;    // Q — "연락처"
+const COL_LIST_PERIOD = 21;   // U — "실제 구독일자(기간)" 또는 "신청 에듀테크"
 
 const QUOTE_DATE_ROW = 5;
 const QUOTE_DATE_COL = 3;
@@ -61,15 +72,12 @@ function cellNumber(ws: XLSX.WorkSheet, r: number, c: number): number | null {
 function parseSheet(ws: XLSX.WorkSheet, sheetName: string): QuoteSheet {
   const quoteDateRaw = cellText(ws, QUOTE_DATE_ROW, QUOTE_DATE_COL);
 
+  // 좌측 견적서 표
   const items: QuoteSheetItem[] = [];
   for (let r = DATA_START_ROW; r <= MAX_DATA_ROW; r++) {
     const product = cellText(ws, r, COL_PRODUCT);
     const noText = cellText(ws, r, COL_NO);
-    if (!product && !noText) {
-      // 두 컬럼 모두 비면 종료
-      // 단 단가/금액 행에 0이 들어있을 수 있으니 product 기준만으로 종료해도 OK
-      break;
-    }
+    if (!product && !noText) break;
     if (!product) continue;
     const qtyN = cellNumber(ws, r, COL_QTY);
     const monthN = cellNumber(ws, r, COL_MONTH);
@@ -80,7 +88,28 @@ function parseSheet(ws: XLSX.WorkSheet, sheetName: string): QuoteSheet {
     });
   }
 
-  return { sheetName, quoteDateRaw, items };
+  // 우측 사용자 명단 — U13 헤더로 기간/SW명 분기
+  const periodHeader = cellText(ws, HEADER_ROW, COL_LIST_PERIOD);
+  const periodCellIsDate = /실제|기간/.test(periodHeader);
+
+  const users: QuoteSheetUser[] = [];
+  for (let r = DATA_START_ROW; r <= MAX_DATA_ROW; r++) {
+    const name = cellText(ws, r, COL_LIST_NAME);
+    const noText = cellText(ws, r, COL_LIST_NO);
+    if (!name) {
+      // 이름 비면 종료. 단 빈 row 사이에 더 있을 수 있으니 다음 1행만 더 봐서 둘 다 비면 정말 끝
+      const nextName = cellText(ws, r + 1, COL_LIST_NAME);
+      if (!nextName) break;
+      continue;
+    }
+    // "예시" 행 skip
+    if (/^예시/.test(noText) || /^예시/.test(name)) continue;
+    const phone = cellText(ws, r, COL_LIST_PHONE);
+    const periodCell = cellText(ws, r, COL_LIST_PERIOD);
+    users.push({ name, phone, periodCell });
+  }
+
+  return { sheetName, quoteDateRaw, items, users, periodCellIsDate };
 }
 
 export type QuoteWorkbookResult = {

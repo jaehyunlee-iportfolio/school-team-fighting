@@ -84,30 +84,35 @@ export function enrichSwRequestRows(
       fieldWarnings.push("견적일자 파싱 실패");
     }
 
-    // 4. items 보강 (비고가 진실의 출처)
-    const items = row.items.map((it) => {
+    // 4. items 보강 (비고가 진실의 출처, 1라이선스/행 단위로 unfold 됨)
+    //    - user: xlsx 시트 우측 사용자 명단의 i번째 (없으면 담당자명 fallback)
+    //    - period: 명단 U열 (실제 구독일자/기간) 우선 → 비고 M개월 fallback
+    const items = row.items.map((it, i) => {
       const itemWarnings: string[] = [...it.warnings];
+      const sheetUser = quote?.users[i];
+
+      const user = it.user || sheetUser?.name || applicantName;
+
       let period = it.period;
-
-      // user 는 담당자명으로 채움 (사용자 후속 편집 가능)
-      const user = it.user || applicantName;
-
-      // xlsx 에서 같은 product 찾기 (느슨한 매칭)
-      let xlsxMatched = false;
-      if (quote) {
-        const target = loosenProduct(it.product);
-        const found = quote.items.find((qi) => loosenProduct(qi.product) === target)
-          || quote.items.find((qi) => {
-            const a = loosenProduct(qi.product);
-            return a.includes(target) || target.includes(a);
-          });
-        if (found) {
-          xlsxMatched = true;
-          if (!period && found.period) period = found.period;
+      if (sheetUser && quote?.periodCellIsDate && sheetUser.periodCell) {
+        period = sheetUser.periodCell;
+      } else if (!period) {
+        // 명단에 기간 없고 비고에도 없으면 좌측 견적서 표에서 product 매칭으로 보강
+        if (quote) {
+          const target = loosenProduct(it.product);
+          const found =
+            quote.items.find((qi) => loosenProduct(qi.product) === target) ||
+            quote.items.find((qi) => {
+              const a = loosenProduct(qi.product);
+              return a.includes(target) || target.includes(a);
+            });
+          if (found?.period) period = found.period;
         }
       }
-      if (matched && quote && !xlsxMatched) {
-        itemWarnings.push(`견적서에 "${it.product}" 매칭 행 없음`);
+
+      // xlsx 시트는 있지만 i번째 사용자가 없는 경우 경고
+      if (matched && quote && !sheetUser) {
+        itemWarnings.push("xlsx 명단에 해당 순번 사용자 없음");
       }
 
       return {
@@ -118,10 +123,10 @@ export function enrichSwRequestRows(
       };
     });
 
-    // 5. 항목 수 불일치 체크
-    if (matched && quote && items.length !== quote.items.length) {
+    // 5. 명단 수 vs 펼친 비고 항목 수 불일치 체크
+    if (matched && quote && items.length !== quote.users.length) {
       fieldWarnings.push(
-        `비고 ${items.length}개 vs 견적서 ${quote.items.length}개 항목 수 불일치`,
+        `비고 펼침 ${items.length}건 vs 명단 ${quote.users.length}명 불일치`,
       );
     }
 

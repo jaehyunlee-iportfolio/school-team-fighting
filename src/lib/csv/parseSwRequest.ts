@@ -70,19 +70,20 @@ function parseBulletLine(line: string): { school: string; items: SwLineItem[] } 
   }
   if (buf.trim()) segments.push(buf.trim());
 
-  const items: SwLineItem[] = segments
-    .map((seg) => parseProductSegment(seg))
-    .filter((x): x is SwLineItem => !!x);
+  // 각 segment 의 수량만큼 unfold (1라이선스/행 단위)
+  const items: SwLineItem[] = segments.flatMap((seg) => unfoldProductSegment(seg));
 
   if (items.length === 0) return null;
   return { school, items };
 }
 
 /**
- * "Padlet(2개/240,000원/6개월)" → { product:"Padlet", quantity:"2개", period:"6개월" }
- * 슬래시 구분 토큰 중 "N개" → quantity, "M개월"/"M년" 등 → period, 나머지(금액)는 무시
+ * "Padlet(2개/240,000원/6개월)" → 2개의 SwLineItem
+ *   각각 { product:"Padlet", quantity:"1개", period:"6개월" }
+ *
+ * 수량 N 만큼 행을 펼친다. 수량 파싱 실패 시 1로 간주.
  */
-function parseProductSegment(seg: string): SwLineItem | null {
+function unfoldProductSegment(seg: string): SwLineItem[] {
   const m = seg.match(/^(.+?)\s*\(\s*(.+?)\s*\)\s*$/);
   let product: string;
   let inner: string | null;
@@ -93,28 +94,33 @@ function parseProductSegment(seg: string): SwLineItem | null {
     product = seg.trim();
     inner = null;
   }
-  if (!product) return null;
+  if (!product) return [];
 
-  let quantity = "";
+  let count = 1;
   let period = "";
   if (inner) {
     const tokens = inner.split("/").map((t) => t.trim());
     for (const t of tokens) {
       if (/개월$|년$|주$|일$/.test(t) && /\d/.test(t)) {
         period = t;
-      } else if (/개$/.test(t) && /\d/.test(t)) {
-        quantity = t;
+      } else if (/개$/.test(t)) {
+        const n = parseInt(t.replace(/[^\d]/g, ""), 10);
+        if (Number.isFinite(n) && n > 0) count = n;
       }
     }
   }
 
-  return {
-    user: "",
-    product,
-    quantity,
-    period,
-    warnings: [],
-  };
+  const out: SwLineItem[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push({
+      user: "",
+      product,
+      quantity: "1개",
+      period,
+      warnings: [],
+    });
+  }
+  return out;
 }
 
 export type SwRequestParseResult = {

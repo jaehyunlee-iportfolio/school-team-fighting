@@ -51,12 +51,25 @@ export type QuoteSheetItem = {
   period: string;     // 개월 문자열 (예: "5")
 };
 
+/** xlsx 시트의 사용자 명단 한 줄 (P14~) */
+export type QuoteSheetUser = {
+  name: string;
+  phone: string;
+  /** U열 텍스트 — "실제 구독일자(기간)" 헤더면 기간, "신청 에듀테크"면 SW명 (이때는 사용 안 함) */
+  periodCell: string;
+};
+
 export type QuoteSheet = {
   /** 시트명 (= 학교명) */
   sheetName: string;
   /** 견적일자 원본 텍스트 (예: "2025 년 09 월 25 일") */
   quoteDateRaw: string;
+  /** 좌측 견적서 표 (참고용) */
   items: QuoteSheetItem[];
+  /** 우측 사용자 명단 (P14~). "예시" 행은 제외. */
+  users: QuoteSheetUser[];
+  /** U열 헤더가 "실제 …(기간)" 류면 true. "신청 에듀테크"면 false → 기간 컬럼 무시 */
+  periodCellIsDate: boolean;
 };
 
 /** 학교 신청자 관리 CSV에서 추출된 학교 사전 1개 항목 */
