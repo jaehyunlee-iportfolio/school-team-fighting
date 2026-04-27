@@ -34,6 +34,7 @@ import {
   buildTripGroups,
   recomputeGroupExpense,
   recomputeGroupWithApprovalOverride,
+  splitGroupByPartners,
   validateGroup,
 } from "@/lib/trip/expense";
 import { drafterSignatureGraphemes } from "@/lib/names/parseName";
@@ -705,6 +706,7 @@ function GroupCard({
   onSelect,
   onEdit,
   onRemove,
+  onSplit,
 }: {
   g: TripGroup;
   index: number;
@@ -714,6 +716,7 @@ function GroupCard({
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
+  onSplit: () => void;
 }) {
   const lab = getApprovalHeaderLabels(g.orgName, approvalMode);
   return (
@@ -764,9 +767,19 @@ function GroupCard({
             </Badge>
           )}
           {g.partnersMismatch && (
-            <Badge variant="destructive" className="text-[10px] sm:text-xs">
-              거래처 불일치
-            </Badge>
+            <>
+              <Badge variant="destructive" className="text-[10px] sm:text-xs">
+                거래처 불일치
+              </Badge>
+              <button
+                type="button"
+                className="inline-flex h-5 items-center rounded-md border border-border bg-background px-1.5 text-[10px] font-medium text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-foreground/10 sm:text-xs"
+                onClick={(e) => { e.stopPropagation(); onSplit(); }}
+                title="거래처별로 그룹을 분리해 각각 별도 출장신청서로 생성"
+              >
+                분리
+              </button>
+            </>
           )}
           {g.hasNeedsReview && (
             <Badge className="border-0 bg-amber-100 text-amber-800 text-[10px] sm:text-xs dark:bg-amber-950/50 dark:text-amber-200">
@@ -869,6 +882,23 @@ export function TripTool() {
 
   const updateGroup = (index: number, updated: TripGroup) => {
     setGroups((cur) => cur.map((g, i) => (i === index ? recomputeGroupWithApprovalOverride(updated, approvalMode) : g)));
+  };
+
+  const splitGroup = (index: number) => {
+    setGroups((cur) => {
+      const target = cur[index];
+      if (!target) return cur;
+      const subs = splitGroupByPartners(target);
+      if (subs.length <= 1) {
+        toast("분리할 거래처가 1개라 변경 없음");
+        return cur;
+      }
+      const next = [...cur.slice(0, index), ...subs, ...cur.slice(index + 1)];
+      toast.success(`#${index + 1}번 그룹을 ${subs.length}개로 분리했어요`);
+      // 분리 후 미리보기 인덱스 보정 (원래 자리에서 첫 분리본을 가리키도록)
+      setPreviewI((p) => (p === index ? index : p > index ? p + (subs.length - 1) : p));
+      return next;
+    });
   };
 
   const reapplyApproval = (m: ApprovalGroup | "auto") => {
@@ -1401,6 +1431,7 @@ export function TripTool() {
                           onSelect={() => mode === "preview" ? void onPreviewIndex(i) : undefined}
                           onEdit={() => setEditingRowIdx(i)}
                           onRemove={() => removeGroup(i)}
+                          onSplit={() => splitGroup(i)}
                         />
                       </div>
                     ))}

@@ -340,6 +340,43 @@ export function recomputeGroupExpense(g: TripGroup): TripGroup {
   return validateGroup({ ...g, days, nights, expenseTable, hasNeedsReview });
 }
 
+/**
+ * 거래처 불일치 그룹을 partners 기준으로 하위 그룹으로 분리.
+ *
+ * 예) D-4-22(손병성) + D-4-23(채영지) + D-4-24(채영지)가 한 그룹이라면,
+ *     손병성 행 / 채영지 행 두 그룹으로 분리되어 각자 독립된 출장신청서가 됨.
+ *
+ * partnersMismatch가 false인 그룹은 그대로 1개 그룹으로 반환.
+ */
+export function splitGroupByPartners(group: TripGroup): TripGroup[] {
+  if (!group.partnersMismatch) return [group];
+  // partners 시그니처(정렬해 안정화)별로 행을 모음
+  const buckets = new Map<string, TripRow[]>();
+  for (const r of group.rows) {
+    const sig = r.partners.slice().sort().join("|") || "(empty)";
+    const arr = buckets.get(sig) ?? [];
+    arr.push(r);
+    buckets.set(sig, arr);
+  }
+  // 그룹 등장 순서 유지 (rows 첫 등장 인덱스 기준)
+  const firstIdx = new Map<string, number>();
+  for (let i = 0; i < group.rows.length; i++) {
+    const sig = group.rows[i].partners.slice().sort().join("|") || "(empty)";
+    if (!firstIdx.has(sig)) firstIdx.set(sig, i);
+  }
+  const orderedSigs = Array.from(buckets.keys()).sort(
+    (a, b) => (firstIdx.get(a) ?? 0) - (firstIdx.get(b) ?? 0)
+  );
+  return orderedSigs.map((sig, n) => {
+    const members = buckets.get(sig)!;
+    // 키는 그룹별로 고유하게 (분리 후에도 충돌 방지)
+    const subKey = `${group.key}#split${n}`;
+    const sub = buildOneGroup(subKey, members);
+    // 원래 그룹의 결재 오버라이드 유지
+    return recomputeGroupWithApprovalOverride(sub, group.approvalGroupOverride);
+  });
+}
+
 /** 결재 그룹 오버라이드를 적용해 approver1/2를 다시 계산 */
 export function recomputeGroupWithApprovalOverride(
   g: TripGroup,
