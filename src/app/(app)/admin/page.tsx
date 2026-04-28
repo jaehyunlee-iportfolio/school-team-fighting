@@ -156,6 +156,29 @@ export default function AdminPage() {
   const [expenseLayout, setExpenseLayout] = useState<ExpenseLayoutSettings | null>(null);
   const [savingExpense, setSavingExpense] = useState(false);
   const [savingExpenseLayout, setSavingExpenseLayout] = useState(false);
+  /** 미리보기 샘플 텍스트 — 어드민 세션 동안만 유지, 저장 안 됨 */
+  const [expensePreviewSample, setExpensePreviewSample] = useState<{
+    note: string;
+    useDetail: string;
+    vendor: string;
+    executionDate: string;
+    evidenceNo: string;
+    payment: string;
+    supply: string;
+    vat: string;
+    total: string;
+  }>({
+    note: "교통비 지급(20,000원)",
+    useDetail:
+      "1. 전문가명(신예진)\n2. 산출내역 및 활용내용\n- 5/24: 코디강사역량강화세미나(참석) 교통비 20,000원(이동거리 50km 이내)",
+    vendor: "신예진",
+    executionDate: "2026. 3. 31",
+    evidenceNo: "D-1-100",
+    payment: "계좌이체",
+    supply: "20000",
+    vat: "",
+    total: "20000",
+  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -686,8 +709,26 @@ export default function AdminPage() {
             <TabsContent value="layout">
               <div className="flex flex-col gap-6 lg:flex-row">
                 <div className="w-full shrink-0 lg:w-[420px]">
-                  <div className="sticky top-4">
-                    <ExpensePreview layout={expenseLayout} group={expenseSettings.groups.ipf} />
+                  <div className="sticky top-4 space-y-3">
+                    <ExpensePreview
+                      layout={expenseLayout}
+                      group={expenseSettings.groups.ipf}
+                      sampleOverrides={{
+                        note: expensePreviewSample.note,
+                        useDetail: expensePreviewSample.useDetail,
+                        vendor: expensePreviewSample.vendor,
+                        executionDate: expensePreviewSample.executionDate,
+                        evidenceNo: expensePreviewSample.evidenceNo,
+                        payment: expensePreviewSample.payment,
+                        supply: Number(expensePreviewSample.supply) || 0,
+                        vat: expensePreviewSample.vat === "" ? null : (Number(expensePreviewSample.vat) || 0),
+                        total: Number(expensePreviewSample.total) || 0,
+                      }}
+                    />
+                    <ExpenseSampleEditor
+                      sample={expensePreviewSample}
+                      onChange={setExpensePreviewSample}
+                    />
                   </div>
                 </div>
                 <div className="min-w-0 flex-1 space-y-4">
@@ -3196,12 +3237,116 @@ const MOCK_EXPENSE_ROW: ExpenseRow = {
   fieldWarnings: [],
 };
 
+/** 어드민 미리보기에서 덮어쓸 수 있는 샘플 텍스트 입력 */
+export type ExpenseSampleOverrides = Partial<Pick<
+  ExpenseRow,
+  "useDetail" | "note" | "vendor" | "executionDate" | "evidenceNo" | "payment" | "supply" | "vat" | "total"
+>>;
+
+type ExpenseSampleState = {
+  note: string;
+  useDetail: string;
+  vendor: string;
+  executionDate: string;
+  evidenceNo: string;
+  payment: string;
+  supply: string;
+  vat: string;
+  total: string;
+};
+
+function ExpenseSampleEditor({
+  sample,
+  onChange,
+}: {
+  sample: ExpenseSampleState;
+  onChange: (next: ExpenseSampleState) => void;
+}) {
+  const set = (k: keyof ExpenseSampleState, v: string) => onChange({ ...sample, [k]: v });
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm">미리보기 샘플 텍스트</CardTitle>
+        <CardDescription className="text-[11px]">
+          저장되지 않아요. 비고·사용내역이 길어질 때 PDF에 어떻게 들어가는지 확인용.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-[11px]">증빙번호</Label>
+            <Input value={sample.evidenceNo} onChange={(e) => set("evidenceNo", e.target.value)} className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">거래처</Label>
+            <Input value={sample.vendor} onChange={(e) => set("vendor", e.target.value)} className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">집행일자</Label>
+            <Input value={sample.executionDate} onChange={(e) => set("executionDate", e.target.value)} className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">지급방법</Label>
+            <Input value={sample.payment} onChange={(e) => set("payment", e.target.value)} className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">공급가액</Label>
+            <Input
+              type="number"
+              value={sample.supply}
+              onChange={(e) => set("supply", e.target.value)}
+              className="h-8 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px]">세액 (빈칸 = -)</Label>
+            <Input
+              type="number"
+              value={sample.vat}
+              onChange={(e) => set("vat", e.target.value)}
+              className="h-8 text-xs"
+              placeholder="-"
+            />
+          </div>
+          <div className="space-y-1 col-span-2">
+            <Label className="text-[11px]">합계금액 (지출금액)</Label>
+            <Input
+              type="number"
+              value={sample.total}
+              onChange={(e) => set("total", e.target.value)}
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[11px]">사용내역(수령인) — 지출 목적</Label>
+          <textarea
+            value={sample.useDetail}
+            onChange={(e) => set("useDetail", e.target.value)}
+            className="min-h-[80px] w-full rounded-md border bg-background px-2 py-1.5 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[11px]">비고</Label>
+          <textarea
+            value={sample.note}
+            onChange={(e) => set("note", e.target.value)}
+            className="min-h-[60px] w-full rounded-md border bg-background px-2 py-1.5 text-xs"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ExpensePreview({
   layout,
   group,
+  sampleOverrides,
 }: {
   layout: ExpenseLayoutSettings;
   group: ExpenseGroupSettings;
+  sampleOverrides?: ExpenseSampleOverrides;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -3216,8 +3361,9 @@ function ExpensePreview({
       setError(null);
       try {
         registerPdfFonts();
+        const row: ExpenseRow = { ...MOCK_EXPENSE_ROW, ...(sampleOverrides ?? {}) };
         const blob = await pdf(
-          <ExpenseDocument row={MOCK_EXPENSE_ROW} group={group} layout={layout} />,
+          <ExpenseDocument row={row} group={group} layout={layout} />,
         ).toBlob();
         if (gen !== generation.current) return;
         const newUrl = URL.createObjectURL(blob);
@@ -3232,7 +3378,7 @@ function ExpensePreview({
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [layout, group]);
+  }, [layout, group, sampleOverrides]);
 
   useEffect(() => {
     return () => {
