@@ -203,6 +203,13 @@ function buildStyles(cfg: ReturnLayoutSettings) {
       alignItems: "center" as const,
       paddingHorizontal: 2,
     },
+    /* 페이지 하단 푸터 (조직명) */
+    footer: {
+      marginTop: cfg.footer.marginTop,
+      textAlign: "center" as const,
+      fontSize: cfg.footer.fontSize,
+      fontWeight: cfg.footer.fontWeight as 700,
+    },
     /* 업무내용 / 특이사항 */
     workContentCell: {
       flex: 1,
@@ -483,6 +490,9 @@ export function BusinessReturnDocument({ row, layout }: BusinessReturnDocumentPr
               <Text style={[styles.valueText, paymentFb.color ? { color: paymentFb.color } : {}]}>{paymentFb.text}</Text>
             </View>
           </View>
+          <Text style={[styles.footer, orgFb.color ? { color: orgFb.color } : {}]}>
+            {orgFb.text}
+          </Text>
         </View>
       </Page>
       {row.photos && row.photos.length > 0 ? (

@@ -638,6 +638,12 @@ export type ReturnLayoutSettings = {
     paddingV: number;
     paddingH: number;
   };
+  /** 페이지 하단 가운데 표시되는 조직명 (출장신청서와 동일 패턴) */
+  footer: {
+    fontSize: number;
+    fontWeight: number;
+    marginTop: number;
+  };
   placeholders: {
     emptyField: string;
     emptyFieldColor: string;
@@ -687,6 +693,7 @@ export const DEFAULT_RETURN_LAYOUT: ReturnLayoutSettings = {
     paddingV: 5,
     paddingH: 8,
   },
+  footer: { fontSize: 15, fontWeight: 700, marginTop: 42 },
   placeholders: {
     emptyField: "—",
     emptyFieldColor: "#DC2626",
