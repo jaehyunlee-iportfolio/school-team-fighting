@@ -142,6 +142,11 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
             </View>
             <View style={[styles.tableCell, { width: w(noteRightW) }]}>
               <Text style={[styles.noteText, { textAlign: ec.colNoteAlign }]}>{row.note || ""}</Text>
+              {row.includeUseDetailInNote && row.useDetail.trim() ? (
+                <Text style={[styles.noteText, { textAlign: ec.colNoteAlign, marginTop: row.note.trim() ? 4 : 0 }]}>
+                  {row.useDetail}
+                </Text>
+              ) : null}
             </View>
           </View>
         </View>

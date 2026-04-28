@@ -70,10 +70,12 @@ export type ExpenseRow = {
   vat: number | null;
   /** 합계금액 (지출금액) */
   total: number;
-  /** 사용내역(수령인) — 기본은 PDF에 표시 안 됨, includeUseDetail이 true면 지출 목적 아래 추가 */
+  /** 사용내역(수령인) — 기본은 PDF에 표시 안 됨, 두 토글로 어디 출력할지 결정 */
   useDetail: string;
-  /** 사용내역을 PDF "2. 지출 목적" 섹션에 함께 출력할지 여부 */
+  /** 사용내역을 PDF "2. 지출 목적" 섹션에 함께 출력 */
   includeUseDetail: boolean;
+  /** 사용내역을 PDF 지출결의 내용 표의 비고 셀에 함께 출력 */
+  includeUseDetailInNote: boolean;
   /** 지출목적 — PDF "2. 지출 목적"에 들어감 */
   purpose: string;
   payment: string;

@@ -949,8 +949,13 @@ function ExpenseRowEditDialog({
             />
           </Field>
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <Label className="text-xs">사용내역(수령인)</Label>
+            <Label className="text-xs">사용내역(수령인)</Label>
+            <textarea
+              value={draft.useDetail}
+              onChange={(e) => set("useDetail", e.target.value)}
+              className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm"
+            />
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
               <label className="flex cursor-pointer items-center gap-2 text-xs">
                 <input
                   type="checkbox"
@@ -959,14 +964,17 @@ function ExpenseRowEditDialog({
                 />
                 <span>PDF 지출 목적에 함께 표시</span>
               </label>
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={draft.includeUseDetailInNote}
+                  onChange={(e) => set("includeUseDetailInNote", e.target.checked)}
+                />
+                <span>비고에 함께 표시</span>
+              </label>
             </div>
-            <textarea
-              value={draft.useDetail}
-              onChange={(e) => set("useDetail", e.target.value)}
-              className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            />
             <p className="text-[10px] text-muted-foreground">
-              체크하면 지출 목적 본문 아래에 한 줄 띄우고 추가됨. 체크 해제 시 PDF에 표시 안 됨.
+              두 옵션 모두 체크 해제 시 PDF에 표시 안 됨. 둘 다 체크하면 양쪽에 출력.
             </p>
           </div>
           <Field label="비고 (PDF 지출결의 내용 표 비고 행에 들어감)">
