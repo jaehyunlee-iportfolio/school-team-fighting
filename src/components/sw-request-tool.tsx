@@ -18,6 +18,7 @@ import { SwRequestDocument } from "@/components/pdf/sw-request-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { parseSwRequestCsv } from "@/lib/csv/parseSwRequest";
 import { parseSchoolApplicantsCsv } from "@/lib/csv/parseSchoolApplicants";
+import { parseSwConfirmedCsv } from "@/lib/csv/parseSwConfirmed";
 import {
   parseQuoteWorkbookFile,
   parseQuoteDate,
@@ -62,6 +63,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type AppStep = "input" | "validate" | "result";
+type InputMode = "triple" | "confirmed";
 
 const STEPS: { id: AppStep; label: string }[] = [
   { id: "input", label: "자료" },
@@ -287,6 +289,45 @@ function SwRequestRowEditDialog({
                 </div>
               </div>
             </div>
+            {draft.quoteDateOptions && draft.quoteDateOptions.length > 1 && (
+              <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50/50 p-2.5">
+                <Label className="text-[11px] text-amber-800">
+                  같은 그룹에서 신청일자가 {draft.quoteDateOptions.length}개 발견됐어요. 하나를 고르면 위 날짜 칸이 자동 채워져요.
+                </Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {draft.quoteDateOptions.map((opt) => {
+                    const ymd = parseQuoteDate(opt);
+                    const selected =
+                      ymd.y === draft.quoteY && ymd.m === draft.quoteM && ymd.d === draft.quoteD;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          const v = parseQuoteDate(opt);
+                          setDraft((d) => ({
+                            ...d,
+                            quoteDateRaw: opt,
+                            quoteY: v.y || d.quoteY,
+                            quoteM: v.m || d.quoteM,
+                            quoteD: v.d || d.quoteD,
+                            quoteYymmdd: v.yymmdd,
+                          }));
+                        }}
+                        className={cn(
+                          "rounded-md border px-2 py-1 text-xs transition-colors",
+                          selected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background hover:border-primary hover:bg-muted/40",
+                        )}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </section>
 
           <Separator />
@@ -454,9 +495,11 @@ function UploadSlot({
 
 export function SwRequestTool() {
   const [step, setStep] = useState<AppStep>("input");
+  const [inputMode, setInputMode] = useState<InputMode>("triple");
   const [d3File, setD3File] = useState<File | null>(null);
   const [applicantsFile, setApplicantsFile] = useState<File | null>(null);
   const [xlsxFile, setXlsxFile] = useState<File | null>(null);
+  const [confirmedFile, setConfirmedFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
 
   const [rows, setRows] = useState<SwRequestRow[]>([]);
@@ -498,7 +541,8 @@ export function SwRequestTool() {
   );
   const warnCount = rows.length - okCount;
 
-  const allReady = !!(d3File && applicantsFile && xlsxFile);
+  const tripleReady = !!(d3File && applicantsFile && xlsxFile);
+  const confirmedReady = !!confirmedFile;
 
   const doParse = useCallback(async () => {
     if (!d3File || !applicantsFile || !xlsxFile) return;
@@ -530,12 +574,43 @@ export function SwRequestTool() {
     }
   }, [d3File, applicantsFile, xlsxFile, settings]);
 
+  const doParseConfirmed = useCallback(async () => {
+    if (!confirmedFile) return;
+    setParsing(true);
+    try {
+      const text = await readFileText(confirmedFile);
+      const result = parseSwConfirmedCsv(text);
+      if (result.rows.length === 0) {
+        toast.error("CSV 에서 행을 찾지 못했어요. 헤더(학교/증빙번호)를 확인해 주세요.");
+        return;
+      }
+      // applicantTarget 기본값 적용 (어드민 설정의 defaultTarget)
+      const withTarget = result.rows.map((r) => ({
+        ...r,
+        applicantTarget: r.applicantTarget || settings.defaultTarget,
+      }));
+      setRows(withTarget);
+      setStep("validate");
+      toast.success(
+        `${withTarget.length}건을 읽었어요 (${result.totalSourceRows}행 → ${withTarget.length}그룹).`,
+      );
+    } catch (e) {
+      console.error(e);
+      toast.error("CSV 파싱에 실패했어요.");
+    } finally {
+      setParsing(false);
+    }
+  }, [confirmedFile, settings]);
+
   // 모든 입력 채워지면 자동 파싱
   useEffect(() => {
-    if (allReady && step === "input") {
+    if (step !== "input") return;
+    if (inputMode === "triple" && tripleReady) {
       void doParse();
+    } else if (inputMode === "confirmed" && confirmedReady) {
+      void doParseConfirmed();
     }
-  }, [allReady, step, doParse]);
+  }, [inputMode, tripleReady, confirmedReady, step, doParse, doParseConfirmed]);
 
   const makeBlobFor = useCallback(
     async (row: SwRequestRow) => {
@@ -665,40 +740,88 @@ export function SwRequestTool() {
       {/* ── STEP 1: 자료 ── */}
       {step === "input" && (
         <Card className="mx-auto max-w-3xl">
-          <CardHeader className="space-y-1 pb-4">
+          <CardHeader className="space-y-3 pb-4">
             <CardTitle className="text-lg">1. 자료</CardTitle>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+              <button
+                type="button"
+                onClick={() => setInputMode("triple")}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  inputMode === "triple"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                3개 파일 (D-3 + 학교 + 견적서)
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode("confirmed")}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  inputMode === "confirmed"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                통합 CSV 1개
+              </button>
+            </div>
             <CardDescription className="text-xs">
-              세 파일을 모두 올리면 자동으로 다음 단계로 넘어가요.
+              {inputMode === "triple"
+                ? "세 파일을 모두 올리면 자동으로 다음 단계로 넘어가요."
+                : "통합 CSV 파일 1개를 올리면 자동으로 다음 단계로 넘어가요."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <UploadSlot
-              label="① D-3 소프트웨어활용비 CSV"
-              description="아★…D-3.소프트웨어활용비.csv 파일을 올려주세요"
-              accept=".csv"
-              filename={d3File?.name ?? null}
-              onPick={(f) => setD3File(f)}
-              busy={parsing}
-              icon={<FileUp className="size-5 text-muted-foreground" />}
-            />
-            <UploadSlot
-              label="② 학교 신청자 관리 CSV"
-              description="학교별 담당자/연락처 매핑 CSV"
-              accept=".csv"
-              filename={applicantsFile?.name ?? null}
-              onPick={(f) => setApplicantsFile(f)}
-              busy={parsing}
-              icon={<FileUp className="size-5 text-muted-foreground" />}
-            />
-            <UploadSlot
-              label="③ 학교별 에듀테크 견적서 xlsx"
-              description="시트별로 학교 견적이 들어있는 xlsx"
-              accept=".xlsx"
-              filename={xlsxFile?.name ?? null}
-              onPick={(f) => setXlsxFile(f)}
-              busy={parsing}
-              icon={<FileSpreadsheet className="size-5 text-muted-foreground" />}
-            />
+            {inputMode === "triple" ? (
+              <>
+                <UploadSlot
+                  label="① D-3 소프트웨어활용비 CSV"
+                  description="아★…D-3.소프트웨어활용비.csv 파일을 올려주세요"
+                  accept=".csv"
+                  filename={d3File?.name ?? null}
+                  onPick={(f) => setD3File(f)}
+                  busy={parsing}
+                  icon={<FileUp className="size-5 text-muted-foreground" />}
+                />
+                <UploadSlot
+                  label="② 학교 신청자 관리 CSV"
+                  description="학교별 담당자/연락처 매핑 CSV"
+                  accept=".csv"
+                  filename={applicantsFile?.name ?? null}
+                  onPick={(f) => setApplicantsFile(f)}
+                  busy={parsing}
+                  icon={<FileUp className="size-5 text-muted-foreground" />}
+                />
+                <UploadSlot
+                  label="③ 학교별 에듀테크 견적서 xlsx"
+                  description="시트별로 학교 견적이 들어있는 xlsx"
+                  accept=".xlsx"
+                  filename={xlsxFile?.name ?? null}
+                  onPick={(f) => setXlsxFile(f)}
+                  busy={parsing}
+                  icon={<FileSpreadsheet className="size-5 text-muted-foreground" />}
+                />
+              </>
+            ) : (
+              <>
+                <UploadSlot
+                  label="통합 CSV (1개 파일)"
+                  description="신청일자 / 학교 / 신청자 / 신청자 연락처 / 이름 / 신청 품목 / 사용기간 / 수량 / 증빙번호 / 지급방법"
+                  accept=".csv"
+                  filename={confirmedFile?.name ?? null}
+                  onPick={(f) => setConfirmedFile(f)}
+                  busy={parsing}
+                  icon={<FileUp className="size-5 text-muted-foreground" />}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  같은 (증빙번호 + 학교) 행이 한 PDF로 묶여요. 같은 그룹에서 신청자/연락처/신청일자가
+                  여러 값이면 검토 단계에서 경고 + 편집으로 보정할 수 있어요.
+                </p>
+              </>
+            )}
             {parsing && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" /> 파일을 분석하는 중...
@@ -917,6 +1040,7 @@ export function SwRequestTool() {
                 setD3File(null);
                 setApplicantsFile(null);
                 setXlsxFile(null);
+                setConfirmedFile(null);
               }}
             >
               처음으로

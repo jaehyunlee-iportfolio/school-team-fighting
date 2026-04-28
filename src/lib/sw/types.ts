@@ -42,6 +42,9 @@ export type SwRequestRow = {
 
   hasEmpty: boolean;
   fieldWarnings: string[];
+
+  /** 통합 CSV 모드: 같은 그룹에서 발견된 견적일자 후보 (1개 이상). 편집 다이얼로그에서 드롭다운으로 표시. */
+  quoteDateOptions?: string[];
 };
 
 /** xlsx 견적서 시트 1장 분량 */

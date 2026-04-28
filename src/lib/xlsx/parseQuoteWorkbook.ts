@@ -145,8 +145,11 @@ export async function parseQuoteWorkbookFile(
 }
 
 /**
- * 견적일자 텍스트("2025 년 09 월 25 일", "2026 년 02월 01일", "2025 년 11 월  3일")를
- * { y, m, d, yymmdd } 로 정규화. 실패 시 모두 빈 문자열.
+ * 견적일자 텍스트를 { y, m, d, yymmdd } 로 정규화. 실패 시 모두 빈 문자열.
+ *
+ * 지원 형식:
+ *   - "2025 년 09 월 25 일" / "2026 년 02월 01일" / "2025 년 11 월  3일" (xlsx 견적서)
+ *   - "2025. 09. 25" / "2025.09.25" (통합 CSV)
  */
 export function parseQuoteDate(raw: string): {
   y: string;
@@ -155,7 +158,8 @@ export function parseQuoteDate(raw: string): {
   yymmdd: string;
 } {
   if (!raw) return { y: "", m: "", d: "", yymmdd: "" };
-  const m = raw.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  let m = raw.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if (!m) m = raw.match(/(\d{4})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})/);
   if (!m) return { y: "", m: "", d: "", yymmdd: "" };
   const y = m[1];
   const mo = String(parseInt(m[2], 10));

@@ -176,7 +176,7 @@ export function enrichSwRequestRows(
  *
  * 사용자(user) 가 비어있거나, 품목/기간 어느 한쪽이 다르면 묶지 않음.
  */
-function groupItems(items: SwLineItem[]): SwLineItem[] {
+export function groupItems(items: SwLineItem[]): SwLineItem[] {
   const out: SwLineItem[] = [];
   const indexMap = new Map<string, number>();
 
