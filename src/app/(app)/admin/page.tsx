@@ -3565,7 +3565,7 @@ function ExpenseLayoutSection({
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">3. 지출결의 내용 표</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <NumField label="헤더 높이" value={layout.expenseTable.headerHeight} onChange={(v) => set("expenseTable", { headerHeight: v })} unit="pt" />
             <NumField label="헤더 글자" value={layout.expenseTable.headerFontSize} onChange={(v) => set("expenseTable", { headerFontSize: v })} unit="pt" />
@@ -3576,6 +3576,34 @@ function ExpenseLayoutSection({
             <NumField label="셀 패딩 가로" value={layout.expenseTable.paddingH} onChange={(v) => set("expenseTable", { paddingH: v })} unit="pt" />
             <NumField label="비고 행 높이" value={layout.expenseTable.noteRowHeight} onChange={(v) => set("expenseTable", { noteRowHeight: v })} unit="pt" />
             <NumField label="비고 글자" value={layout.expenseTable.noteFontSize} onChange={(v) => set("expenseTable", { noteFontSize: v })} unit="pt" />
+          </div>
+          <Separator />
+          <div>
+            <div className="mb-2 flex items-baseline justify-between">
+              <Label className="text-xs text-muted-foreground">컬럼 가로 비율 (%, 합계 100)</Label>
+              <span className={cn(
+                "text-[11px] font-mono",
+                Math.abs(
+                  layout.expenseTable.colDateWidth + layout.expenseTable.colSemokWidth +
+                  layout.expenseTable.colSesemokWidth + layout.expenseTable.colSupplyWidth +
+                  layout.expenseTable.colVatWidth + layout.expenseTable.colTotalWidth - 100
+                ) > 0.01 ? "text-amber-600" : "text-muted-foreground"
+              )}>
+                합계: {(
+                  layout.expenseTable.colDateWidth + layout.expenseTable.colSemokWidth +
+                  layout.expenseTable.colSesemokWidth + layout.expenseTable.colSupplyWidth +
+                  layout.expenseTable.colVatWidth + layout.expenseTable.colTotalWidth
+                ).toFixed(1)}%
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <NumField label="지출 일자" value={layout.expenseTable.colDateWidth} onChange={(v) => set("expenseTable", { colDateWidth: v })} step={0.5} unit="%" />
+              <NumField label="세목" value={layout.expenseTable.colSemokWidth} onChange={(v) => set("expenseTable", { colSemokWidth: v })} step={0.5} unit="%" />
+              <NumField label="세세목" value={layout.expenseTable.colSesemokWidth} onChange={(v) => set("expenseTable", { colSesemokWidth: v })} step={0.5} unit="%" />
+              <NumField label="공급가액" value={layout.expenseTable.colSupplyWidth} onChange={(v) => set("expenseTable", { colSupplyWidth: v })} step={0.5} unit="%" />
+              <NumField label="세액" value={layout.expenseTable.colVatWidth} onChange={(v) => set("expenseTable", { colVatWidth: v })} step={0.5} unit="%" />
+              <NumField label="지출금액(원)" value={layout.expenseTable.colTotalWidth} onChange={(v) => set("expenseTable", { colTotalWidth: v })} step={0.5} unit="%" />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -3592,7 +3620,7 @@ function ExpenseLayoutSection({
 
       <Card>
         <CardHeader className="pb-3"><CardTitle className="text-base">5. 지출 승인 표</CardTitle></CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <NumField label="헤더 높이" value={layout.approvalTable.headerHeight} onChange={(v) => set("approvalTable", { headerHeight: v })} unit="pt" />
             <NumField label="헤더 글자" value={layout.approvalTable.headerFontSize} onChange={(v) => set("approvalTable", { headerFontSize: v })} unit="pt" />
@@ -3603,6 +3631,45 @@ function ExpenseLayoutSection({
             <NumField label="셀 패딩 가로" value={layout.approvalTable.paddingH} onChange={(v) => set("approvalTable", { paddingH: v })} unit="pt" />
             <NumField label="서명 이미지 max-h" value={layout.approvalTable.sigImageMaxHeight} onChange={(v) => set("approvalTable", { sigImageMaxHeight: v })} unit="pt" />
             <NumField label="직인 이미지 max-h" value={layout.approvalTable.stampImageMaxHeight} onChange={(v) => set("approvalTable", { stampImageMaxHeight: v })} unit="pt" />
+          </div>
+          <Separator />
+          <div>
+            <div className="mb-2 flex items-baseline justify-between">
+              <Label className="text-xs text-muted-foreground">컬럼 가로 비율 (%, 합계 100)</Label>
+              <span className={cn(
+                "text-[11px] font-mono",
+                Math.abs(
+                  layout.approvalTable.colStageWidth + layout.approvalTable.colNameWidth +
+                  layout.approvalTable.colTitleWidth + layout.approvalTable.colSigWidth +
+                  layout.approvalTable.colDateWidth + layout.approvalTable.colNoteWidth - 100
+                ) > 0.01 ? "text-amber-600" : "text-muted-foreground"
+              )}>
+                합계: {(
+                  layout.approvalTable.colStageWidth + layout.approvalTable.colNameWidth +
+                  layout.approvalTable.colTitleWidth + layout.approvalTable.colSigWidth +
+                  layout.approvalTable.colDateWidth + layout.approvalTable.colNoteWidth
+                ).toFixed(1)}%
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <NumField label="승인 단계" value={layout.approvalTable.colStageWidth} onChange={(v) => set("approvalTable", { colStageWidth: v })} step={0.5} unit="%" />
+              <NumField label="성명" value={layout.approvalTable.colNameWidth} onChange={(v) => set("approvalTable", { colNameWidth: v })} step={0.5} unit="%" />
+              <NumField label="직책" value={layout.approvalTable.colTitleWidth} onChange={(v) => set("approvalTable", { colTitleWidth: v })} step={0.5} unit="%" />
+              <NumField label="서명" value={layout.approvalTable.colSigWidth} onChange={(v) => set("approvalTable", { colSigWidth: v })} step={0.5} unit="%" />
+              <NumField label="승인일" value={layout.approvalTable.colDateWidth} onChange={(v) => set("approvalTable", { colDateWidth: v })} step={0.5} unit="%" />
+              <NumField label="비고" value={layout.approvalTable.colNoteWidth} onChange={(v) => set("approvalTable", { colNoteWidth: v })} step={0.5} unit="%" />
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              상호 행에서 비고 칼럼은 &quot;회사 직인&quot; 텍스트와 직인 이미지로 분할돼요. 그 비율을 아래에서 조정.
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <NumField
+                label="회사 직인 텍스트 비율 (0~1)"
+                value={layout.approvalTable.stampLabelRatio}
+                onChange={(v) => set("approvalTable", { stampLabelRatio: Math.max(0, Math.min(1, v)) })}
+                step={0.05}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

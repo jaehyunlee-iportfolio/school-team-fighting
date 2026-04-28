@@ -37,6 +37,15 @@ function valueOrEmpty(
 
 export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
   const styles = makeStyles(layout);
+  // 컬럼 너비 — `${n}%` 문자열로 변환
+  const ec = layout.expenseTable;
+  const ac = layout.approvalTable;
+  const w = (n: number) => `${n}%` as const;
+  // 상호 행의 비고 칸(=colNoteWidth) 안에서 텍스트/이미지 분할
+  const stampLabelW = ac.colNoteWidth * Math.max(0, Math.min(1, ac.stampLabelRatio));
+  const stampImageW = ac.colNoteWidth - stampLabelW;
+  // 비고 행 좌측 라벨(첫 컬럼) + 우측 본문(나머지)
+  const noteRightW = 100 - ec.colDateWidth;
 
   return (
     <Document>
@@ -79,54 +88,54 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
         <View style={styles.table}>
           {/* 헤더 행 */}
           <View style={[styles.tableRow, styles.tableHeaderRow]}>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "16%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ec.colDateWidth) }]}>
               <Text style={styles.tableHeaderText}>지출 일자</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "16%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ec.colSemokWidth) }]}>
               <Text style={styles.tableHeaderText}>세목</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "24%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ec.colSesemokWidth) }]}>
               <Text style={styles.tableHeaderText}>세세목</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "12%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ec.colSupplyWidth) }]}>
               <Text style={styles.tableHeaderText}>공급가액</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "12%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ec.colVatWidth) }]}>
               <Text style={styles.tableHeaderText}>세액</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "20%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ec.colTotalWidth) }]}>
               <Text style={styles.tableHeaderText}>지출금액(원)</Text>
             </View>
           </View>
           {/* 데이터 행 */}
           <View style={[styles.tableRow, styles.tableDataRow]}>
-            <View style={[styles.tableCell, { width: "16%" }]}>
+            <View style={[styles.tableCell, { width: w(ec.colDateWidth) }]}>
               <Text style={styles.tableCellText}>{row.executionDate || layout.placeholders.emptyField}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "16%" }]}>
+            <View style={[styles.tableCell, { width: w(ec.colSemokWidth) }]}>
               <Text style={styles.tableCellText}>{row.semok}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "24%" }]}>
+            <View style={[styles.tableCell, { width: w(ec.colSesemokWidth) }]}>
               <Text style={styles.tableCellText}>{row.sesemok}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "12%", alignItems: "flex-end" }]}>
+            <View style={[styles.tableCell, { width: w(ec.colSupplyWidth), alignItems: "flex-end" }]}>
               <Text style={styles.tableCellText}>{formatMoney(row.supply)}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "12%", alignItems: "flex-end" }]}>
+            <View style={[styles.tableCell, { width: w(ec.colVatWidth), alignItems: "flex-end" }]}>
               <Text style={styles.tableCellText}>
                 {row.vat === null ? "-" : formatMoney(row.vat)}
               </Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", alignItems: "flex-end" }]}>
+            <View style={[styles.tableCell, { width: w(ec.colTotalWidth), alignItems: "flex-end" }]}>
               <Text style={styles.tableCellText}>{formatMoney(row.total)}</Text>
             </View>
           </View>
           {/* 비고 행 */}
           <View style={[styles.tableRow, styles.noteRow]}>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "16%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ec.colDateWidth), justifyContent: "center" }]}>
               <Text style={styles.tableHeaderText}>비고</Text>
             </View>
-            <View style={[styles.tableCell, { width: "84%" }]}>
+            <View style={[styles.tableCell, { width: w(noteRightW) }]}>
               <Text style={styles.noteText}>{row.note || ""}</Text>
             </View>
           </View>
@@ -150,83 +159,83 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
         <View style={styles.table}>
           {/* 헤더 */}
           <View style={[styles.tableRow, styles.approvalHeaderRow]}>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "12%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colStageWidth) }]}>
               <Text style={styles.tableHeaderText}>승인 단계</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "14%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colNameWidth) }]}>
               <Text style={styles.tableHeaderText}>성명</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "14%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colTitleWidth) }]}>
               <Text style={styles.tableHeaderText}>직책</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "20%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colSigWidth) }]}>
               <Text style={styles.tableHeaderText}>서명</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "20%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colDateWidth) }]}>
               <Text style={styles.tableHeaderText}>승인일</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "20%" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colNoteWidth) }]}>
               <Text style={styles.tableHeaderText}>비고</Text>
             </View>
           </View>
           {/* 행 1: 지출 담당자 */}
           <View style={[styles.tableRow, styles.approvalDataRow]}>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "12%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colStageWidth), justifyContent: "center" }]}>
               <Text style={styles.tableHeaderText}>지출 담당자</Text>
             </View>
-            <View style={[styles.tableCell, { width: "14%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colNameWidth), justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{group.writerName}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "14%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colTitleWidth), justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{group.writerTitle}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colSigWidth), justifyContent: "center", alignItems: "center" }]}>
               {group.writerSigImageUrl ? (
                 <Image src={group.writerSigImageUrl} style={styles.sigImg} />
               ) : null}
             </View>
-            <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colDateWidth), justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{row.handlerApprovalDate}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colNoteWidth) }]}>
               <Text style={styles.tableCellText}> </Text>
             </View>
           </View>
           {/* 행 2: 결재권자 */}
           <View style={[styles.tableRow, styles.approvalDataRow]}>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "12%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colStageWidth), justifyContent: "center" }]}>
               <Text style={styles.tableHeaderText}>결재권자</Text>
             </View>
-            <View style={[styles.tableCell, { width: "14%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colNameWidth), justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{group.approverName}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "14%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colTitleWidth), justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{group.approverTitle}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colSigWidth), justifyContent: "center", alignItems: "center" }]}>
               {group.approverSigImageUrl ? (
                 <Image src={group.approverSigImageUrl} style={styles.sigImg} />
               ) : null}
             </View>
-            <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colDateWidth), justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{row.approverApprovalDate}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colNoteWidth), justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>전결</Text>
             </View>
           </View>
-          {/* 행 3: 상호 — 가운데 영역(성명+직책+서명+승인일=68%) 병합, 비고(20%)는 회사직인 텍스트 + 직인 이미지로 분할 */}
+          {/* 행 3: 상호 — 가운데 영역(성명+직책+서명+승인일) 병합, 비고는 회사직인 텍스트 + 직인 이미지로 분할 */}
           <View style={[styles.tableRow, styles.approvalDataRow]}>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "12%", justifyContent: "center" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(ac.colStageWidth), justifyContent: "center" }]}>
               <Text style={styles.tableHeaderText}>상호</Text>
             </View>
-            <View style={[styles.tableCell, { width: "68%", justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, { width: w(ac.colNameWidth + ac.colTitleWidth + ac.colSigWidth + ac.colDateWidth), justifyContent: "center", alignItems: "center" }]}>
               <Text style={styles.tableCellText}>{group.companyFullName}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "10%", justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, { width: w(stampLabelW), justifyContent: "center", alignItems: "center" }]}>
               <Text style={[styles.tableHeaderText, { color: "#666666" }]}>회사 직인</Text>
             </View>
-            <View style={[styles.tableCell, { width: "10%", justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, { width: w(stampImageW), justifyContent: "center", alignItems: "center" }]}>
               {group.stampImageUrl ? (
                 <Image src={group.stampImageUrl} style={styles.stampImg} />
               ) : null}

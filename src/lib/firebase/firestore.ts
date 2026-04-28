@@ -1033,6 +1033,13 @@ export type ExpenseLayoutSettings = {
     /** 비고 행 높이 */
     noteRowHeight: number;
     noteFontSize: number;
+    /** 컬럼 가로 비율 (% 단위, 합계 100) */
+    colDateWidth: number;
+    colSemokWidth: number;
+    colSesemokWidth: number;
+    colSupplyWidth: number;
+    colVatWidth: number;
+    colTotalWidth: number;
   };
   /** 4. 지출 방식 */
   paymentMethod: {
@@ -1052,6 +1059,15 @@ export type ExpenseLayoutSettings = {
     sigImageMaxHeight: number;
     /** 직인 이미지 max-height */
     stampImageMaxHeight: number;
+    /** 컬럼 가로 비율 (% 단위, 합계 100) */
+    colStageWidth: number;
+    colNameWidth: number;
+    colTitleWidth: number;
+    colSigWidth: number;
+    colDateWidth: number;
+    colNoteWidth: number;
+    /** 상호 행의 비고 칸 안에서 "회사 직인" 텍스트와 직인 이미지가 차지하는 비율 (0~1) */
+    stampLabelRatio: number;
   };
   footer: {
     fontSize: number;
@@ -1094,6 +1110,12 @@ export const DEFAULT_EXPENSE_LAYOUT: ExpenseLayoutSettings = {
     paddingH: 6,
     noteRowHeight: 50,
     noteFontSize: 10,
+    colDateWidth: 16,
+    colSemokWidth: 16,
+    colSesemokWidth: 24,
+    colSupplyWidth: 12,
+    colVatWidth: 12,
+    colTotalWidth: 20,
   },
   paymentMethod: { fontSize: 10.5, paddingV: 4 },
   approvalTable: {
@@ -1105,6 +1127,13 @@ export const DEFAULT_EXPENSE_LAYOUT: ExpenseLayoutSettings = {
     paddingV: 4,
     paddingH: 6,
     sigImageMaxHeight: 30,
+    colStageWidth: 12,
+    colNameWidth: 14,
+    colTitleWidth: 14,
+    colSigWidth: 20,
+    colDateWidth: 20,
+    colNoteWidth: 20,
+    stampLabelRatio: 0.5,
     stampImageMaxHeight: 38,
   },
   footer: { fontSize: 9, fontWeight: 400, color: "#666666", marginTop: 14 },
