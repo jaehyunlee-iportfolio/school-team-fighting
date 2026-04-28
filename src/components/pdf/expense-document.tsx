@@ -94,7 +94,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
             <View style={[styles.tableCell, styles.tableHeader, { width: "12%" }]}>
               <Text style={styles.tableHeaderText}>세액</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "20%", borderRightWidth: 0 }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: "20%" }]}>
               <Text style={styles.tableHeaderText}>지출금액(원)</Text>
             </View>
           </View>
@@ -117,7 +117,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
                 {row.vat === null ? "-" : formatMoney(row.vat)}
               </Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", borderRightWidth: 0, alignItems: "flex-end" }]}>
+            <View style={[styles.tableCell, { width: "20%", alignItems: "flex-end" }]}>
               <Text style={styles.tableCellText}>{formatMoney(row.total)}</Text>
             </View>
           </View>
@@ -126,7 +126,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
             <View style={[styles.tableCell, styles.tableHeader, { width: "16%", justifyContent: "center" }]}>
               <Text style={styles.tableHeaderText}>비고</Text>
             </View>
-            <View style={[styles.tableCell, { width: "84%", borderRightWidth: 0 }]}>
+            <View style={[styles.tableCell, { width: "84%" }]}>
               <Text style={styles.noteText}>{row.note || ""}</Text>
             </View>
           </View>
@@ -165,7 +165,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
             <View style={[styles.tableCell, styles.tableHeader, { width: "20%" }]}>
               <Text style={styles.tableHeaderText}>승인일</Text>
             </View>
-            <View style={[styles.tableCell, styles.tableHeader, { width: "20%", borderRightWidth: 0 }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: "20%" }]}>
               <Text style={styles.tableHeaderText}>비고</Text>
             </View>
           </View>
@@ -188,7 +188,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
             <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{row.handlerApprovalDate}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", borderRightWidth: 0 }]}>
+            <View style={[styles.tableCell, { width: "20%" }]}>
               <Text style={styles.tableCellText}> </Text>
             </View>
           </View>
@@ -211,22 +211,22 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
             <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>{row.approverApprovalDate}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", borderRightWidth: 0, justifyContent: "center" }]}>
+            <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
               <Text style={styles.tableCellText}>전결</Text>
             </View>
           </View>
-          {/* 행 3: 상호 */}
-          <View style={[styles.tableRow, styles.approvalDataRow, { borderBottomWidth: 0 }]}>
+          {/* 행 3: 상호 — 가운데 영역(성명+직책+서명+승인일=68%) 병합, 비고(20%)는 회사직인 텍스트 + 직인 이미지로 분할 */}
+          <View style={[styles.tableRow, styles.approvalDataRow]}>
             <View style={[styles.tableCell, styles.tableHeader, { width: "12%", justifyContent: "center" }]}>
               <Text style={styles.tableHeaderText}>상호</Text>
             </View>
-            <View style={[styles.tableCell, { width: "48%", justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, { width: "68%", justifyContent: "center", alignItems: "center" }]}>
               <Text style={styles.tableCellText}>{group.companyFullName}</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>회사 직인</Text>
+            <View style={[styles.tableCell, { width: "10%", justifyContent: "center", alignItems: "center" }]}>
+              <Text style={styles.tableHeaderText}>회사 직인</Text>
             </View>
-            <View style={[styles.tableCell, { width: "20%", borderRightWidth: 0, justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, { width: "10%", justifyContent: "center", alignItems: "center" }]}>
               {group.stampImageUrl ? (
                 <Image src={group.stampImageUrl} style={styles.stampImg} />
               ) : null}
