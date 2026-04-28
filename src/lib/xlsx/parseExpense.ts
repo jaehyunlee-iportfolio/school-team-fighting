@@ -42,16 +42,28 @@ function normalizeHeader(s: string): string {
   return s.replace(/\s+/g, "").trim();
 }
 
-/** 행에서 alias에 매칭되는 컬럼 인덱스 찾기 */
+/**
+ * 행에서 alias에 매칭되는 컬럼 인덱스 찾기.
+ * alias 우선순위 순서대로(외부 루프) 모든 헤더 행을 스캔(내부 루프)해서
+ * 더 구체적인 alias가 먼저 매칭되도록 함.
+ *
+ * 예: 행 3 col D="지출금액"(병합된 부모 헤더), 행 4 col F="합계금액"(실제 컬럼).
+ *  - aliases = ["합계금액", "합계", "지출금액"] 순서면
+ *  - "합계금액"이 행 3에서 안 잡히고 행 4에서 col F 매칭 → F 반환 (정답)
+ *  - 만약 헤더 행을 외부로 돌리면 행 3 col D가 "지출금액"으로 먼저 매칭돼 잘못된 결과
+ */
 function findColumnIndex(headerRows: Row[], aliases: readonly string[]): number {
   const normAliases = aliases.map(normalizeHeader);
-  for (const headerRow of headerRows) {
-    for (let i = 0; i < headerRow.length; i++) {
-      const cell = s(headerRow[i]);
-      if (!cell) continue;
-      const norm = normalizeHeader(cell);
-      if (normAliases.some((a) => norm === a || norm.includes(a))) {
-        return i;
+  for (const alias of normAliases) {
+    if (!alias) continue;
+    for (const headerRow of headerRows) {
+      for (let i = 0; i < headerRow.length; i++) {
+        const cell = s(headerRow[i]);
+        if (!cell) continue;
+        const norm = normalizeHeader(cell);
+        if (norm === alias || norm.includes(alias)) {
+          return i;
+        }
       }
     }
   }
