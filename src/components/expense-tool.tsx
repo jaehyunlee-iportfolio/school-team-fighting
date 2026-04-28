@@ -948,14 +948,28 @@ function ExpenseRowEditDialog({
               className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </Field>
-          <Field label="사용내역(수령인) — 참고용 (PDF에 표시 안 됨)">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs">사용내역(수령인)</Label>
+              <label className="flex cursor-pointer items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={draft.includeUseDetail}
+                  onChange={(e) => set("includeUseDetail", e.target.checked)}
+                />
+                <span>PDF 지출 목적에 함께 표시</span>
+              </label>
+            </div>
             <textarea
               value={draft.useDetail}
               onChange={(e) => set("useDetail", e.target.value)}
               className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
-          </Field>
-          <Field label="비고">
+            <p className="text-[10px] text-muted-foreground">
+              체크하면 지출 목적 본문 아래에 한 줄 띄우고 추가됨. 체크 해제 시 PDF에 표시 안 됨.
+            </p>
+          </div>
+          <Field label="비고 (PDF 지출결의 내용 표 비고 행에 들어감)">
             <textarea
               value={draft.note}
               onChange={(e) => set("note", e.target.value)}

@@ -238,6 +238,7 @@ export async function parseExpenseXlsx(
         vat,
         total,
         useDetail: cols.useDetail >= 0 ? s(r[cols.useDetail]) : "",
+        includeUseDetail: false,
         purpose: cols.purpose >= 0 ? s(r[cols.purpose]) : "",
         payment: cols.payment >= 0 ? s(r[cols.payment]) : "",
         note: cols.note >= 0 ? s(r[cols.note]) : "",

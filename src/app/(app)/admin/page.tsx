@@ -161,6 +161,7 @@ export default function AdminPage() {
     note: string;
     purpose: string;
     useDetail: string;
+    includeUseDetail: boolean;
     vendor: string;
     executionDate: string;
     evidenceNo: string;
@@ -173,6 +174,7 @@ export default function AdminPage() {
     purpose: "05.24 코디강사역량강화세미나(참석)를 위한 교통비 지급의 건 (대상자: 신예진)",
     useDetail:
       "1. 전문가명(신예진)\n2. 산출내역 및 활용내용\n- 5/24: 코디강사역량강화세미나(참석) 교통비 20,000원(이동거리 50km 이내)",
+    includeUseDetail: false,
     vendor: "신예진",
     executionDate: "2026. 3. 31",
     evidenceNo: "D-1-100",
@@ -719,6 +721,7 @@ export default function AdminPage() {
                         note: expensePreviewSample.note,
                         purpose: expensePreviewSample.purpose,
                         useDetail: expensePreviewSample.useDetail,
+                        includeUseDetail: expensePreviewSample.includeUseDetail,
                         vendor: expensePreviewSample.vendor,
                         executionDate: expensePreviewSample.executionDate,
                         evidenceNo: expensePreviewSample.evidenceNo,
@@ -3230,6 +3233,7 @@ const MOCK_EXPENSE_ROW: ExpenseRow = {
   total: 20000,
   useDetail:
     "1. 전문가명(신예진)\n2. 산출내역 및 활용내용\n- 5/24: 코디강사역량강화세미나(참석) 교통비 20,000원(이동거리 50km 이내)",
+  includeUseDetail: false,
   purpose: "05.24 코디강사역량강화세미나(참석)를 위한 교통비 지급의 건 (대상자: 신예진)",
   payment: "계좌이체",
   note: "교통비 지급(20,000원)",
@@ -3244,13 +3248,14 @@ const MOCK_EXPENSE_ROW: ExpenseRow = {
 /** 어드민 미리보기에서 덮어쓸 수 있는 샘플 텍스트 입력 */
 export type ExpenseSampleOverrides = Partial<Pick<
   ExpenseRow,
-  "useDetail" | "purpose" | "note" | "vendor" | "executionDate" | "evidenceNo" | "payment" | "supply" | "vat" | "total"
+  "useDetail" | "includeUseDetail" | "purpose" | "note" | "vendor" | "executionDate" | "evidenceNo" | "payment" | "supply" | "vat" | "total"
 >>;
 
 type ExpenseSampleState = {
   note: string;
   purpose: string;
   useDetail: string;
+  includeUseDetail: boolean;
   vendor: string;
   executionDate: string;
   evidenceNo: string;
@@ -3267,7 +3272,7 @@ function ExpenseSampleEditor({
   sample: ExpenseSampleState;
   onChange: (next: ExpenseSampleState) => void;
 }) {
-  const set = (k: keyof ExpenseSampleState, v: string) => onChange({ ...sample, [k]: v });
+  const set = <K extends keyof ExpenseSampleState>(k: K, v: ExpenseSampleState[K]) => onChange({ ...sample, [k]: v });
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -3329,6 +3334,24 @@ function ExpenseSampleEditor({
             value={sample.purpose}
             onChange={(e) => set("purpose", e.target.value)}
             className="min-h-[80px] w-full rounded-md border bg-background px-2 py-1.5 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-[11px]">사용내역(수령인)</Label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-[11px]">
+              <input
+                type="checkbox"
+                checked={sample.includeUseDetail}
+                onChange={(e) => set("includeUseDetail", e.target.checked)}
+              />
+              <span>지출 목적에 함께 표시</span>
+            </label>
+          </div>
+          <textarea
+            value={sample.useDetail}
+            onChange={(e) => set("useDetail", e.target.value)}
+            className="min-h-[60px] w-full rounded-md border bg-background px-2 py-1.5 text-xs"
           />
         </div>
         <div className="space-y-1">

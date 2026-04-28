@@ -81,6 +81,11 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               </Text>
             );
           })()}
+          {row.includeUseDetail && row.useDetail.trim() ? (
+            <Text style={[styles.purposeText, { marginTop: 6 }]}>
+              {row.useDetail}
+            </Text>
+          ) : null}
         </View>
 
         {/* 3. 지출결의 내용 */}
