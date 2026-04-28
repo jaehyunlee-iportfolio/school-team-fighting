@@ -1040,6 +1040,14 @@ export type ExpenseLayoutSettings = {
     colSupplyWidth: number;
     colVatWidth: number;
     colTotalWidth: number;
+    /** 컬럼별 텍스트 정렬 */
+    colDateAlign: "left" | "center" | "right";
+    colSemokAlign: "left" | "center" | "right";
+    colSesemokAlign: "left" | "center" | "right";
+    colSupplyAlign: "left" | "center" | "right";
+    colVatAlign: "left" | "center" | "right";
+    colTotalAlign: "left" | "center" | "right";
+    colNoteAlign: "left" | "center" | "right";
   };
   /** 4. 지출 방식 */
   paymentMethod: {
@@ -1068,6 +1076,11 @@ export type ExpenseLayoutSettings = {
     colNoteWidth: number;
     /** 상호 행의 비고 칸 안에서 "회사 직인" 텍스트와 직인 이미지가 차지하는 비율 (0~1) */
     stampLabelRatio: number;
+    /** 데이터 행 컬럼별 텍스트 정렬 */
+    colNameAlign: "left" | "center" | "right";
+    colTitleAlign: "left" | "center" | "right";
+    colDateAlign: "left" | "center" | "right";
+    colNoteAlign: "left" | "center" | "right";
   };
   footer: {
     fontSize: number;
@@ -1116,6 +1129,13 @@ export const DEFAULT_EXPENSE_LAYOUT: ExpenseLayoutSettings = {
     colSupplyWidth: 12,
     colVatWidth: 12,
     colTotalWidth: 20,
+    colDateAlign: "center",
+    colSemokAlign: "center",
+    colSesemokAlign: "center",
+    colSupplyAlign: "right",
+    colVatAlign: "right",
+    colTotalAlign: "right",
+    colNoteAlign: "left",
   },
   paymentMethod: { fontSize: 10.5, paddingV: 4 },
   approvalTable: {
@@ -1135,6 +1155,10 @@ export const DEFAULT_EXPENSE_LAYOUT: ExpenseLayoutSettings = {
     colNoteWidth: 20,
     stampLabelRatio: 0.5,
     stampImageMaxHeight: 38,
+    colNameAlign: "center",
+    colTitleAlign: "center",
+    colDateAlign: "center",
+    colNoteAlign: "center",
   },
   footer: { fontSize: 9, fontWeight: 400, color: "#666666", marginTop: 14 },
   placeholders: {

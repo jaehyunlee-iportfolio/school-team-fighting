@@ -3605,6 +3605,19 @@ function ExpenseLayoutSection({
               <NumField label="지출금액(원)" value={layout.expenseTable.colTotalWidth} onChange={(v) => set("expenseTable", { colTotalWidth: v })} step={0.5} unit="%" />
             </div>
           </div>
+          <Separator />
+          <div>
+            <Label className="mb-2 block text-xs text-muted-foreground">컬럼별 텍스트 정렬</Label>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <AlignField label="지출 일자" value={layout.expenseTable.colDateAlign} onChange={(v) => set("expenseTable", { colDateAlign: v })} />
+              <AlignField label="세목" value={layout.expenseTable.colSemokAlign} onChange={(v) => set("expenseTable", { colSemokAlign: v })} />
+              <AlignField label="세세목" value={layout.expenseTable.colSesemokAlign} onChange={(v) => set("expenseTable", { colSesemokAlign: v })} />
+              <AlignField label="공급가액" value={layout.expenseTable.colSupplyAlign} onChange={(v) => set("expenseTable", { colSupplyAlign: v })} />
+              <AlignField label="세액" value={layout.expenseTable.colVatAlign} onChange={(v) => set("expenseTable", { colVatAlign: v })} />
+              <AlignField label="지출금액(원)" value={layout.expenseTable.colTotalAlign} onChange={(v) => set("expenseTable", { colTotalAlign: v })} />
+              <AlignField label="비고 본문" value={layout.expenseTable.colNoteAlign} onChange={(v) => set("expenseTable", { colNoteAlign: v })} />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -3669,6 +3682,16 @@ function ExpenseLayoutSection({
                 onChange={(v) => set("approvalTable", { stampLabelRatio: Math.max(0, Math.min(1, v)) })}
                 step={0.05}
               />
+            </div>
+          </div>
+          <Separator />
+          <div>
+            <Label className="mb-2 block text-xs text-muted-foreground">데이터 행 컬럼별 텍스트 정렬</Label>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <AlignField label="성명" value={layout.approvalTable.colNameAlign} onChange={(v) => set("approvalTable", { colNameAlign: v })} />
+              <AlignField label="직책" value={layout.approvalTable.colTitleAlign} onChange={(v) => set("approvalTable", { colTitleAlign: v })} />
+              <AlignField label="승인일" value={layout.approvalTable.colDateAlign} onChange={(v) => set("approvalTable", { colDateAlign: v })} />
+              <AlignField label="비고" value={layout.approvalTable.colNoteAlign} onChange={(v) => set("approvalTable", { colNoteAlign: v })} />
             </div>
           </div>
         </CardContent>

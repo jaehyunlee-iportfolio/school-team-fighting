@@ -110,24 +110,24 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
           {/* 데이터 행 */}
           <View style={[styles.tableRow, styles.tableDataRow]}>
             <View style={[styles.tableCell, { width: w(ec.colDateWidth) }]}>
-              <Text style={styles.tableCellText}>{row.executionDate || layout.placeholders.emptyField}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ec.colDateAlign }]}>{row.executionDate || layout.placeholders.emptyField}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ec.colSemokWidth) }]}>
-              <Text style={styles.tableCellText}>{row.semok}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ec.colSemokAlign }]}>{row.semok}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ec.colSesemokWidth) }]}>
-              <Text style={styles.tableCellText}>{row.sesemok}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ec.colSesemokAlign }]}>{row.sesemok}</Text>
             </View>
-            <View style={[styles.tableCell, { width: w(ec.colSupplyWidth), alignItems: "flex-end" }]}>
-              <Text style={styles.tableCellText}>{formatMoney(row.supply)}</Text>
+            <View style={[styles.tableCell, { width: w(ec.colSupplyWidth) }]}>
+              <Text style={[styles.tableCellText, { textAlign: ec.colSupplyAlign }]}>{formatMoney(row.supply)}</Text>
             </View>
-            <View style={[styles.tableCell, { width: w(ec.colVatWidth), alignItems: "flex-end" }]}>
-              <Text style={styles.tableCellText}>
+            <View style={[styles.tableCell, { width: w(ec.colVatWidth) }]}>
+              <Text style={[styles.tableCellText, { textAlign: ec.colVatAlign }]}>
                 {row.vat === null ? "-" : formatMoney(row.vat)}
               </Text>
             </View>
-            <View style={[styles.tableCell, { width: w(ec.colTotalWidth), alignItems: "flex-end" }]}>
-              <Text style={styles.tableCellText}>{formatMoney(row.total)}</Text>
+            <View style={[styles.tableCell, { width: w(ec.colTotalWidth) }]}>
+              <Text style={[styles.tableCellText, { textAlign: ec.colTotalAlign }]}>{formatMoney(row.total)}</Text>
             </View>
           </View>
           {/* 비고 행 */}
@@ -136,7 +136,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               <Text style={styles.tableHeaderText}>비고</Text>
             </View>
             <View style={[styles.tableCell, { width: w(noteRightW) }]}>
-              <Text style={styles.noteText}>{row.note || ""}</Text>
+              <Text style={[styles.noteText, { textAlign: ec.colNoteAlign }]}>{row.note || ""}</Text>
             </View>
           </View>
         </View>
@@ -184,10 +184,10 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               <Text style={styles.tableHeaderText}>지출 담당자</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colNameWidth), justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>{group.writerName}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colNameAlign }]}>{group.writerName}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colTitleWidth), justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>{group.writerTitle}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colTitleAlign }]}>{group.writerTitle}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colSigWidth), justifyContent: "center", alignItems: "center" }]}>
               {group.writerSigImageUrl ? (
@@ -195,10 +195,10 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               ) : null}
             </View>
             <View style={[styles.tableCell, { width: w(ac.colDateWidth), justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>{row.handlerApprovalDate}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colDateAlign }]}>{row.handlerApprovalDate}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colNoteWidth) }]}>
-              <Text style={styles.tableCellText}> </Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colNoteAlign }]}> </Text>
             </View>
           </View>
           {/* 행 2: 결재권자 */}
@@ -207,10 +207,10 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               <Text style={styles.tableHeaderText}>결재권자</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colNameWidth), justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>{group.approverName}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colNameAlign }]}>{group.approverName}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colTitleWidth), justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>{group.approverTitle}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colTitleAlign }]}>{group.approverTitle}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colSigWidth), justifyContent: "center", alignItems: "center" }]}>
               {group.approverSigImageUrl ? (
@@ -218,10 +218,10 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               ) : null}
             </View>
             <View style={[styles.tableCell, { width: w(ac.colDateWidth), justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>{row.approverApprovalDate}</Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colDateAlign }]}>{row.approverApprovalDate}</Text>
             </View>
             <View style={[styles.tableCell, { width: w(ac.colNoteWidth), justifyContent: "center" }]}>
-              <Text style={styles.tableCellText}>전결</Text>
+              <Text style={[styles.tableCellText, { textAlign: ac.colNoteAlign }]}>전결</Text>
             </View>
           </View>
           {/* 행 3: 상호 — 가운데 영역(성명+직책+서명+승인일) 병합, 비고는 회사직인 텍스트 + 직인 이미지로 분할 */}
