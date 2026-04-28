@@ -385,6 +385,7 @@ function makeStyles(layout: ExpenseLayoutSettings) {
     },
     noteText: {
       fontSize: layout.expenseTable.noteFontSize,
+      lineHeight: layout.expenseTable.noteLineHeight,
     },
     paymentBox: {
       paddingVertical: layout.paymentMethod.paddingV,

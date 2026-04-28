@@ -1033,6 +1033,8 @@ export type ExpenseLayoutSettings = {
     /** 비고 행 높이 */
     noteRowHeight: number;
     noteFontSize: number;
+    /** 비고 본문 줄 높이 (배수) */
+    noteLineHeight: number;
     /** 컬럼 가로 비율 (% 단위, 합계 100) */
     colDateWidth: number;
     colSemokWidth: number;
@@ -1123,6 +1125,7 @@ export const DEFAULT_EXPENSE_LAYOUT: ExpenseLayoutSettings = {
     paddingH: 6,
     noteRowHeight: 50,
     noteFontSize: 10,
+    noteLineHeight: 1.4,
     colDateWidth: 16,
     colSemokWidth: 16,
     colSesemokWidth: 24,

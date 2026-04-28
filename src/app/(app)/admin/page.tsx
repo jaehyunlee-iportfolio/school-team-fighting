@@ -3722,6 +3722,7 @@ function ExpenseLayoutSection({
             <NumField label="셀 패딩 가로" value={layout.expenseTable.paddingH} onChange={(v) => set("expenseTable", { paddingH: v })} unit="pt" />
             <NumField label="비고 행 높이" value={layout.expenseTable.noteRowHeight} onChange={(v) => set("expenseTable", { noteRowHeight: v })} unit="pt" />
             <NumField label="비고 글자" value={layout.expenseTable.noteFontSize} onChange={(v) => set("expenseTable", { noteFontSize: v })} unit="pt" />
+            <NumField label="비고 줄 높이" value={layout.expenseTable.noteLineHeight} onChange={(v) => set("expenseTable", { noteLineHeight: v })} step={0.05} />
           </div>
           <Separator />
           <div>
