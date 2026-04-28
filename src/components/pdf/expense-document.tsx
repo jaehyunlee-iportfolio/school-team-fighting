@@ -233,7 +233,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
               <Text style={styles.tableCellText}>{group.companyFullName}</Text>
             </View>
             <View style={[styles.tableCell, styles.tableHeader, { width: w(stampLabelW), justifyContent: "center", alignItems: "center" }]}>
-              <Text style={[styles.tableHeaderText, { color: "#666666" }]}>회사 직인</Text>
+              <Text style={[styles.tableHeaderText, { textAlign: "center" }]}>회사{"\n"}직인</Text>
             </View>
             <View style={[styles.tableCell, { width: w(stampImageW), justifyContent: "center", alignItems: "center" }]}>
               {group.stampImageUrl ? (
