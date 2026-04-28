@@ -786,11 +786,18 @@ function ExpenseRowEditDialog({
               <Input value={draft.payment} onChange={(e) => set("payment", e.target.value)} />
             </Field>
           </div>
-          <Field label="사용내역(수령인) — 지출 목적">
+          <Field label="지출목적 (PDF &quot;2. 지출 목적&quot;에 들어감)">
+            <textarea
+              value={draft.purpose}
+              onChange={(e) => set("purpose", e.target.value)}
+              className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
+            />
+          </Field>
+          <Field label="사용내역(수령인) — 참고용 (PDF에 표시 안 됨)">
             <textarea
               value={draft.useDetail}
               onChange={(e) => set("useDetail", e.target.value)}
-              className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </Field>
           <Field label="비고">

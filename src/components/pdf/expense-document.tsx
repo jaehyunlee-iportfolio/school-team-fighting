@@ -74,7 +74,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
         <Text style={styles.sectionHeading}>2. 지출 목적</Text>
         <View style={styles.purposeBox}>
           {(() => {
-            const v = valueOrEmpty(row.useDetail, layout);
+            const v = valueOrEmpty(row.purpose, layout);
             return (
               <Text style={[styles.purposeText, v.color ? { color: v.color } : {}]}>
                 {v.text}

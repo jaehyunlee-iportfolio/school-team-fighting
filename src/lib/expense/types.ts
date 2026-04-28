@@ -41,6 +41,8 @@ export const COLUMN_ALIASES = {
   vat: ["부가세", "세액", "부가세액"],
   total: ["합계금액", "합계", "지출금액"],
   useDetail: ["사용내역(수령인)", "사용내역(수령인)\n(폴더)", "사용내역", "사용 내역"],
+  /** PDF "2. 지출 목적"에 들어가는 열. useDetail과는 별도. */
+  purpose: ["지출목적", "지출 목적"],
   payment: ["지급방법", "지급 방법"],
   evidenceNo: ["비고(증빙번호)", "비고\n(증빙번호)", "증빙번호"],
   note: ["비고"],
@@ -68,8 +70,10 @@ export type ExpenseRow = {
   vat: number | null;
   /** 합계금액 (지출금액) */
   total: number;
-  /** 사용내역(수령인) — PDF "지출 목적"에 그대로 들어감 */
+  /** 사용내역(수령인) — PDF에는 표시 안 됨, 참고용 보존 */
   useDetail: string;
+  /** 지출목적 — PDF "2. 지출 목적"에 들어감 */
+  purpose: string;
   payment: string;
   note: string;
 
@@ -98,7 +102,7 @@ export function recomputeWarnings(
   if (!r.vendor.trim()) w.push("「거래처」가 비어 있어요");
   if (!Number.isFinite(r.total) || r.total <= 0) w.push("「지출금액(합계)」이 0이거나 비정상");
   if (!Number.isFinite(r.supply) || r.supply < 0) w.push("「공급가액」이 비정상");
-  if (!r.useDetail.trim()) w.push("「사용내역(수령인)」이 비어 있어요");
+  if (!r.purpose.trim()) w.push("「지출목적」이 비어 있어요");
   if (!r.payment.trim()) w.push("「지급방법」이 비어 있어요");
   return { ...r, hasEmpty: w.length > 0, fieldWarnings: w };
 }
