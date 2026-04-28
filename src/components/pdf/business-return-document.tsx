@@ -490,10 +490,10 @@ export function BusinessReturnDocument({ row, layout }: BusinessReturnDocumentPr
               <Text style={[styles.valueText, paymentFb.color ? { color: paymentFb.color } : {}]}>{paymentFb.text}</Text>
             </View>
           </View>
-          <Text style={[styles.footer, orgFb.color ? { color: orgFb.color } : {}]}>
-            {orgFb.text}
-          </Text>
         </View>
+        <Text style={[styles.footer, orgFb.color ? { color: orgFb.color } : {}]}>
+          {orgFb.text}
+        </Text>
       </Page>
       {row.photos && row.photos.length > 0 ? (
         <PhotoPage photos={row.photos} cfg={cfg} styles={styles} />
