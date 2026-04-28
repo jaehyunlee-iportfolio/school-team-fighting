@@ -232,7 +232,7 @@ export function ExpenseDocument({ row, group, layout }: ExpenseDocumentProps) {
             <View style={[styles.tableCell, { width: w(ac.colNameWidth + ac.colTitleWidth + ac.colSigWidth + ac.colDateWidth), justifyContent: "center", alignItems: "center" }]}>
               <Text style={styles.tableCellText}>{group.companyFullName}</Text>
             </View>
-            <View style={[styles.tableCell, { width: w(stampLabelW), justifyContent: "center", alignItems: "center" }]}>
+            <View style={[styles.tableCell, styles.tableHeader, { width: w(stampLabelW), justifyContent: "center", alignItems: "center" }]}>
               <Text style={[styles.tableHeaderText, { color: "#666666" }]}>회사 직인</Text>
             </View>
             <View style={[styles.tableCell, { width: w(stampImageW), justifyContent: "center", alignItems: "center" }]}>
