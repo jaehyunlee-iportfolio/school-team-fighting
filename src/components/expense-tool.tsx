@@ -17,9 +17,11 @@ import { ExpenseDocument } from "@/components/pdf/expense-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { getPdfPageCount } from "@/lib/pdf/page-count";
 import {
+  listExpenseTabs,
   parseExpenseXlsx,
   readFileBuffer,
   recomputeRowAutoFields,
+  type XlsxTabInfo,
 } from "@/lib/xlsx/parseExpense";
 import { detectExpenseGroupFromFilename } from "@/lib/expense/group";
 import {
@@ -126,6 +128,12 @@ export function ExpenseTool() {
   const [rows, setRows] = useState<ExpenseRow[]>([]);
   const [parsePending, setParsePending] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // xlsx 업로드 후 탭 목록 (사용자 선택 단계)
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingBuffer, setPendingBuffer] = useState<ArrayBuffer | null>(null);
+  const [pendingGroup, setPendingGroup] = useState<ExpenseGroupCode | null>(null);
+  const [availableTabs, setAvailableTabs] = useState<XlsxTabInfo[]>([]);
+  const [selectedTabs, setSelectedTabs] = useState<Set<string>>(new Set());
   const [previewI, setPreviewI] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
@@ -156,6 +164,7 @@ export function ExpenseTool() {
     return settings.groups[resolvedGroup];
   }, [settings, resolvedGroup]);
 
+  /** 1단계: 파일 업로드 시 탭 목록만 추출. 사용자가 탭을 선택한 뒤 proceedWithSelectedTabs 호출. */
   const handleFile = useCallback(
     async (file: File) => {
       if (!settings) {
@@ -176,21 +185,27 @@ export function ExpenseTool() {
           group = groupChoice;
         }
 
-        const gs = settings.groups[group];
         const buf = await readFileBuffer(file);
-        const result = await parseExpenseXlsx(buf, gs.orgCode, gs.serialAlpha);
+        const tabs = await listExpenseTabs(buf);
+        const processable = tabs.filter((t) => t.processable);
 
-        if (!result.rows.length) {
-          toast.error("처리할 지출 행을 찾지 못했어요. 시트 구성을 확인해 주세요.");
-          setSkippedTabs(result.skippedTabs);
+        if (processable.length === 0) {
+          toast.error("처리 가능한 탭이 없어요. xlsx 시트 이름이 'C/D-1/D-2/D-3/D-4/E-1/E-3/E-4/E-5/F-1' 형식인지 확인해 주세요.");
+          setAvailableTabs(tabs);
+          setSelectedTabs(new Set());
+          setPendingFile(file);
+          setPendingBuffer(buf);
+          setPendingGroup(group);
           return;
         }
 
-        setRows(result.rows);
-        setResolvedGroup(group);
-        setSkippedTabs(result.skippedTabs);
-        setStep("validate");
-        toast.success(`${result.rows.length}건을 읽었어요.`);
+        // 기본: 처리 가능한 탭 모두 선택
+        setAvailableTabs(tabs);
+        setSelectedTabs(new Set(processable.map((t) => t.name)));
+        setPendingFile(file);
+        setPendingBuffer(buf);
+        setPendingGroup(group);
+        toast.success(`${processable.length}개 탭 인식 — 선택 후 진행해 주세요.`);
       } catch (e) {
         console.error(e);
         toast.error(e instanceof Error ? e.message : "xlsx 파일 읽기 실패");
@@ -200,6 +215,43 @@ export function ExpenseTool() {
     },
     [groupChoice, settings]
   );
+
+  /** 2단계: 사용자 선택 탭으로 실제 파싱 → 검토 단계 진입 */
+  const proceedWithSelectedTabs = useCallback(async () => {
+    if (!settings || !pendingBuffer || !pendingGroup) return;
+    if (selectedTabs.size === 0) {
+      toast.error("처리할 탭을 1개 이상 선택해 주세요.");
+      return;
+    }
+    setParsePending(true);
+    try {
+      const gs = settings.groups[pendingGroup];
+      const result = await parseExpenseXlsx(pendingBuffer, gs.orgCode, gs.serialAlpha, selectedTabs);
+      if (!result.rows.length) {
+        toast.error("선택한 탭에서 유효한 지출 행을 찾지 못했어요.");
+        setSkippedTabs(result.skippedTabs);
+        return;
+      }
+      setRows(result.rows);
+      setResolvedGroup(pendingGroup);
+      setSkippedTabs(result.skippedTabs);
+      setStep("validate");
+      toast.success(`${result.rows.length}건을 읽었어요.`);
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "xlsx 파싱 실패");
+    } finally {
+      setParsePending(false);
+    }
+  }, [settings, pendingBuffer, pendingGroup, selectedTabs]);
+
+  const resetUpload = useCallback(() => {
+    setPendingFile(null);
+    setPendingBuffer(null);
+    setPendingGroup(null);
+    setAvailableTabs([]);
+    setSelectedTabs(new Set());
+  }, []);
 
   const makeBlobFor = useCallback(
     async (row: ExpenseRow) => {
@@ -459,6 +511,108 @@ export function ExpenseTool() {
                 }}
               />
             </section>
+
+            {/* 탭 선택 (xlsx 업로드 후) */}
+            {pendingFile && availableTabs.length > 0 && (
+              <section className="space-y-3">
+                <Separator />
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-medium">처리할 탭 선택</h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {pendingFile.name} · 조직 = {pendingGroup === "ipf" ? "iPF" : "디미교연"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedTabs(new Set(availableTabs.filter((t) => t.processable).map((t) => t.name)))}
+                    >
+                      전체 선택
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedTabs(new Set())}
+                    >
+                      전체 해제
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={resetUpload}
+                    >
+                      취소
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-1.5 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                  {availableTabs.map((tab) => {
+                    const checked = selectedTabs.has(tab.name);
+                    return (
+                      <label
+                        key={tab.name}
+                        className={cn(
+                          "flex items-start gap-2 rounded-md p-2 text-xs transition-colors",
+                          tab.processable ? "cursor-pointer hover:bg-muted/40" : "cursor-not-allowed opacity-50",
+                          checked && "bg-muted/50"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          disabled={!tab.processable}
+                          checked={checked}
+                          onChange={(e) => {
+                            setSelectedTabs((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) next.add(tab.name);
+                              else next.delete(tab.name);
+                              return next;
+                            });
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{tab.name}</p>
+                          {tab.processable ? (
+                            <p className="truncate text-[10px] text-muted-foreground">
+                              {tab.semok} · {tab.sesemok} · 약 {tab.estimatedRows}행
+                            </p>
+                          ) : (
+                            <p className="truncate text-[10px] text-amber-700 dark:text-amber-400">
+                              {tab.reason}
+                            </p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    선택: {selectedTabs.size} / 처리 가능: {availableTabs.filter((t) => t.processable).length}
+                  </p>
+                  <Button
+                    onClick={proceedWithSelectedTabs}
+                    disabled={parsePending || selectedTabs.size === 0}
+                    size="sm"
+                  >
+                    {parsePending ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        처리 중…
+                      </>
+                    ) : (
+                      <>선택한 탭으로 진행</>
+                    )}
+                  </Button>
+                </div>
+              </section>
+            )}
           </CardContent>
         </Card>
       )}
@@ -597,6 +751,7 @@ export function ExpenseTool() {
                 setRows([]);
                 setResultFiles([]);
                 setResolvedGroup(null);
+                resetUpload();
               }}>
                 처음으로
               </Button>

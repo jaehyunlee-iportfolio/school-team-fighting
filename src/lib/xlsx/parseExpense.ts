@@ -79,15 +79,65 @@ export type ParseExpenseResult = {
   skippedTabs: { name: string; reason: string }[];
 };
 
+/** xlsx 탭 정보 (자료 단계 미리보기용) */
+export type XlsxTabInfo = {
+  name: string;
+  /** 처리 가능 (TAB_TO_ACCOUNT에 매핑 + 스킵 대상 아님) */
+  processable: boolean;
+  /** 매핑된 세목/세세목 (processable일 때만) */
+  semok?: string;
+  sesemok?: string;
+  /** 처리 못 하는 이유 */
+  reason?: string;
+  /** 데이터 행 수 (대략) — processable일 때만 */
+  estimatedRows?: number;
+};
+
+/** xlsx에서 탭 목록과 처리 가능 여부만 빠르게 추출 */
+export async function listExpenseTabs(buffer: ArrayBuffer): Promise<XlsxTabInfo[]> {
+  const wb = XLSX.read(buffer, { type: "array", cellDates: true });
+  const out: XlsxTabInfo[] = [];
+  for (const sheetName of wb.SheetNames) {
+    if (SKIP_TABS.has(sheetName)) {
+      out.push({ name: sheetName, processable: false, reason: "고정 스킵" });
+      continue;
+    }
+    const account = TAB_TO_ACCOUNT[sheetName];
+    if (!account) {
+      out.push({ name: sheetName, processable: false, reason: "세목 매핑 없음" });
+      continue;
+    }
+    const ws = wb.Sheets[sheetName];
+    let estimatedRows = 0;
+    if (ws) {
+      const sheetRows = XLSX.utils.sheet_to_json<Row>(ws, {
+        header: 1, defval: null, blankrows: false,
+      });
+      // 행 5+ 가 데이터 행
+      estimatedRows = Math.max(0, sheetRows.length - 4);
+    }
+    out.push({
+      name: sheetName,
+      processable: true,
+      semok: account.semok,
+      sesemok: account.sesemok,
+      estimatedRows,
+    });
+  }
+  return out;
+}
+
 /**
  * xlsx ArrayBuffer → ExpenseRow[]
  * @param orgCode 일련번호 prefix (예: "IPF")
  * @param serialAlpha 일련번호 알파벳 (예: "R")
+ * @param selectedTabs (선택) 특정 탭들만 처리. undefined면 처리 가능한 모든 탭.
  */
 export async function parseExpenseXlsx(
   buffer: ArrayBuffer,
   orgCode: string,
-  serialAlpha: string
+  serialAlpha: string,
+  selectedTabs?: Set<string>
 ): Promise<ParseExpenseResult> {
   const wb = XLSX.read(buffer, { type: "array", cellDates: true });
   const rows: ExpenseRow[] = [];
@@ -104,6 +154,10 @@ export async function parseExpenseXlsx(
     const account = TAB_TO_ACCOUNT[sheetName];
     if (!account) {
       skippedTabs.push({ name: sheetName, reason: "세목 매핑 없음" });
+      continue;
+    }
+    if (selectedTabs && !selectedTabs.has(sheetName)) {
+      skippedTabs.push({ name: sheetName, reason: "사용자가 선택 해제" });
       continue;
     }
 
