@@ -111,11 +111,13 @@ def cmd_organize(args: argparse.Namespace) -> int:
             pbar = tqdm(total=total, desc="처리 중", unit="개")
         pbar.update(1)  # type: ignore[union-attr]
 
+    # backward-compat: --overwrite > --conflict
+    conflict = "overwrite" if args.overwrite else args.conflict
     results = process_all(
         src,
         drive,
         mode=args.mode,
-        overwrite=args.overwrite,
+        conflict=conflict,
         dry_run=args.dry_run,
         on_progress=on_progress,
     )
@@ -184,7 +186,11 @@ def main() -> int:
     org.add_argument("--mode", choices=["move", "copy"], default="move")
     org.add_argument("--report", help="CSV 보고서 경로 (기본 자동)")
     org.add_argument("--dry-run", action="store_true")
-    org.add_argument("--overwrite", action="store_true")
+    org.add_argument("--overwrite", action="store_true",
+                     help="동일 이름 파일을 덮어씀 (--conflict overwrite 와 동일)")
+    org.add_argument("--conflict", choices=["overwrite", "rename", "skip"],
+                     default="rename",
+                     help="동일 이름 시 처리: overwrite/rename(_dup1)/skip")
     org.set_defaults(func=cmd_organize)
 
     # 롤백

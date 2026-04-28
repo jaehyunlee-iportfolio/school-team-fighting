@@ -62,13 +62,13 @@ class OrganizeWorker(QObject):
     finished = Signal(list, object, object)  # results, csv_path, json_path
     error = Signal(str)
 
-    def __init__(self, src: Path, drive: Path, mode: str, dry_run: bool, overwrite: bool):
+    def __init__(self, src: Path, drive: Path, mode: str, dry_run: bool, conflict: str):
         super().__init__()
         self.src = src
         self.drive = drive
         self.mode = mode
         self.dry_run = dry_run
-        self.overwrite = overwrite
+        self.conflict = conflict  # "overwrite" / "rename" / "skip"
 
     def run(self) -> None:
         try:
@@ -77,7 +77,7 @@ class OrganizeWorker(QObject):
 
             results = process_all(
                 self.src, self.drive,
-                mode=self.mode, overwrite=self.overwrite, dry_run=self.dry_run,
+                mode=self.mode, conflict=self.conflict, dry_run=self.dry_run,
                 on_progress=cb,
             )
             csv_path, json_path = make_report_paths(self.src)
@@ -208,8 +208,19 @@ class MainWindow(QMainWindow):
         self.dry_run_chk = QCheckBox("미리보기 (dry-run, 실제 이동 안 함)")
         opt_layout.addWidget(self.dry_run_chk)
         opt_layout.addSpacing(12)
-        self.overwrite_chk = QCheckBox("덮어쓰기 허용")
-        opt_layout.addWidget(self.overwrite_chk)
+        # 충돌 정책 (3 라디오)
+        opt_layout.addWidget(QLabel("동일 이름:"))
+        self.conflict_overwrite = QRadioButton("덮어쓰기")
+        self.conflict_rename = QRadioButton("새 이름 (_dup1)")
+        self.conflict_skip = QRadioButton("건너뛰기")
+        self.conflict_rename.setChecked(True)  # 기본값
+        self.conflict_group = QButtonGroup(self)
+        self.conflict_group.addButton(self.conflict_overwrite)
+        self.conflict_group.addButton(self.conflict_rename)
+        self.conflict_group.addButton(self.conflict_skip)
+        opt_layout.addWidget(self.conflict_overwrite)
+        opt_layout.addWidget(self.conflict_rename)
+        opt_layout.addWidget(self.conflict_skip)
         opt_layout.addStretch(1)
         grid.addWidget(opt_widget, 3, 0, 1, 3)
 
@@ -358,7 +369,12 @@ class MainWindow(QMainWindow):
 
         mode = "move" if self.mode_move.isChecked() else "copy"
         dry_run = self.dry_run_chk.isChecked()
-        overwrite = self.overwrite_chk.isChecked()
+        if self.conflict_overwrite.isChecked():
+            conflict = "overwrite"
+        elif self.conflict_skip.isChecked():
+            conflict = "skip"
+        else:
+            conflict = "rename"
 
         self.run_btn.setEnabled(False)
         self.open_csv_btn.setEnabled(False)
@@ -372,10 +388,11 @@ class MainWindow(QMainWindow):
         append_log(self.log, f"  src:    {src_p}", "dim")
         append_log(self.log, f"  drive:  {drive_p}", "dim")
         append_log(self.log, f"  mode:   {mode}{'  (dry-run)' if dry_run else ''}", "dim")
+        append_log(self.log, f"  동일 이름 시: {conflict}", "dim")
         append_log(self.log, "")
 
         self._org_thread = QThread(self)
-        self._org_worker = OrganizeWorker(src_p, drive_p, mode, dry_run, overwrite)
+        self._org_worker = OrganizeWorker(src_p, drive_p, mode, dry_run, conflict)
         self._org_worker.moveToThread(self._org_thread)
         self._org_thread.started.connect(self._org_worker.run)
         self._org_worker.progress.connect(self._on_org_progress)
@@ -393,8 +410,8 @@ class MainWindow(QMainWindow):
             self.progress.setRange(0, total)
         self.progress.setValue(cur)
         self.progress_label.setText(f"{cur} / {total}")
-        tag = {"OK": "ok", "MISSING_PREFIX": "warn", "FOLDER_NOT_FOUND": "warn", "ERROR": "err"}.get(res.status, "")
-        icon = {"OK": "✅", "MISSING_PREFIX": "⚠️", "FOLDER_NOT_FOUND": "⚠️", "ERROR": "❌"}.get(res.status, "·")
+        tag = {"OK": "ok", "SKIPPED": "dim", "MISSING_PREFIX": "warn", "FOLDER_NOT_FOUND": "warn", "ERROR": "err"}.get(res.status, "")
+        icon = {"OK": "✅", "SKIPPED": "⏭", "MISSING_PREFIX": "⚠️", "FOLDER_NOT_FOUND": "⚠️", "ERROR": "❌"}.get(res.status, "·")
         line = f"{icon} {res.src_filename}"
         if res.status != "OK":
             line += f"  → {res.reason}"
@@ -407,6 +424,8 @@ class MainWindow(QMainWindow):
 
         s = summarize(results)
         summary_text = f"✅ 성공 {s['ok']}"
+        if s.get("skipped"):
+            summary_text += f"   ⏭ 건너뜀 {s['skipped']}"
         if s["missing_prefix"]:
             summary_text += f"   ⚠️ 증빙번호 누락 {s['missing_prefix']}"
         if s["folder_not_found"]:

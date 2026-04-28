@@ -12,13 +12,16 @@ import shutil
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Literal
 
 SUPPORTED_EXTS = (".pdf", ".hwp", ".hwpx")
 PREFIX_RE = re.compile(
     r"^([A-Za-z]-\d+(?:-\d+)*)_(.+\.(?:pdf|hwp|hwpx))$", re.IGNORECASE
 )
 REPORT_SCHEMA_VERSION = 1
+
+# 충돌 정책: 같은 이름 파일이 대상 폴더에 이미 있을 때
+ConflictPolicy = Literal["overwrite", "rename", "skip"]
 
 
 @dataclass
@@ -109,9 +112,13 @@ def process_one(
     drive_root: Path,
     *,
     mode: str,
-    overwrite: bool,
     dry_run: bool,
+    conflict: ConflictPolicy = "rename",
+    overwrite: bool | None = None,  # backward-compat: True→"overwrite", False→"rename"
 ) -> TaskResult:
+    if overwrite is not None:
+        conflict = "overwrite" if overwrite else "rename"
+
     name = src_file.name
     evidence_no, stripped = parse_prefix(name)
 
@@ -136,7 +143,21 @@ def process_one(
             reason=f"Drive 트리에서 {evidence_no} 폴더를 찾지 못함 (2단계까지 검색)",
         )
 
-    target_path = target_folder / stripped if overwrite else resolve_dup_name(target_folder, stripped)
+    # 충돌 정책 적용
+    direct_path = target_folder / stripped
+    if conflict == "skip" and _safe_exists(direct_path):
+        return TaskResult(
+            status="SKIPPED",
+            src_filename=name,
+            evidence_no=evidence_no,
+            target_folder=str(target_folder),
+            target_filename=stripped,
+            reason="동일 이름 파일이 이미 존재 — skip",
+        )
+    if conflict == "overwrite":
+        target_path = direct_path
+    else:  # "rename"
+        target_path = resolve_dup_name(target_folder, stripped)
 
     if dry_run:
         return TaskResult(
@@ -207,16 +228,19 @@ def process_all(
     drive: Path,
     *,
     mode: str = "move",
-    overwrite: bool = False,
     dry_run: bool = False,
+    conflict: ConflictPolicy = "rename",
+    overwrite: bool | None = None,  # backward-compat
     on_progress: Callable[[int, int, TaskResult], None] | None = None,
 ) -> list[TaskResult]:
     """모든 지원 파일 처리. on_progress(현재, 전체, 결과)로 진행 상황 보고."""
+    if overwrite is not None:
+        conflict = "overwrite" if overwrite else "rename"
     pdfs = list_pdfs(src)
     total = len(pdfs)
     results: list[TaskResult] = []
     for i, f in enumerate(pdfs):
-        res = process_one(f, drive, mode=mode, overwrite=overwrite, dry_run=dry_run)
+        res = process_one(f, drive, mode=mode, conflict=conflict, dry_run=dry_run)
         results.append(res)
         if on_progress:
             on_progress(i + 1, total, res)
@@ -228,10 +252,16 @@ def process_all(
 # ─────────────────────────────────────────────────────────────────────────
 
 def summarize(results: Iterable[TaskResult]) -> dict[str, int]:
-    s = {"total": 0, "ok": 0, "missing_prefix": 0, "folder_not_found": 0, "error": 0}
+    s = {"total": 0, "ok": 0, "skipped": 0, "missing_prefix": 0, "folder_not_found": 0, "error": 0}
     for r in results:
         s["total"] += 1
-        key = {"OK": "ok", "MISSING_PREFIX": "missing_prefix", "FOLDER_NOT_FOUND": "folder_not_found", "ERROR": "error"}.get(r.status)
+        key = {
+            "OK": "ok",
+            "SKIPPED": "skipped",
+            "MISSING_PREFIX": "missing_prefix",
+            "FOLDER_NOT_FOUND": "folder_not_found",
+            "ERROR": "error",
+        }.get(r.status)
         if key:
             s[key] += 1
     return s
