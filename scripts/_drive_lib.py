@@ -23,6 +23,60 @@ REPORT_SCHEMA_VERSION = 1
 # 충돌 정책: 같은 이름 파일이 대상 폴더에 이미 있을 때
 ConflictPolicy = Literal["overwrite", "rename", "skip"]
 
+# 지출결의서 stable key 패턴.
+# 파일명 예: "1. 내부결의문서_지출결의서_IPF-20260206-R0125.pdf"
+#         또는 "1.내부결재문서_지출결의서_KDI-20260205-R1500.pdf"
+# stable key = "_지출결의서_<ORG>-<YYYYMMDD>" 까지. 뒤의 "-R0125" 같은 일련번호는
+# 매번 랜덤이라 동일 문서 식별에 방해되므로 무시.
+EXPENSE_SERIAL_RE = re.compile(
+    r"^(.*?_지출결의서_[A-Za-z]+-\d{8})-[A-Za-z]\d+(\.[A-Za-z]+)$"
+)
+
+
+def expense_stable_key(filename: str) -> tuple[str, str] | None:
+    """지출결의서 파일이면 (날짜까지 prefix, 확장자) 반환. 아니면 None.
+
+    같은 날에 만든 같은 비목·증빙번호 지출결의서는 일련번호(R0125 등)가
+    달라도 동일 문서로 간주하기 위함.
+    """
+    m = EXPENSE_SERIAL_RE.match(filename)
+    if not m:
+        return None
+    return m.group(1), m.group(2)
+
+
+def find_existing_expense_match(target_folder: Path, filename: str) -> Path | None:
+    """target_folder 안에서 같은 stable key를 가진 지출결의서 파일 탐색.
+
+    파일이 지출결의서가 아니거나 매칭이 없으면 None.
+    동일 이름 파일은 매칭 결과로 우선 반환 (정확 일치).
+    """
+    key = expense_stable_key(filename)
+    if key is None:
+        return None
+    prefix, ext = key
+    direct = target_folder / filename
+    try:
+        if direct.is_file():
+            return direct
+    except OSError:
+        pass
+    try:
+        for p in target_folder.iterdir():
+            try:
+                if not p.is_file():
+                    continue
+            except OSError:
+                continue
+            if p.suffix.lower() != ext.lower():
+                continue
+            other = expense_stable_key(p.name)
+            if other is not None and other[0] == prefix:
+                return p
+    except OSError:
+        return None
+    return None
+
 
 @dataclass
 class TaskResult:
@@ -115,6 +169,7 @@ def process_one(
     dry_run: bool,
     conflict: ConflictPolicy = "rename",
     overwrite: bool | None = None,  # backward-compat: True→"overwrite", False→"rename"
+    expense_match_by_date: bool = False,
 ) -> TaskResult:
     if overwrite is not None:
         conflict = "overwrite" if overwrite else "rename"
@@ -143,21 +198,43 @@ def process_one(
             reason=f"Drive 트리에서 {evidence_no} 폴더를 찾지 못함 (2단계까지 검색)",
         )
 
-    # 충돌 정책 적용
+    # 충돌 감지: 정확 일치 + (옵션) 지출결의서 stable key 매칭
     direct_path = target_folder / stripped
-    if conflict == "skip" and _safe_exists(direct_path):
+    existing: Path | None = direct_path if _safe_exists(direct_path) else None
+    expense_dup_note = ""
+    if expense_match_by_date and existing is None:
+        matched = find_existing_expense_match(target_folder, stripped)
+        if matched is not None and matched != direct_path:
+            existing = matched
+            expense_dup_note = f" (같은 날짜 다른 일련번호: {matched.name})"
+
+    # 충돌 정책 적용
+    if conflict == "skip" and existing is not None:
         return TaskResult(
             status="SKIPPED",
             src_filename=name,
             evidence_no=evidence_no,
             target_folder=str(target_folder),
-            target_filename=stripped,
-            reason="동일 이름 파일이 이미 존재 — skip",
+            target_filename=existing.name,
+            reason=f"동일 문서 이미 존재 — skip{expense_dup_note}",
         )
     if conflict == "overwrite":
+        # 정확 일치는 그 경로에 그대로 덮어쓰기.
+        # 지출결의서 stable key 매칭(다른 일련번호)이면 기존 파일 삭제 후 새 이름으로 저장.
+        if existing is not None and existing.name != stripped:
+            try:
+                if not dry_run:
+                    existing.unlink()
+            except OSError:
+                pass
         target_path = direct_path
     else:  # "rename"
-        target_path = resolve_dup_name(target_folder, stripped)
+        # 정확 일치면 _dup1 부여. 지출결의서 stable key 매칭(다른 이름)은 자기 이름 그대로
+        # 저장(둘 다 보관). 자기 이름이 우연히 정확 일치하는 경우만 _dup 부여.
+        if _safe_exists(direct_path):
+            target_path = resolve_dup_name(target_folder, stripped)
+        else:
+            target_path = direct_path
 
     if dry_run:
         return TaskResult(
@@ -166,7 +243,7 @@ def process_one(
             evidence_no=evidence_no,
             target_folder=str(target_folder),
             target_filename=target_path.name,
-            reason=f"[dry-run] {mode} 예정",
+            reason=f"[dry-run] {mode} 예정{expense_dup_note}",
         )
 
     try:
@@ -212,7 +289,7 @@ def process_one(
         evidence_no=evidence_no,
         target_folder=str(target_folder),
         target_filename=target_path.name,
-        reason=f"{mode} 완료",
+        reason=f"{mode} 완료{expense_dup_note}",
     )
 
 
@@ -231,6 +308,7 @@ def process_all(
     dry_run: bool = False,
     conflict: ConflictPolicy = "rename",
     overwrite: bool | None = None,  # backward-compat
+    expense_match_by_date: bool = False,
     on_progress: Callable[[int, int, TaskResult], None] | None = None,
 ) -> list[TaskResult]:
     """모든 지원 파일 처리. on_progress(현재, 전체, 결과)로 진행 상황 보고."""
@@ -240,7 +318,11 @@ def process_all(
     total = len(pdfs)
     results: list[TaskResult] = []
     for i, f in enumerate(pdfs):
-        res = process_one(f, drive, mode=mode, conflict=conflict, dry_run=dry_run)
+        res = process_one(
+            f, drive,
+            mode=mode, conflict=conflict, dry_run=dry_run,
+            expense_match_by_date=expense_match_by_date,
+        )
         results.append(res)
         if on_progress:
             on_progress(i + 1, total, res)

@@ -62,13 +62,14 @@ class OrganizeWorker(QObject):
     finished = Signal(list, object, object)  # results, csv_path, json_path
     error = Signal(str)
 
-    def __init__(self, src: Path, drive: Path, mode: str, dry_run: bool, conflict: str):
+    def __init__(self, src: Path, drive: Path, mode: str, dry_run: bool, conflict: str, expense_match_by_date: bool):
         super().__init__()
         self.src = src
         self.drive = drive
         self.mode = mode
         self.dry_run = dry_run
         self.conflict = conflict  # "overwrite" / "rename" / "skip"
+        self.expense_match_by_date = expense_match_by_date
 
     def run(self) -> None:
         try:
@@ -78,6 +79,7 @@ class OrganizeWorker(QObject):
             results = process_all(
                 self.src, self.drive,
                 mode=self.mode, conflict=self.conflict, dry_run=self.dry_run,
+                expense_match_by_date=self.expense_match_by_date,
                 on_progress=cb,
             )
             csv_path, json_path = make_report_paths(self.src)
@@ -223,6 +225,24 @@ class MainWindow(QMainWindow):
         opt_layout.addWidget(self.conflict_skip)
         opt_layout.addStretch(1)
         grid.addWidget(opt_widget, 3, 0, 1, 3)
+
+        # 지출결의서 옵션 — 같은 날짜의 다른 일련번호 파일을 동일 문서로 처리
+        expense_widget = QWidget()
+        expense_layout = QHBoxLayout(expense_widget)
+        expense_layout.setContentsMargins(0, 0, 0, 0)
+        self.expense_match_chk = QCheckBox(
+            "📄 지출결의서: 같은 날짜는 동일 문서로 처리 (일련번호 -R0125 등 무시)"
+        )
+        self.expense_match_chk.setChecked(True)
+        self.expense_match_chk.setToolTip(
+            "켜면 '..._지출결의서_IPF-20260206-R0125.pdf' 와\n"
+            "      '..._지출결의서_IPF-20260206-R9999.pdf' 처럼\n"
+            "날짜·prefix가 같지만 끝의 랜덤 일련번호만 다른 파일들을 같은 문서로 인식해\n"
+            "위에서 선택한 충돌 정책(덮어쓰기/새 이름/건너뛰기)을 적용합니다."
+        )
+        expense_layout.addWidget(self.expense_match_chk)
+        expense_layout.addStretch(1)
+        grid.addWidget(expense_widget, 4, 0, 1, 3)
 
         layout.addWidget(gb)
 
@@ -375,6 +395,7 @@ class MainWindow(QMainWindow):
             conflict = "skip"
         else:
             conflict = "rename"
+        expense_match_by_date = self.expense_match_chk.isChecked()
 
         self.run_btn.setEnabled(False)
         self.open_csv_btn.setEnabled(False)
@@ -389,10 +410,11 @@ class MainWindow(QMainWindow):
         append_log(self.log, f"  drive:  {drive_p}", "dim")
         append_log(self.log, f"  mode:   {mode}{'  (dry-run)' if dry_run else ''}", "dim")
         append_log(self.log, f"  동일 이름 시: {conflict}", "dim")
+        append_log(self.log, f"  지출결의서 같은날 동일문서: {'ON' if expense_match_by_date else 'OFF'}", "dim")
         append_log(self.log, "")
 
         self._org_thread = QThread(self)
-        self._org_worker = OrganizeWorker(src_p, drive_p, mode, dry_run, conflict)
+        self._org_worker = OrganizeWorker(src_p, drive_p, mode, dry_run, conflict, expense_match_by_date)
         self._org_worker.moveToThread(self._org_thread)
         self._org_thread.started.connect(self._org_worker.run)
         self._org_worker.progress.connect(self._on_org_progress)
