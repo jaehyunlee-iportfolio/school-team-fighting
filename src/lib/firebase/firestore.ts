@@ -1186,3 +1186,233 @@ export async function saveExpenseLayoutSettings(
 ): Promise<void> {
   await setDoc(doc(getFirebaseDb(), "settings", "expenseLayout"), settings);
 }
+
+/* ===================================================================
+   운영회의록 (D-2) 설정
+   =================================================================== */
+
+export type MeetingFooterLogo = {
+  enabled: boolean;
+  label: string;
+  imageUrl: string;
+};
+
+export type MeetingOperationsSettings = {
+  /** 회의 유형 라벨 (파일명 일부) — 예: "운영회의" */
+  meetingType: string;
+  /** 파일명 prefix (번호 + 종류) — 예: "7. 회의록" */
+  filenamePrefix: string;
+  /** 작성자 누락 시 PDF에 표시할 placeholder (검토에서 노란 배지) */
+  authorPlaceholder: string;
+  /** 우측 상단 헤더 로고 (찾학컨) — base64 dataURL */
+  headerLogoUrl: string;
+  /** 푸터 로고 3개 — 각 ON/OFF + 라벨 + 이미지 */
+  footerLogos: [MeetingFooterLogo, MeetingFooterLogo, MeetingFooterLogo];
+  /** 서명부 안내 문구 */
+  signaturePrivacyNotice: {
+    enabled: boolean;
+    text: string;
+  };
+  /** 서명부 한 페이지 행 수 — 초과분은 다음 페이지로 자동 분할 */
+  signatureRowsPerPage: number;
+  /** 빈 셀 placeholder */
+  emptyPlaceholder: string;
+};
+
+export const DEFAULT_MEETING_OP_SETTINGS: MeetingOperationsSettings = {
+  meetingType: "운영회의",
+  filenamePrefix: "7. 회의록",
+  authorPlaceholder: "내용 확인 필요",
+  headerLogoUrl: "",
+  footerLogos: [
+    { enabled: true, label: "건국대학교", imageUrl: "" },
+    { enabled: true, label: "디미교연(몽당분필)", imageUrl: "" },
+    { enabled: true, label: "아이포트폴리오(리딩앤)", imageUrl: "" },
+  ],
+  signaturePrivacyNotice: {
+    enabled: true,
+    text: "[수집된 개인정보는 출석 확인 및 행정 처리 목적으로만 사용됩니다]",
+  },
+  signatureRowsPerPage: 20,
+  emptyPlaceholder: "",
+};
+
+export async function getMeetingOperationsSettings(): Promise<MeetingOperationsSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "meetingOperations"));
+  if (!snap.exists()) return DEFAULT_MEETING_OP_SETTINGS;
+  const data = snap.data() as Record<string, unknown>;
+  const merged = deepMerge(
+    DEFAULT_MEETING_OP_SETTINGS as unknown as Record<string, unknown>,
+    data,
+  ) as unknown as MeetingOperationsSettings;
+  // footerLogos 배열은 인덱스 보존 머지
+  const rawLogos = (data.footerLogos as unknown[]) ?? [];
+  merged.footerLogos = DEFAULT_MEETING_OP_SETTINGS.footerLogos.map((def, i) => ({
+    ...def,
+    ...((rawLogos[i] as Partial<MeetingFooterLogo>) ?? {}),
+  })) as [MeetingFooterLogo, MeetingFooterLogo, MeetingFooterLogo];
+  return merged;
+}
+
+export async function saveMeetingOperationsSettings(
+  settings: MeetingOperationsSettings,
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "meetingOperations"), settings);
+}
+
+export type MeetingOperationsLayoutSettings = {
+  page: {
+    fontFamily: string;
+    baseFontSize: number;
+    baseLineHeight: number;
+    paddingTopMm: number;
+    paddingBottomMm: number;
+    paddingLeftMm: number;
+    paddingRightMm: number;
+  };
+  border: { width: number; color: string };
+  title: { fontSize: number; fontWeight: number; marginTop: number; marginBottom: number };
+  headerLogo: { width: number; height: number; offsetX: number; offsetY: number };
+  /** 페이지 1: 일시/시간/장소/작성자 4셀 표 */
+  topInfoTable: {
+    rowHeight: number;
+    labelWidth: number;
+    valueWidth: number;
+    labelBgColor: string;
+    labelFontSize: number;
+    valueFontSize: number;
+    cellPadding: number;
+  };
+  /** 페이지 1: 안건/내용/결정/일정/참석자 본문 표 */
+  bodyTable: {
+    labelWidth: number;
+    labelBgColor: string;
+    labelFontSize: number;
+    contentFontSize: number;
+    contentLineHeight: number;
+    contentPadding: number;
+    agendaMinHeight: number;
+    contentMinHeight: number;
+    decisionsMinHeight: number;
+    scheduleMinHeight: number;
+    attendeesMinHeight: number;
+  };
+  signature: {
+    titleFontSize: number;
+    noticeFontSize: number;
+    noticeColor: string;
+    headerHeight: number;
+    rowHeight: number;
+    headerFontSize: number;
+    headerBgColor: string;
+    nameFontSize: number;
+    colNoWidth: number;
+    colNameWidth: number;
+    colSignWidth: number;
+  };
+  photoPage: {
+    titleFontSize: number;
+    cols: number;
+    rows: number;
+    cellGap: number;
+    cellBorderColor: string;
+    cellBorderWidth: number;
+  };
+  footer: {
+    marginTop: number;
+    logoHeight: number;
+    logoMaxWidth: number;
+    gap: number;
+    labelFontSize: number;
+    labelColor: string;
+  };
+  placeholders: {
+    emptyAuthorColor: string;
+    emptyFieldColor: string;
+  };
+};
+
+export const DEFAULT_MEETING_OP_LAYOUT: MeetingOperationsLayoutSettings = {
+  page: {
+    fontFamily: "Pretendard",
+    baseFontSize: 10,
+    baseLineHeight: 1.4,
+    paddingTopMm: 18,
+    paddingBottomMm: 18,
+    paddingLeftMm: 18,
+    paddingRightMm: 18,
+  },
+  border: { width: 0.75, color: "#000000" },
+  title: { fontSize: 30, fontWeight: 700, marginTop: 4, marginBottom: 22 },
+  headerLogo: { width: 88, height: 36, offsetX: 0, offsetY: 0 },
+  topInfoTable: {
+    rowHeight: 26,
+    labelWidth: 80,
+    valueWidth: 180,
+    labelBgColor: "#E8E8E8",
+    labelFontSize: 11,
+    valueFontSize: 11,
+    cellPadding: 4,
+  },
+  bodyTable: {
+    labelWidth: 110,
+    labelBgColor: "#FBE7EE",
+    labelFontSize: 11,
+    contentFontSize: 10.5,
+    contentLineHeight: 1.55,
+    contentPadding: 8,
+    agendaMinHeight: 50,
+    contentMinHeight: 150,
+    decisionsMinHeight: 130,
+    scheduleMinHeight: 120,
+    attendeesMinHeight: 28,
+  },
+  signature: {
+    titleFontSize: 28,
+    noticeFontSize: 9,
+    noticeColor: "#333333",
+    headerHeight: 26,
+    rowHeight: 24,
+    headerFontSize: 11,
+    headerBgColor: "#FBE7EE",
+    nameFontSize: 11,
+    colNoWidth: 60,
+    colNameWidth: 200,
+    colSignWidth: 200,
+  },
+  photoPage: {
+    titleFontSize: 14,
+    cols: 2,
+    rows: 3,
+    cellGap: 8,
+    cellBorderColor: "#CCCCCC",
+    cellBorderWidth: 0.5,
+  },
+  footer: {
+    marginTop: 16,
+    logoHeight: 22,
+    logoMaxWidth: 90,
+    gap: 22,
+    labelFontSize: 9,
+    labelColor: "#333333",
+  },
+  placeholders: {
+    emptyAuthorColor: "#B45309",
+    emptyFieldColor: "#9CA3AF",
+  },
+};
+
+export async function getMeetingOperationsLayoutSettings(): Promise<MeetingOperationsLayoutSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "meetingOperationsLayout"));
+  if (!snap.exists()) return DEFAULT_MEETING_OP_LAYOUT;
+  return deepMerge(
+    DEFAULT_MEETING_OP_LAYOUT as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as MeetingOperationsLayoutSettings;
+}
+
+export async function saveMeetingOperationsLayoutSettings(
+  settings: MeetingOperationsLayoutSettings,
+): Promise<void> {
+  await setDoc(doc(getFirebaseDb(), "settings", "meetingOperationsLayout"), settings);
+}

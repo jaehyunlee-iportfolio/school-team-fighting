@@ -26,6 +26,10 @@ import {
   saveExpenseSettings,
   getExpenseLayoutSettings,
   saveExpenseLayoutSettings,
+  getMeetingOperationsSettings,
+  saveMeetingOperationsSettings,
+  getMeetingOperationsLayoutSettings,
+  saveMeetingOperationsLayoutSettings,
   DEFAULT_PDF_LAYOUT,
   DEFAULT_SOMYEONG_SETTINGS,
   DEFAULT_SOMYEONG_LAYOUT,
@@ -35,6 +39,8 @@ import {
   DEFAULT_SW_REQUEST_LAYOUT,
   DEFAULT_EXPENSE_SETTINGS,
   DEFAULT_EXPENSE_LAYOUT,
+  DEFAULT_MEETING_OP_SETTINGS,
+  DEFAULT_MEETING_OP_LAYOUT,
   SEOMOK_LIST,
   type ApprovalSettings,
   type GroupSettings,
@@ -48,6 +54,8 @@ import {
   type ExpenseSettings,
   type ExpenseGroupSettings,
   type ExpenseLayoutSettings,
+  type MeetingOperationsSettings,
+  type MeetingOperationsLayoutSettings,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -138,12 +146,17 @@ export default function AdminPage() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [savingSomyeong, setSavingSomyeong] = useState(false);
   const [savingSomyeongLayout, setSavingSomyeongLayout] = useState(false);
-  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "swRequest" | "expense" | "common">("trip");
+  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "swRequest" | "expense" | "meetingOp" | "common">("trip");
   const [tripSub, setTripSub] = useState<"signApproval" | "layout">("signApproval");
   const [somyeongSub, setSomyeongSub] = useState<"info" | "layout">("info");
   const [returnSub, setReturnSub] = useState<"approval" | "layout">("approval");
   const [swRequestSub, setSwRequestSub] = useState<"info" | "layout">("info");
   const [expenseSub, setExpenseSub] = useState<"info" | "layout">("info");
+  const [meetingOpSub, setMeetingOpSub] = useState<"info" | "layout">("info");
+  const [meetingOpSettings, setMeetingOpSettings] = useState<MeetingOperationsSettings | null>(null);
+  const [meetingOpLayout, setMeetingOpLayout] = useState<MeetingOperationsLayoutSettings | null>(null);
+  const [savingMeetingOp, setSavingMeetingOp] = useState(false);
+  const [savingMeetingOpLayout, setSavingMeetingOpLayout] = useState(false);
   const [returnSettings, setReturnSettings] = useState<ReturnSettings | null>(null);
   const [returnLayout, setReturnLayout] = useState<ReturnLayoutSettings | null>(null);
   const [savingReturn, setSavingReturn] = useState(false);
@@ -189,7 +202,7 @@ export default function AdminPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay, swReq, swReqLay, exp, expLay] = await Promise.all([
+      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay, swReq, swReqLay, exp, expLay, mop, mopLay] = await Promise.all([
         getApprovalSettings(),
         getAdminEmails(),
         getPdfLayoutSettings(),
@@ -201,6 +214,8 @@ export default function AdminPage() {
         getSwRequestLayoutSettings(),
         getExpenseSettings(),
         getExpenseLayoutSettings(),
+        getMeetingOperationsSettings(),
+        getMeetingOperationsLayoutSettings(),
       ]);
       setSettings(s);
       setAdminEmails(emails);
@@ -213,6 +228,8 @@ export default function AdminPage() {
       setSwRequestLayout(swReqLay);
       setExpenseSettings(exp);
       setExpenseLayout(expLay);
+      setMeetingOpSettings(mop);
+      setMeetingOpLayout(mopLay);
     } catch (err) {
       toast.error("설정을 불러오는 데 실패했어요.");
       console.error(err);
@@ -245,7 +262,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout || !swRequestSettings || !swRequestLayout || !expenseSettings || !expenseLayout) return null;
+  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout || !swRequestSettings || !swRequestLayout || !expenseSettings || !expenseLayout || !meetingOpSettings || !meetingOpLayout) return null;
 
   const handleSaveReturn = async () => {
     setSavingReturn(true);
@@ -320,6 +337,32 @@ export default function AdminPage() {
       toast.error(`저장 실패: ${msg.slice(0, 200)}`);
     } finally {
       setSavingExpenseLayout(false);
+    }
+  };
+
+  const handleSaveMeetingOp = async () => {
+    setSavingMeetingOp(true);
+    try {
+      await saveMeetingOperationsSettings(meetingOpSettings);
+      toast.success("운영회의록 설정 저장 완료");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`저장 실패: ${msg.slice(0, 200)}`);
+    } finally {
+      setSavingMeetingOp(false);
+    }
+  };
+
+  const handleSaveMeetingOpLayout = async () => {
+    setSavingMeetingOpLayout(true);
+    try {
+      await saveMeetingOperationsLayoutSettings(meetingOpLayout);
+      toast.success("운영회의록 레이아웃 저장 완료");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`저장 실패: ${msg.slice(0, 200)}`);
+    } finally {
+      setSavingMeetingOpLayout(false);
     }
   };
 
@@ -398,7 +441,7 @@ export default function AdminPage() {
       {/* 1단계: 도구 그룹 */}
       <Tabs
         value={activeGroup}
-        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "swRequest" | "expense" | "common")}
+        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "swRequest" | "expense" | "meetingOp" | "common")}
         className="flex flex-col space-y-4"
       >
         <TabsList className="grid w-full grid-cols-6">
@@ -407,6 +450,7 @@ export default function AdminPage() {
           <TabsTrigger value="return">출장복명서</TabsTrigger>
           <TabsTrigger value="swRequest">SW 요청서</TabsTrigger>
           <TabsTrigger value="expense">지출결의서</TabsTrigger>
+          <TabsTrigger value="meetingOp">운영회의록</TabsTrigger>
           <TabsTrigger value="common">공통</TabsTrigger>
         </TabsList>
 
@@ -760,6 +804,68 @@ export default function AdminPage() {
                     </Button>
                   </div>
                 </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        {/* ── 운영회의록 ── */}
+        <TabsContent value="meetingOp" className="space-y-4">
+          <Tabs
+            value={meetingOpSub}
+            onValueChange={(v) => setMeetingOpSub(v as "info" | "layout")}
+            className="flex flex-col space-y-4"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="info">기본 설정·로고</TabsTrigger>
+              <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="info" className="space-y-4">
+              <MeetingOpInfoSection
+                settings={meetingOpSettings}
+                onChange={setMeetingOpSettings}
+              />
+              <div className="flex items-center justify-between border-t pt-4">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setMeetingOpSettings(DEFAULT_MEETING_OP_SETTINGS);
+                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  기본값 초기화
+                </Button>
+                <Button onClick={handleSaveMeetingOp} disabled={savingMeetingOp} className="gap-2">
+                  {savingMeetingOp ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  저장
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="layout" className="space-y-4">
+              <MeetingOpLayoutSection
+                layout={meetingOpLayout}
+                onChange={setMeetingOpLayout}
+              />
+              <div className="flex items-center justify-between border-t pt-4">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setMeetingOpLayout(DEFAULT_MEETING_OP_LAYOUT);
+                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  기본값 초기화
+                </Button>
+                <Button onClick={handleSaveMeetingOpLayout} disabled={savingMeetingOpLayout} className="gap-2">
+                  {savingMeetingOpLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  저장
+                </Button>
               </div>
             </TabsContent>
           </Tabs>
@@ -3922,6 +4028,594 @@ function ExpenseLayoutSection({
             color={layout.placeholders.invalidValueColor}
             onTextChange={(v) => set("placeholders", { invalidValue: v })}
             onColorChange={(v) => set("placeholders", { invalidValueColor: v })}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   운영회의록 어드민 섹션
+   ============================================================ */
+
+function MeetingOpInfoSection({
+  settings,
+  onChange,
+}: {
+  settings: MeetingOperationsSettings;
+  onChange: (s: MeetingOperationsSettings) => void;
+}) {
+  const set = <K extends keyof MeetingOperationsSettings>(k: K, v: MeetingOperationsSettings[K]) =>
+    onChange({ ...settings, [k]: v });
+
+  const handleHeaderLogoUpload = async (file: File) => {
+    const r = new FileReader();
+    r.onload = () => set("headerLogoUrl", String(r.result ?? ""));
+    r.readAsDataURL(file);
+  };
+
+  const setFooter = (
+    i: number,
+    patch: Partial<MeetingOperationsSettings["footerLogos"][number]>,
+  ) => {
+    const next = [...settings.footerLogos] as MeetingOperationsSettings["footerLogos"];
+    next[i] = { ...next[i], ...patch };
+    onChange({ ...settings, footerLogos: next });
+  };
+
+  const handleFooterLogoUpload = async (i: number, file: File) => {
+    const r = new FileReader();
+    r.onload = () => setFooter(i, { imageUrl: String(r.result ?? "") });
+    r.readAsDataURL(file);
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">기본 문구·옵션</CardTitle>
+          <CardDescription className="text-xs">
+            파일명에 들어갈 회의 유형/번호와 작성자 누락 시 표시할 문구.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">파일명 prefix</Label>
+            <Input
+              value={settings.filenamePrefix}
+              onChange={(e) => set("filenamePrefix", e.target.value)}
+              placeholder="7. 회의록"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              예) {"{증빙}"}_<b>{settings.filenamePrefix}</b>_{settings.meetingType}_YYMMDD.pdf
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">회의 유형</Label>
+            <Input
+              value={settings.meetingType}
+              onChange={(e) => set("meetingType", e.target.value)}
+              placeholder="운영회의"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">작성자 누락 시 표시</Label>
+            <Input
+              value={settings.authorPlaceholder}
+              onChange={(e) => set("authorPlaceholder", e.target.value)}
+              placeholder="내용 확인 필요"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">서명부 한 페이지 행 수</Label>
+            <Input
+              type="number"
+              min={5}
+              max={40}
+              value={settings.signatureRowsPerPage}
+              onChange={(e) => set("signatureRowsPerPage", Number(e.target.value) || 20)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">우측 상단 헤더 로고</CardTitle>
+          <CardDescription className="text-xs">
+            모든 페이지 우측 상단에 표시 (찾학컨 로고).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-start gap-4">
+          {settings.headerLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={settings.headerLogoUrl}
+              alt="header"
+              className="h-16 max-w-[200px] rounded border bg-white object-contain p-2"
+            />
+          ) : (
+            <div className="flex h-16 w-32 items-center justify-center rounded border border-dashed text-xs text-muted-foreground">
+              미설정
+            </div>
+          )}
+          <div className="flex flex-col gap-2">
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleHeaderLogoUpload(f);
+                e.target.value = "";
+              }}
+            />
+            {settings.headerLogoUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => set("headerLogoUrl", "")}
+              >
+                제거
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">푸터 로고 3개</CardTitle>
+          <CardDescription className="text-xs">
+            각 로고를 ON/OFF, 라벨 텍스트 편집, 이미지 업로드.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {settings.footerLogos.map((logo, i) => (
+            <div key={i} className="grid grid-cols-[auto_1fr_1fr] items-start gap-3 rounded-lg border p-3">
+              <div className="flex flex-col items-center gap-2">
+                <Switch
+                  checked={logo.enabled}
+                  onCheckedChange={(v) => setFooter(i, { enabled: v })}
+                />
+                <span className="text-[10px] text-muted-foreground">{logo.enabled ? "표시" : "숨김"}</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">라벨 텍스트 #{i + 1}</Label>
+                <Input
+                  value={logo.label}
+                  onChange={(e) => setFooter(i, { label: e.target.value })}
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleFooterLogoUpload(i, f);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                {logo.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logo.imageUrl}
+                    alt={logo.label}
+                    className="h-12 max-w-[140px] rounded border bg-white object-contain p-1"
+                  />
+                ) : (
+                  <div className="flex h-12 w-32 items-center justify-center rounded border border-dashed text-[11px] text-muted-foreground">
+                    미설정
+                  </div>
+                )}
+                {logo.imageUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFooter(i, { imageUrl: "" })}
+                    className="h-7 px-2 text-[11px]"
+                  >
+                    이미지 제거
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">서명부 안내 문구</CardTitle>
+          <CardDescription className="text-xs">
+            서명부 페이지 상단에 표시되는 개인정보 처리 안내. 숨길 수도 있어요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={settings.signaturePrivacyNotice.enabled}
+              onCheckedChange={(v) =>
+                set("signaturePrivacyNotice", { ...settings.signaturePrivacyNotice, enabled: v })
+              }
+            />
+            <span className="text-xs">{settings.signaturePrivacyNotice.enabled ? "표시" : "숨김"}</span>
+          </div>
+          <Input
+            value={settings.signaturePrivacyNotice.text}
+            onChange={(e) =>
+              set("signaturePrivacyNotice", {
+                ...settings.signaturePrivacyNotice,
+                text: e.target.value,
+              })
+            }
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MeetingOpLayoutSection({
+  layout,
+  onChange,
+}: {
+  layout: MeetingOperationsLayoutSettings;
+  onChange: (l: MeetingOperationsLayoutSettings) => void;
+}) {
+  const set = <K extends keyof MeetingOperationsLayoutSettings>(
+    k: K,
+    patch: Partial<MeetingOperationsLayoutSettings[K]>,
+  ) => onChange({ ...layout, [k]: { ...layout[k], ...patch } });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">페이지·여백</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <NumField
+            label="기본 글자 크기"
+            unit="pt"
+            value={layout.page.baseFontSize}
+            onChange={(v) => set("page", { baseFontSize: v })}
+          />
+          <NumField
+            label="줄 간격"
+            value={layout.page.baseLineHeight}
+            step={0.05}
+            onChange={(v) => set("page", { baseLineHeight: v })}
+          />
+          <NumField
+            label="여백 위"
+            unit="mm"
+            value={layout.page.paddingTopMm}
+            onChange={(v) => set("page", { paddingTopMm: v })}
+          />
+          <NumField
+            label="여백 아래"
+            unit="mm"
+            value={layout.page.paddingBottomMm}
+            onChange={(v) => set("page", { paddingBottomMm: v })}
+          />
+          <NumField
+            label="여백 좌"
+            unit="mm"
+            value={layout.page.paddingLeftMm}
+            onChange={(v) => set("page", { paddingLeftMm: v })}
+          />
+          <NumField
+            label="여백 우"
+            unit="mm"
+            value={layout.page.paddingRightMm}
+            onChange={(v) => set("page", { paddingRightMm: v })}
+          />
+          <NumField
+            label="테두리 굵기"
+            value={layout.border.width}
+            step={0.05}
+            onChange={(v) => set("border", { width: v })}
+          />
+          <ColorField
+            label="테두리 색상"
+            value={layout.border.color}
+            onChange={(v) => set("border", { color: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">제목·헤더 로고</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <NumField
+            label="제목 글자 크기"
+            unit="pt"
+            value={layout.title.fontSize}
+            onChange={(v) => set("title", { fontSize: v })}
+          />
+          <NumField
+            label="제목 위 여백"
+            value={layout.title.marginTop}
+            onChange={(v) => set("title", { marginTop: v })}
+          />
+          <NumField
+            label="제목 아래 여백"
+            value={layout.title.marginBottom}
+            onChange={(v) => set("title", { marginBottom: v })}
+          />
+          <NumField
+            label="헤더 로고 가로"
+            value={layout.headerLogo.width}
+            onChange={(v) => set("headerLogo", { width: v })}
+          />
+          <NumField
+            label="헤더 로고 세로"
+            value={layout.headerLogo.height}
+            onChange={(v) => set("headerLogo", { height: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">상단 정보 표 (일시/시간/장소/작성자)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <NumField
+            label="행 높이"
+            value={layout.topInfoTable.rowHeight}
+            onChange={(v) => set("topInfoTable", { rowHeight: v })}
+          />
+          <NumField
+            label="라벨 셀 폭"
+            value={layout.topInfoTable.labelWidth}
+            onChange={(v) => set("topInfoTable", { labelWidth: v })}
+          />
+          <NumField
+            label="값 셀 폭"
+            value={layout.topInfoTable.valueWidth}
+            onChange={(v) => set("topInfoTable", { valueWidth: v })}
+          />
+          <NumField
+            label="라벨 글자 크기"
+            value={layout.topInfoTable.labelFontSize}
+            onChange={(v) => set("topInfoTable", { labelFontSize: v })}
+          />
+          <NumField
+            label="값 글자 크기"
+            value={layout.topInfoTable.valueFontSize}
+            onChange={(v) => set("topInfoTable", { valueFontSize: v })}
+          />
+          <ColorField
+            label="라벨 배경색"
+            value={layout.topInfoTable.labelBgColor}
+            onChange={(v) => set("topInfoTable", { labelBgColor: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">본문 표 (안건/내용/결정/일정)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <NumField
+            label="라벨 셀 폭"
+            value={layout.bodyTable.labelWidth}
+            onChange={(v) => set("bodyTable", { labelWidth: v })}
+          />
+          <ColorField
+            label="라벨 배경색"
+            value={layout.bodyTable.labelBgColor}
+            onChange={(v) => set("bodyTable", { labelBgColor: v })}
+          />
+          <NumField
+            label="라벨 글자 크기"
+            value={layout.bodyTable.labelFontSize}
+            onChange={(v) => set("bodyTable", { labelFontSize: v })}
+          />
+          <NumField
+            label="본문 글자 크기"
+            value={layout.bodyTable.contentFontSize}
+            onChange={(v) => set("bodyTable", { contentFontSize: v })}
+          />
+          <NumField
+            label="본문 줄 간격"
+            value={layout.bodyTable.contentLineHeight}
+            step={0.05}
+            onChange={(v) => set("bodyTable", { contentLineHeight: v })}
+          />
+          <NumField
+            label="본문 여백"
+            value={layout.bodyTable.contentPadding}
+            onChange={(v) => set("bodyTable", { contentPadding: v })}
+          />
+          <NumField
+            label="안건 최소 높이"
+            value={layout.bodyTable.agendaMinHeight}
+            onChange={(v) => set("bodyTable", { agendaMinHeight: v })}
+          />
+          <NumField
+            label="회의 내용 최소 높이"
+            value={layout.bodyTable.contentMinHeight}
+            onChange={(v) => set("bodyTable", { contentMinHeight: v })}
+          />
+          <NumField
+            label="결정사항 최소 높이"
+            value={layout.bodyTable.decisionsMinHeight}
+            onChange={(v) => set("bodyTable", { decisionsMinHeight: v })}
+          />
+          <NumField
+            label="향후 일정 최소 높이"
+            value={layout.bodyTable.scheduleMinHeight}
+            onChange={(v) => set("bodyTable", { scheduleMinHeight: v })}
+          />
+          <NumField
+            label="참석자 최소 높이"
+            value={layout.bodyTable.attendeesMinHeight}
+            onChange={(v) => set("bodyTable", { attendeesMinHeight: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">서명부</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <NumField
+            label="제목 크기"
+            value={layout.signature.titleFontSize}
+            onChange={(v) => set("signature", { titleFontSize: v })}
+          />
+          <NumField
+            label="안내 문구 크기"
+            value={layout.signature.noticeFontSize}
+            onChange={(v) => set("signature", { noticeFontSize: v })}
+          />
+          <ColorField
+            label="안내 문구 색"
+            value={layout.signature.noticeColor}
+            onChange={(v) => set("signature", { noticeColor: v })}
+          />
+          <NumField
+            label="헤더 행 높이"
+            value={layout.signature.headerHeight}
+            onChange={(v) => set("signature", { headerHeight: v })}
+          />
+          <NumField
+            label="행 높이"
+            value={layout.signature.rowHeight}
+            onChange={(v) => set("signature", { rowHeight: v })}
+          />
+          <NumField
+            label="헤더 글자"
+            value={layout.signature.headerFontSize}
+            onChange={(v) => set("signature", { headerFontSize: v })}
+          />
+          <ColorField
+            label="헤더 배경"
+            value={layout.signature.headerBgColor}
+            onChange={(v) => set("signature", { headerBgColor: v })}
+          />
+          <NumField
+            label="이름 글자"
+            value={layout.signature.nameFontSize}
+            onChange={(v) => set("signature", { nameFontSize: v })}
+          />
+          <NumField
+            label="NO 칸 폭"
+            value={layout.signature.colNoWidth}
+            onChange={(v) => set("signature", { colNoWidth: v })}
+          />
+          <NumField
+            label="이름 칸 폭"
+            value={layout.signature.colNameWidth}
+            onChange={(v) => set("signature", { colNameWidth: v })}
+          />
+          <NumField
+            label="서명 칸 폭"
+            value={layout.signature.colSignWidth}
+            onChange={(v) => set("signature", { colSignWidth: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">사진/영수증 페이지 (2x3)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <NumField
+            label="제목 크기"
+            value={layout.photoPage.titleFontSize}
+            onChange={(v) => set("photoPage", { titleFontSize: v })}
+          />
+          <NumField
+            label="열 수"
+            value={layout.photoPage.cols}
+            onChange={(v) => set("photoPage", { cols: v })}
+          />
+          <NumField
+            label="행 수"
+            value={layout.photoPage.rows}
+            onChange={(v) => set("photoPage", { rows: v })}
+          />
+          <NumField
+            label="셀 간격"
+            value={layout.photoPage.cellGap}
+            onChange={(v) => set("photoPage", { cellGap: v })}
+          />
+          <NumField
+            label="셀 테두리 굵기"
+            value={layout.photoPage.cellBorderWidth}
+            step={0.05}
+            onChange={(v) => set("photoPage", { cellBorderWidth: v })}
+          />
+          <ColorField
+            label="셀 테두리 색"
+            value={layout.photoPage.cellBorderColor}
+            onChange={(v) => set("photoPage", { cellBorderColor: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">푸터</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <NumField
+            label="위 여백"
+            value={layout.footer.marginTop}
+            onChange={(v) => set("footer", { marginTop: v })}
+          />
+          <NumField
+            label="로고 높이"
+            value={layout.footer.logoHeight}
+            onChange={(v) => set("footer", { logoHeight: v })}
+          />
+          <NumField
+            label="로고 최대 폭"
+            value={layout.footer.logoMaxWidth}
+            onChange={(v) => set("footer", { logoMaxWidth: v })}
+          />
+          <NumField
+            label="간격"
+            value={layout.footer.gap}
+            onChange={(v) => set("footer", { gap: v })}
+          />
+          <NumField
+            label="라벨 글자 크기"
+            value={layout.footer.labelFontSize}
+            onChange={(v) => set("footer", { labelFontSize: v })}
+          />
+          <ColorField
+            label="라벨 색"
+            value={layout.footer.labelColor}
+            onChange={(v) => set("footer", { labelColor: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">빈 값 강조 색상</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3">
+          <ColorField
+            label="작성자 누락 (노란/주황)"
+            value={layout.placeholders.emptyAuthorColor}
+            onChange={(v) => set("placeholders", { emptyAuthorColor: v })}
+          />
+          <ColorField
+            label="기타 빈 값 (회색)"
+            value={layout.placeholders.emptyFieldColor}
+            onChange={(v) => set("placeholders", { emptyFieldColor: v })}
           />
         </CardContent>
       </Card>

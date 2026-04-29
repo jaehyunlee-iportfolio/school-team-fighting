@@ -52,6 +52,11 @@ const NAV_ITEMS = [
     label: "지출결의서",
     icon: FileText,
   },
+  {
+    href: "/meeting-operations",
+    label: "운영회의록",
+    icon: FileText,
+  },
 ];
 
 const ADMIN_ITEM = {
