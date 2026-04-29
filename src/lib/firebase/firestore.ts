@@ -1361,7 +1361,8 @@ export type MeetingOperationsLayoutSettings = {
     cellBorderWidth: number;
   };
   footer: {
-    marginTop: number;
+    /** 페이지 하단으로부터의 여백 (pt). 푸터는 항상 페이지 맨 밑에 고정됨. */
+    marginBottom: number;
     logoHeight: number;
     logoMaxWidth: number;
     gap: number;
@@ -1435,7 +1436,7 @@ export const DEFAULT_MEETING_OP_LAYOUT: MeetingOperationsLayoutSettings = {
     cellBorderWidth: 0.5,
   },
   footer: {
-    marginTop: 16,
+    marginBottom: 18,
     logoHeight: 22,
     logoMaxWidth: 90,
     gap: 22,

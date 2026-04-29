@@ -212,29 +212,40 @@ function buildStyles(cfg: MeetingOperationsLayoutSettings) {
       height: "100%",
       objectFit: "contain" as const,
     },
-    /* 푸터 */
+    /* 푸터 — 페이지 맨 밑 고정 (position absolute + fixed) */
     footer: {
-      marginTop: cfg.footer.marginTop,
+      position: "absolute" as const,
+      bottom: cfg.footer.marginBottom,
+      left: MM(cfg.page.paddingLeftMm),
+      right: MM(cfg.page.paddingRightMm),
       flexDirection: "row" as const,
       justifyContent: "center" as const,
       alignItems: "center" as const,
       gap: cfg.footer.gap,
-      paddingTop: 6,
     },
     footerItem: {
       flexDirection: "row" as const,
       alignItems: "center" as const,
       gap: 6,
+      // 로고 높이만큼 컨테이너 높이 고정 → 안쪽 텍스트는 justifyContent center 로 정확히 수직 중앙
+      height: cfg.footer.logoHeight,
     },
     footerLogoImg: {
       height: cfg.footer.logoHeight,
       maxWidth: cfg.footer.logoMaxWidth,
       objectFit: "contain" as const,
     },
+    /* 라벨 박스 — 로고 높이와 동일하게 만들어 시각적으로 텍스트가 중앙에 오도록 함 */
+    footerLabelBox: {
+      height: cfg.footer.logoHeight,
+      justifyContent: "center" as const,
+      alignItems: "center" as const,
+    },
     footerLabel: {
       fontSize: cfg.footer.labelFontSize,
       color: cfg.footer.labelColor,
       fontWeight: 700 as const,
+      lineHeight: 1,
     },
     /* 빈 셀 표시 — italic 은 Pretendard 에 없어 에러 발생하므로 색상만 강조 */
     emptyAuthor: {
@@ -284,7 +295,9 @@ function Footer({
             <Image src={logo.imageUrl} style={styles.footerLogoImg} />
           ) : null}
           {logo.label ? (
-            <Text style={styles.footerLabel}>{logo.label}</Text>
+            <View style={styles.footerLabelBox}>
+              <Text style={styles.footerLabel}>{logo.label}</Text>
+            </View>
           ) : null}
         </View>
       ))}

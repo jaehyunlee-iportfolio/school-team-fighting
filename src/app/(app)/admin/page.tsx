@@ -4741,13 +4741,13 @@ function MeetingOpLayoutSection({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">푸터</CardTitle>
+          <CardTitle className="text-base">푸터 (페이지 맨 밑 고정)</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <NumField
-            label="위 여백"
-            value={layout.footer.marginTop}
-            onChange={(v) => set("footer", { marginTop: v })}
+            label="아래 여백 (페이지 하단 기준)"
+            value={layout.footer.marginBottom}
+            onChange={(v) => set("footer", { marginBottom: v })}
           />
           <NumField
             label="로고 높이"
