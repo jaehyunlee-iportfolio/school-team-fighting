@@ -4826,6 +4826,17 @@ const MOCK_MEETING_OP_ROW: MeetingOperationsRow = {
     selectedIndex: 0,
     override: "",
   },
+  keywords: {
+    candidates: [
+      {
+        evidenceNo: "D-2-1",
+        value:
+          "자문\n· 플랫폼 운영 현황 및 강사풀 관리 점검 자문\n· 기술 지원 및 현장 대응 체계 보완 필요 확인",
+      },
+    ],
+    selectedIndex: 0,
+    override: "",
+  },
   agenda: {
     candidates: [
       {
