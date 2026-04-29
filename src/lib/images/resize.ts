@@ -26,6 +26,46 @@ export async function resizeImageToDataUrl(
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+/**
+ * 로고용 PNG 리사이즈/압축 (투명 배경 보존).
+ * Firestore 저장용 — base64 dataURL 크기를 100KB 이하로 떨굼.
+ *  - 가로/세로 중 긴 변을 max(기본 400px) 로 맞춤
+ *  - 결과가 여전히 maxBytes(기본 80KB) 보다 크면 max 를 줄여가며 재시도
+ *  - 최종 PNG dataURL 반환
+ */
+export async function resizeLogoForUpload(
+  file: File,
+  max: number = 400,
+  maxBytes: number = 80_000,
+): Promise<string> {
+  const dataUrl = await readAsDataUrl(file);
+  const img = await loadImage(dataUrl);
+
+  const drawAt = (target: number): string => {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const longest = Math.max(w, h);
+    const scale = longest > target ? target / longest : 1;
+    const dw = Math.max(1, Math.round(w * scale));
+    const dh = Math.max(1, Math.round(h * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = dw;
+    canvas.height = dh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 2D context unavailable");
+    ctx.drawImage(img, 0, 0, dw, dh);
+    return canvas.toDataURL("image/png");
+  };
+
+  let result = drawAt(max);
+  let target = max;
+  while (result.length > maxBytes && target > 80) {
+    target = Math.max(80, Math.round(target * 0.75));
+    result = drawAt(target);
+  }
+  return result;
+}
+
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();

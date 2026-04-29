@@ -74,6 +74,7 @@ import { BusinessReturnDocument } from "@/components/pdf/business-return-documen
 import { SwRequestDocument } from "@/components/pdf/sw-request-document";
 import { ExpenseDocument } from "@/components/pdf/expense-document";
 import { MeetingOperationsDocument } from "@/components/pdf/meeting-operations-document";
+import { resizeLogoForUpload } from "@/lib/images/resize";
 import { ResumeCoordinatorDocument } from "@/components/pdf/resume-coordinator-document";
 import { ResumeInstructorDocument } from "@/components/pdf/resume-instructor-document";
 import {
@@ -4196,9 +4197,13 @@ function MeetingOpInfoSection({
     onChange({ ...settings, [k]: v });
 
   const handleHeaderLogoUpload = async (file: File) => {
-    const r = new FileReader();
-    r.onload = () => set("headerLogoUrl", String(r.result ?? ""));
-    r.readAsDataURL(file);
+    try {
+      const dataUrl = await resizeLogoForUpload(file, 400, 80_000);
+      set("headerLogoUrl", dataUrl);
+    } catch (e) {
+      console.error("로고 처리 실패", e);
+      toast.error("이미지 처리 실패 — 다른 파일로 시도해 주세요");
+    }
   };
 
   const setFooter = (
@@ -4211,9 +4216,13 @@ function MeetingOpInfoSection({
   };
 
   const handleFooterLogoUpload = async (i: number, file: File) => {
-    const r = new FileReader();
-    r.onload = () => setFooter(i, { imageUrl: String(r.result ?? "") });
-    r.readAsDataURL(file);
+    try {
+      const dataUrl = await resizeLogoForUpload(file, 400, 80_000);
+      setFooter(i, { imageUrl: dataUrl });
+    } catch (e) {
+      console.error("푸터 로고 처리 실패", e);
+      toast.error("이미지 처리 실패 — 다른 파일로 시도해 주세요");
+    }
   };
 
   return (

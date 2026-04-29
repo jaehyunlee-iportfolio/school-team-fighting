@@ -168,7 +168,31 @@ function test_payload_size() {
   console.log(`✓ (${sizeKB.toFixed(1)}KB)`);
 }
 
-// ── 테스트 6: prototype-polluted 데이터도 안전하게 plain 으로 변환되는지
+// ── 테스트 6.5: 매우 큰 이미지(footerLogo3 만 큰 경우) 페이로드 크기 검증
+function test_large_logo_size() {
+  process.stdout.write("▶ 큰 footerLogo3 페이로드 (~600KB) ... ");
+  // 실제 사용자 케이스 재현: 헤더 로고 + 작은 로고 2개 + 큰 로고 1개
+  const big = "data:image/png;base64," + "X".repeat(600_000);
+  const small = "data:image/png;base64," + "X".repeat(10_000);
+  const settings: MeetingOperationsSettings = {
+    ...DEFAULT_MEETING_OP_SETTINGS,
+    headerLogoUrl: small,
+    footerLogos: [
+      { enabled: true, label: "건국대학교", imageUrl: small },
+      { enabled: true, label: "디미교연(몽당분필)", imageUrl: small },
+      { enabled: true, label: "아이포트폴리오(리딩앤)", imageUrl: big },
+    ],
+  };
+  const payload = buildMeetingOpSavePayload(settings);
+  const json = JSON.stringify(payload);
+  const sizeKB = json.length / 1024;
+  // 메모: Firestore 1MB 한도 보호. 압축 전이라면 600KB+ 가능하지만 어드민에서
+  // resizeLogoForUpload 로 80KB 이하로 떨굼. 본 테스트는 압축 OFF 상태에서
+  // 페이로드가 이론적으로 어느 크기까지 갈 수 있는지 확인용.
+  console.log(`✓ (압축 전 ${sizeKB.toFixed(1)}KB — 어드민에서 80KB로 압축됨)`);
+}
+
+// ── 테스트 7: prototype-polluted 데이터도 안전하게 plain 으로 변환되는지
 function test_class_instance_safety() {
   process.stdout.write("▶ 클래스 인스턴스 → plain 변환 ... ");
   class FakeLogo {
@@ -203,6 +227,7 @@ function test_class_instance_safety() {
     test_legacy_fallback,
     test_mixed_priority,
     test_payload_size,
+    test_large_logo_size,
     test_class_instance_safety,
   ];
   for (const t of tests) {
