@@ -473,13 +473,14 @@ export default function AdminPage() {
     (activeGroup === "return" && returnSub === "layout") ||
     (activeGroup === "swRequest" && swRequestSub === "layout") ||
     (activeGroup === "expense" && expenseSub === "layout") ||
+    (activeGroup === "meetingOp" && meetingOpSub === "layout") ||
     activeGroup === "resume";
 
   return (
     <div
       className={cn(
         "mx-auto space-y-6 p-4 md:p-8 transition-[max-width]",
-        isWideTab ? "max-w-7xl" : "max-w-3xl"
+        isWideTab ? "max-w-7xl" : "max-w-6xl"
       )}
     >
       <div className="flex items-center gap-3">
@@ -516,7 +517,7 @@ export default function AdminPage() {
             onValueChange={(v) => setTripSub(v as "signApproval" | "layout")}
             className="flex flex-col space-y-4"
           >
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2">
               <TabsTrigger value="signApproval">서명·결재</TabsTrigger>
               <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
             </TabsList>
@@ -587,7 +588,7 @@ export default function AdminPage() {
             onValueChange={(v) => setSomyeongSub(v as "info" | "layout")}
             className="flex flex-col space-y-4"
           >
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2">
               <TabsTrigger value="info">소명자 정보·서명</TabsTrigger>
               <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
             </TabsList>
@@ -646,7 +647,7 @@ export default function AdminPage() {
             onValueChange={(v) => setReturnSub(v as "approval" | "layout")}
             className="flex flex-col space-y-4"
           >
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2">
               <TabsTrigger value="approval">기본 결재라인</TabsTrigger>
               <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
             </TabsList>
@@ -714,7 +715,7 @@ export default function AdminPage() {
             onValueChange={(v) => setSwRequestSub(v as "info" | "layout")}
             className="flex flex-col space-y-4"
           >
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2">
               <TabsTrigger value="info">기본 문구</TabsTrigger>
               <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
             </TabsList>
@@ -782,7 +783,7 @@ export default function AdminPage() {
             onValueChange={(v) => setExpenseSub(v as "info" | "layout")}
             className="flex flex-col space-y-4"
           >
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2">
               <TabsTrigger value="info">기본 설정</TabsTrigger>
               <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
             </TabsList>
@@ -871,7 +872,7 @@ export default function AdminPage() {
             onValueChange={(v) => setMeetingOpSub(v as "info" | "layout")}
             className="flex flex-col space-y-4"
           >
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2">
               <TabsTrigger value="info">기본 설정·로고</TabsTrigger>
               <TabsTrigger value="layout">PDF 레이아웃</TabsTrigger>
             </TabsList>
@@ -945,7 +946,7 @@ export default function AdminPage() {
             onValueChange={(v) => setResumeSub(v as "coordinator" | "instructor")}
             className="flex flex-col space-y-4"
           >
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2">
               <TabsTrigger value="coordinator">코디네이터</TabsTrigger>
               <TabsTrigger value="instructor">강사</TabsTrigger>
             </TabsList>

@@ -1251,11 +1251,21 @@ export async function getMeetingOperationsSettings(): Promise<MeetingOperationsS
     DEFAULT_MEETING_OP_SETTINGS as unknown as Record<string, unknown>,
     data,
   ) as unknown as MeetingOperationsSettings;
-  // footerLogos 배열은 인덱스 보존 머지
-  const rawLogos = (data.footerLogos as unknown[]) ?? [];
+
+  // footerLogos: array-of-maps 가 Firestore 에서 'invalid nested entity' 로 거부되는
+  // 케이스가 있어, 저장 시 footerLogo1/2/3 개별 top-level 필드로 분리해서 저장한다.
+  // 로드 시 두 형태 모두 지원: 신규(footerLogo1/2/3) → 배열로 합치고, 옛 footerLogos
+  // 가 있으면 그것을 fallback 으로 사용.
+  const splitLogos: Partial<MeetingFooterLogo>[] = [
+    (data.footerLogo1 as Partial<MeetingFooterLogo>) ?? null,
+    (data.footerLogo2 as Partial<MeetingFooterLogo>) ?? null,
+    (data.footerLogo3 as Partial<MeetingFooterLogo>) ?? null,
+  ].map((v) => v ?? {});
+  const legacyLogos = (data.footerLogos as unknown[]) ?? [];
   merged.footerLogos = DEFAULT_MEETING_OP_SETTINGS.footerLogos.map((def, i) => ({
     ...def,
-    ...((rawLogos[i] as Partial<MeetingFooterLogo>) ?? {}),
+    ...((legacyLogos[i] as Partial<MeetingFooterLogo>) ?? {}),
+    ...(splitLogos[i] ?? {}),
   })) as [MeetingFooterLogo, MeetingFooterLogo, MeetingFooterLogo];
   return merged;
 }
@@ -1263,10 +1273,18 @@ export async function getMeetingOperationsSettings(): Promise<MeetingOperationsS
 export async function saveMeetingOperationsSettings(
   settings: MeetingOperationsSettings,
 ): Promise<void> {
-  // Firestore 호환을 위해 plain JSON 으로 강제 변환:
-  // 클래스 인스턴스/getter/undefined/Symbol/함수 등이 섞여있을 가능성 차단.
-  const plain = JSON.parse(JSON.stringify(settings)) as MeetingOperationsSettings;
-  await setDoc(doc(getFirebaseDb(), "settings", "meetingOperations"), plain);
+  // footerLogos 배열을 footerLogo1/2/3 개별 top-level 필드로 분리해서 저장.
+  // (Firestore 가 base64 데이터가 들어간 array-of-maps 에 'invalid nested entity'
+  // 를 던지는 케이스 우회.)
+  const { footerLogos, ...rest } = settings;
+  const sanitize = (v: MeetingFooterLogo) => JSON.parse(JSON.stringify(v));
+  const payload = {
+    ...JSON.parse(JSON.stringify(rest)),
+    footerLogo1: sanitize(footerLogos[0]),
+    footerLogo2: sanitize(footerLogos[1]),
+    footerLogo3: sanitize(footerLogos[2]),
+  };
+  await setDoc(doc(getFirebaseDb(), "settings", "meetingOperations"), payload);
 }
 
 export type MeetingOperationsLayoutSettings = {
