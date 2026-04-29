@@ -28,6 +28,7 @@ import {
   type ExpenseCategory,
   parseD4Csv,
 } from "@/lib/csv/parseD4";
+import { parseD4V2Csv } from "@/lib/csv/parseD4V2";
 import {
   type TripGroup,
   type ExpenseRow as ExpenseTableRow,
@@ -830,6 +831,7 @@ export function TripTool() {
   const [step, setStep] = useState<AppStep>("input");
   const [mode, setMode] = useState<Mode>("preview");
   const [csv, setCsv] = useState<File | null>(null);
+  const [csvV2, setCsvV2] = useState<File | null>(null);
   const [a1, setA1] = useState<File | null>(null);
   const [a2, setA2] = useState<File | null>(null);
   const [a1Data, setA1Data] = useState<string>("");
@@ -907,21 +909,30 @@ export function TripTool() {
   };
 
   const onParse = async () => {
-    if (!csv) {
-      toast.error("CSV를 선택하세요");
+    const activeCsv = csv ?? csvV2;
+    if (!activeCsv) {
+      toast.error("CSV를 선택하세요 (v1 또는 v2 중 하나)");
       return;
     }
+    if (csv && csvV2) {
+      toast.error("v1 / v2 중 한 파일만 업로드해 주세요");
+      return;
+    }
+    const useV2 = !!csvV2;
     setParsePending(true);
     try {
-      const t = await readFileText(csv);
+      const t = await readFileText(activeCsv);
       const datePh: DatePlaceholders | undefined = pdfLayout
         ? { dateFallback: pdfLayout.placeholders.dateFallback, dateInvalid: pdfLayout.placeholders.dateInvalid }
         : undefined;
-      const p = parseD4Csv(t, datePh);
+      const p = useV2 ? parseD4V2Csv(t, datePh) : parseD4Csv(t, datePh);
       setHeaderIdx(p.headerLineIndex);
       setParseKeys(p.keys);
+      if (useV2) {
+        toast.success("v2 형식으로 파싱했어요 (사용내역 분리 추출)");
+      }
 
-      const fileGroup = detectGroupFromFilename(csv.name);
+      const fileGroup = detectGroupFromFilename(activeCsv.name);
       const effectiveMode = fileGroup ?? approvalMode;
       if (fileGroup && approvalMode === "auto") {
         setApprovalMode(fileGroup);
@@ -1218,11 +1229,19 @@ export function TripTool() {
               <h2 className="text-sm font-medium text-foreground">파일</h2>
               <FileField
                 id="f-csv"
-                label="D-4 출장비 · CSV(필수)"
-                hint="엑셀/시트에서 .csv로 저장(UTF-8 권장)"
+                label="D-4 출장비 · CSV v1 (기존 형식)"
+                hint="거래처 = 출장자명 / 산출내역 끝 「- 목적/출장지」 형식"
                 file={csv}
                 accept=".csv,text/csv"
                 onFile={setCsv}
+              />
+              <FileField
+                id="f-csv-v2"
+                label="D-4 출장비 · CSV v2 (신규 형식)"
+                hint="사용내역에 「1. 출장자명(...)」, 「2. 산출내역」, 「3. 출장지: ...」 구조"
+                file={csvV2}
+                accept=".csv,text/csv"
+                onFile={setCsvV2}
               />
               {adminSigLoaded && adminSettings && (hasAdminSig("approver1ImageUrl") || hasAdminSig("approver2ImageUrl")) ? (
                 <AdminSignaturePreview settings={adminSettings} />
@@ -1552,6 +1571,7 @@ export function TripTool() {
                 setListDone([]);
                 setPreviewUrl(null);
                 setCsv(null);
+                setCsvV2(null);
                 setA1(null);
                 setA2(null);
                 setA1Data("");
