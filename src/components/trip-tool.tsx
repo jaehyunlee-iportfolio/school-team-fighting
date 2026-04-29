@@ -1310,8 +1310,8 @@ export function TripTool() {
                 size="lg"
                 className="w-full sm:w-auto sm:min-w-48"
                 onClick={async () => {
-                  if (!csv) {
-                    toast.error("CSV를 선택하세요");
+                  if (!csv && !csvV2) {
+                    toast.error("CSV를 선택하세요 (v1 또는 v2 중 하나)");
                     return;
                   }
                   await onParse();
