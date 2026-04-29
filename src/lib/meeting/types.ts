@@ -18,6 +18,8 @@ export type MeetingFieldChoice = {
   selectedIndex: number;
   /** 직접 입력값 (selectedIndex === -1 일 때 우선 적용) */
   override: string;
+  /** AI 가 채워준 값인지. 사용자가 직접 편집하면 false 로 클리어. */
+  aiGenerated?: boolean;
 };
 
 /** 효과적 값 (override 우선, 다음 selectedIndex 기준) */
@@ -46,6 +48,7 @@ export type MeetingOperationsRow = {
   time: MeetingFieldChoice;        // 시간
   location: MeetingFieldChoice;    // 장소
   author: MeetingFieldChoice;      // 작성자
+  keywords: MeetingFieldChoice;    // 키워드 (PDF 미포함, AI 생성 입력)
   agenda: MeetingFieldChoice;      // 회의 안건/목적
   content: MeetingFieldChoice;     // 회의 내용
   decisions: MeetingFieldChoice;   // 결정 및 협의사항
@@ -73,4 +76,24 @@ export function parseAttendees(s: string): string[] {
     .split(/[,，]/)
     .map((t) => t.trim())
     .filter(Boolean);
+}
+
+/** 본문 4필드 (안건/내용/결정/일정) 키 */
+export const BODY_FIELD_KEYS = ["agenda", "content", "decisions", "schedule"] as const;
+export type BodyFieldKey = (typeof BODY_FIELD_KEYS)[number];
+
+/** 본문 4필드 모두 비어있는지 */
+export function allBodyEmpty(row: MeetingOperationsRow): boolean {
+  return BODY_FIELD_KEYS.every((k) => effectiveValue(row[k]).trim() === "");
+}
+
+/** 본문 4필드 중 일부만 비어있는지 (= 0개도 4개도 아닌 경우) */
+export function partialBodyEmpty(row: MeetingOperationsRow): boolean {
+  const empties = BODY_FIELD_KEYS.filter((k) => effectiveValue(row[k]).trim() === "").length;
+  return empties > 0 && empties < BODY_FIELD_KEYS.length;
+}
+
+/** 행에 AI 가 채운 본문 필드가 하나라도 남아있는지 (사용자가 손대지 않은 채) */
+export function hasAiGeneratedBody(row: MeetingOperationsRow): boolean {
+  return BODY_FIELD_KEYS.some((k) => row[k].aiGenerated === true);
 }

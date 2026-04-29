@@ -21,6 +21,7 @@ const ALIAS: Record<string, string[]> = {
   time: ["시간", "시 간"],
   location: ["장소", "장 소"],
   author: ["작성자"],
+  keywords: ["키워드"],
   agenda: ["회의 안건", "안건", "회의 안건 / 목적", "회의안건/목적", "안건/목적", "회의 안건/목적", "목적"],
   content: ["회의 내용", "회의내용"],
   decisions: ["결정 및 협의사항", "결정및협의사항", "결정사항"],
@@ -102,6 +103,7 @@ export function parseMeetingOperationsCsv(text: string): MeetingParseResult {
     time: findCol(headers, ALIAS.time),
     location: findCol(headers, ALIAS.location),
     author: findCol(headers, ALIAS.author),
+    keywords: findCol(headers, ALIAS.keywords),
     agenda: findCol(headers, ALIAS.agenda),
     content: findCol(headers, ALIAS.content),
     decisions: findCol(headers, ALIAS.decisions),
@@ -116,6 +118,7 @@ export function parseMeetingOperationsCsv(text: string): MeetingParseResult {
     time: string;
     location: string;
     author: string;
+    keywords: string;
     agenda: string;
     content: string;
     decisions: string;
@@ -129,8 +132,8 @@ export function parseMeetingOperationsCsv(text: string): MeetingParseResult {
     const r = rows[i] ?? [];
     const ev = cell(r, c.evidence);
     if (!ev) continue;
-    // 모든 필드가 텅 빈 행은 스킵 (예: "D-2-1,,,,,,,,,로 구분")
-    const otherText = [c.date, c.time, c.location, c.author, c.agenda, c.content, c.decisions, c.schedule, c.attendees]
+    // 모든 필드가 텅 빈 행은 스킵
+    const otherText = [c.date, c.time, c.location, c.author, c.keywords, c.agenda, c.content, c.decisions, c.schedule, c.attendees]
       .map((idx) => cell(r, idx))
       .filter(Boolean)
       .join("");
@@ -141,6 +144,7 @@ export function parseMeetingOperationsCsv(text: string): MeetingParseResult {
       time: cell(r, c.time),
       location: cell(r, c.location),
       author: cell(r, c.author),
+      keywords: cell(r, c.keywords),
       agenda: cell(r, c.agenda),
       content: cell(r, c.content),
       decisions: cell(r, c.decisions),
@@ -191,6 +195,7 @@ export function parseMeetingOperationsCsv(text: string): MeetingParseResult {
       time: pick("time"),
       location: pick("location"),
       author: pick("author"),
+      keywords: pick("keywords"),
       agenda: pick("agenda"),
       content: pick("content"),
       decisions: pick("decisions"),

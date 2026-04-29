@@ -25,6 +25,11 @@ import {
   effectiveValue,
   hasConflict,
   parseAttendees,
+  allBodyEmpty,
+  partialBodyEmpty,
+  hasAiGeneratedBody,
+  BODY_FIELD_KEYS,
+  type BodyFieldKey,
   type MeetingFieldChoice,
   type MeetingOperationsRow,
 } from "@/lib/meeting/types";
@@ -169,11 +174,12 @@ function FieldEditor({
       ...field,
       selectedIndex: -1,
       override: v,
+      aiGenerated: false,
     });
   };
 
   const pickCandidate = (i: number) => {
-    onChange({ ...field, selectedIndex: i, override: "" });
+    onChange({ ...field, selectedIndex: i, override: "", aiGenerated: false });
   };
 
   const refine = async () => {
@@ -312,6 +318,7 @@ function MeetingRowEditDialog({
   onSave: (updated: MeetingOperationsRow) => void;
 }) {
   const [draft, setDraft] = useState<MeetingOperationsRow>(row);
+  const [expanding, setExpanding] = useState(false);
   useEffect(() => {
     if (open) setDraft(row);
   }, [open, row]);
@@ -408,6 +415,81 @@ function MeetingRowEditDialog({
                 onChange={(v) => setField("author", v)}
               />
             </div>
+          </section>
+
+          <Separator />
+
+          {/* 키워드 (PDF 미포함, AI 생성 입력) */}
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">
+                키워드{" "}
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  PDF 에는 포함되지 않음 · AI 자동 생성 입력값
+                </span>
+              </h3>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={expanding || !effectiveValue(draft.keywords).trim()}
+                onClick={async () => {
+                  setExpanding(true);
+                  try {
+                    const r = await fetch("/api/meeting/expand", {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({
+                        keywords: effectiveValue(draft.keywords),
+                        date: effectiveValue(draft.date),
+                        time: effectiveValue(draft.time),
+                        location: effectiveValue(draft.location),
+                        author: effectiveValue(draft.author),
+                        attendees: effectiveValue(draft.attendees),
+                      }),
+                    });
+                    const data = (await r.json()) as {
+                      agenda?: string;
+                      content?: string;
+                      decisions?: string;
+                      schedule?: string;
+                      error?: string;
+                    };
+                    if (!r.ok) {
+                      toast.error(data.error || "AI 생성 실패");
+                      return;
+                    }
+                    setDraft((d) => ({
+                      ...d,
+                      agenda: { ...d.agenda, selectedIndex: -1, override: data.agenda ?? "", aiGenerated: true },
+                      content: { ...d.content, selectedIndex: -1, override: data.content ?? "", aiGenerated: true },
+                      decisions: { ...d.decisions, selectedIndex: -1, override: data.decisions ?? "", aiGenerated: true },
+                      schedule: { ...d.schedule, selectedIndex: -1, override: data.schedule ?? "", aiGenerated: true },
+                    }));
+                    toast.success("AI 본문 4개 칸 생성 완료");
+                  } catch (e) {
+                    toast.error(String((e as Error).message ?? e));
+                  } finally {
+                    setExpanding(false);
+                  }
+                }}
+                className="h-7 gap-1 px-2 text-[11px]"
+              >
+                {expanding ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3" />
+                )}
+                키워드로 4필드 재생성
+              </Button>
+            </div>
+            <FieldEditor
+              label="키워드 (원본)"
+              field={draft.keywords}
+              fieldKey="keywords"
+              onChange={(v) => setField("keywords", v)}
+              textarea
+            />
           </section>
 
           <Separator />
@@ -723,11 +805,108 @@ export function MeetingOperationsTool() {
   }, [rows, makeBlobFor, settings]);
 
   const previewStarted = useRef(false);
+  const autoExpandStarted = useRef(false);
   useEffect(() => {
     if (step !== "validate" || !rows.length || previewStarted.current) return;
     previewStarted.current = true;
     void onPreviewIndex(0);
   }, [step, rows.length, onPreviewIndex]);
+
+  // 검토 진입 시 자동으로 키워드 → 4필드 AI 생성 (한 번만)
+  useEffect(() => {
+    if (step !== "validate" || !rows.length || autoExpandStarted.current) return;
+    const targetIndices = rows
+      .map((r, i) => ({ r, i }))
+      .filter(
+        ({ r }) => allBodyEmpty(r) && effectiveValue(r.keywords).trim() !== "",
+      )
+      .map(({ i }) => i);
+    if (targetIndices.length === 0) return;
+    autoExpandStarted.current = true;
+
+    (async () => {
+      toast(`${targetIndices.length}건 AI 본문 자동 생성 중...`);
+      const results = await Promise.all(
+        targetIndices.map(async (idx) => {
+          const r = rows[idx];
+          try {
+            const resp = await fetch("/api/meeting/expand", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                keywords: effectiveValue(r.keywords),
+                date: effectiveValue(r.date),
+                time: effectiveValue(r.time),
+                location: effectiveValue(r.location),
+                author: effectiveValue(r.author),
+                attendees: effectiveValue(r.attendees),
+              }),
+            });
+            const data = (await resp.json()) as {
+              agenda?: string;
+              content?: string;
+              decisions?: string;
+              schedule?: string;
+              error?: string;
+            };
+            if (!resp.ok) {
+              return { idx, ok: false as const, error: data.error || "fail" };
+            }
+            return { idx, ok: true as const, data };
+          } catch (e) {
+            return { idx, ok: false as const, error: String((e as Error).message ?? e) };
+          }
+        }),
+      );
+
+      setRows((prev) => {
+        const next = [...prev];
+        for (const res of results) {
+          const r = next[res.idx];
+          if (!r) continue;
+          if (res.ok) {
+            const d = res.data;
+            const keysMap: Record<BodyFieldKey, string | undefined> = {
+              agenda: d.agenda,
+              content: d.content,
+              decisions: d.decisions,
+              schedule: d.schedule,
+            };
+            const updated = { ...r };
+            for (const k of BODY_FIELD_KEYS) {
+              const v = (keysMap[k] ?? "").trim();
+              if (!v) continue;
+              updated[k] = {
+                ...r[k],
+                selectedIndex: -1,
+                override: v,
+                aiGenerated: true,
+              };
+            }
+            next[res.idx] = updated;
+          } else {
+            next[res.idx] = {
+              ...r,
+              fieldWarnings: [...r.fieldWarnings, `AI 자동 생성 실패: ${res.error}`],
+            };
+          }
+        }
+        return next;
+      });
+
+      const okCount = results.filter((x) => x.ok).length;
+      const failCount = results.length - okCount;
+      if (failCount === 0) {
+        toast.success(`AI 본문 ${okCount}건 생성 완료`);
+      } else if (okCount === 0) {
+        toast.error(`AI 본문 생성 모두 실패 (${failCount}건)`);
+      } else {
+        toast.warning(`AI 본문 ${okCount}건 성공 / ${failCount}건 실패`);
+      }
+      // 현재 미리보기 행이 갱신됐다면 다시 렌더
+      void onPreviewIndex(previewI);
+    })();
+  }, [step, rows, onPreviewIndex, previewI]);
 
   useEffect(() => {
     if (step === "input") {
@@ -931,7 +1110,9 @@ export function MeetingOperationsTool() {
                 if (hasConflict(r.author)) conflicts.push("작성자");
                 if (hasConflict(r.attendees)) conflicts.push("참석자");
                 const noAuthor = !effectiveValue(r.author);
-                const hasWarn = r.hasEmpty || r.fieldWarnings.length > 0 || conflicts.length > 0;
+                const aiBody = hasAiGeneratedBody(r);
+                const partialEmpty = partialBodyEmpty(r);
+                const hasWarn = r.hasEmpty || r.fieldWarnings.length > 0 || conflicts.length > 0 || partialEmpty;
 
                 return (
                   <button
@@ -975,6 +1156,22 @@ export function MeetingOperationsTool() {
                             충돌: {conflicts.join("·")}
                           </Badge>
                         )}
+                        {aiBody && (
+                          <Badge
+                            variant="outline"
+                            className="border-violet-300 text-[10px] text-violet-700"
+                          >
+                            ✨ AI 생성됨
+                          </Badge>
+                        )}
+                        {partialEmpty && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-300 text-[10px] text-amber-700"
+                          >
+                            내용 생성 필요
+                          </Badge>
+                        )}
                         {!hasWarn && (
                           <Badge
                             variant="outline"
@@ -998,6 +1195,14 @@ export function MeetingOperationsTool() {
                         <div className="mt-1 flex items-start gap-1 text-[11px] text-amber-700">
                           <AlertTriangle className="size-3 shrink-0 mt-0.5" />
                           <span>{r.fieldWarnings.join(" / ")}</span>
+                        </div>
+                      )}
+                      {partialEmpty && (
+                        <div className="mt-1 flex items-start gap-1 text-[11px] text-amber-700">
+                          <AlertTriangle className="size-3 shrink-0 mt-0.5" />
+                          <span>
+                            본문 일부가 비어있어요. 편집 ✏️ → "키워드로 4필드 재생성" 또는 직접 입력으로 채워주세요.
+                          </span>
                         </div>
                       )}
                     </div>
