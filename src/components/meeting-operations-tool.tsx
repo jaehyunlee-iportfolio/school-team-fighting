@@ -547,6 +547,7 @@ export function MeetingOperationsTool() {
   const [step, setStep] = useState<AppStep>("input");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [csvDragging, setCsvDragging] = useState(false);
 
   const [rows, setRows] = useState<MeetingOperationsRow[]>([]);
   const [settings, setSettings] = useState<MeetingOperationsSettings>(
@@ -775,11 +776,32 @@ export function MeetingOperationsTool() {
               <button
                 type="button"
                 onClick={() => document.getElementById("meeting-csv-input")?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setCsvDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setCsvDragging(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setCsvDragging(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (!f) return;
+                  if (!/\.csv$/i.test(f.name)) {
+                    toast.error("CSV 파일만 올려주세요");
+                    return;
+                  }
+                  setCsvFile(f);
+                }}
                 className={cn(
                   "flex w-full cursor-pointer flex-col items-start gap-1 rounded-lg border-2 border-dashed p-4 transition-colors",
-                  csvFile
-                    ? "border-emerald-300 bg-emerald-50/40"
-                    : "border-border bg-muted/10 hover:border-primary hover:bg-muted/30",
+                  csvDragging
+                    ? "border-primary bg-muted/40"
+                    : csvFile
+                      ? "border-emerald-300 bg-emerald-50/40"
+                      : "border-border bg-muted/10 hover:border-primary hover:bg-muted/30",
                 )}
               >
                 <div className="flex w-full items-center gap-2">
@@ -794,9 +816,13 @@ export function MeetingOperationsTool() {
                     {csvFile?.name ?? "회의비 - 운영회의록 데이터.csv"}
                   </span>
                 </div>
-                {csvFile && (
+                {csvFile ? (
                   <span className="text-[11px] text-muted-foreground">
-                    클릭하면 다른 파일로 교체
+                    클릭 또는 드래그하면 다른 파일로 교체
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">
+                    클릭하거나 파일을 끌어다 놓으세요
                   </span>
                 )}
               </button>
