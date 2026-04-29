@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Download,
   FileUp,
+  FolderUp,
   Loader2,
   Trash2,
   AlertTriangle,
@@ -15,6 +16,13 @@ import {
   Sparkles,
   RefreshCw,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ResumeCoordinatorDocument } from "@/components/pdf/resume-coordinator-document";
 import { ResumeInstructorDocument } from "@/components/pdf/resume-instructor-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
@@ -106,6 +114,92 @@ function downloadBlob(blob: Blob, filename: string) {
 function isSupportedAttachment(filename: string): boolean {
   const lower = filename.toLowerCase();
   return SUPPORTED_EXTS.some((ext) => lower.endsWith(ext));
+}
+
+/** 파일의 폴더 경로(웹 폴더 업로드/드래그)에서 직접 부모 폴더명을 추출. */
+function parentFolderOf(file: File): string {
+  // <input webkitdirectory>의 결과: webkitRelativePath = "{root}/...{parent}/{filename}"
+  // 폴더 드래그-드롭의 결과: extractFilesFromDataTransfer 가 fullPath 같은 의미로 채워둠.
+  const path =
+    (file as File & { webkitRelativePath?: string }).webkitRelativePath ?? "";
+  if (!path) return "";
+  const parts = path.split("/").filter(Boolean);
+  if (parts.length < 2) return "";
+  return parts[parts.length - 2].trim().normalize("NFC");
+}
+
+type FsEntry = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+  fullPath?: string;
+  file?: (cb: (f: File) => void, err?: (e: unknown) => void) => void;
+  createReader?: () => {
+    readEntries: (cb: (entries: FsEntry[]) => void) => void;
+  };
+};
+
+async function readAllEntries(reader: {
+  readEntries: (cb: (entries: FsEntry[]) => void) => void;
+}): Promise<FsEntry[]> {
+  const out: FsEntry[] = [];
+  // readEntries는 한 번에 일부만 반환할 수 있어 빈 배열 반환 시까지 반복.
+  while (true) {
+    const batch = await new Promise<FsEntry[]>((resolve) =>
+      reader.readEntries(resolve),
+    );
+    if (!batch.length) break;
+    out.push(...batch);
+  }
+  return out;
+}
+
+/** DataTransfer 에서 폴더(재귀) + 파일을 모두 풀어 File 배열로 반환. */
+async function extractFilesFromDataTransfer(
+  dt: DataTransfer,
+): Promise<File[]> {
+  const items = Array.from(dt.items);
+  const collected: File[] = [];
+
+  async function traverse(entry: FsEntry, pathPrefix: string): Promise<void> {
+    if (entry.isFile && entry.file) {
+      const file = await new Promise<File>((resolve, reject) =>
+        entry.file!(resolve, reject as (e: unknown) => void),
+      );
+      // webkitRelativePath 를 동일한 의미로 채워두면 parentFolderOf 가 그대로 동작.
+      try {
+        Object.defineProperty(file, "webkitRelativePath", {
+          value: pathPrefix + file.name,
+          writable: false,
+          configurable: true,
+        });
+      } catch {
+        // 일부 브라우저에서 실패해도 무시
+      }
+      collected.push(file);
+    } else if (entry.isDirectory && entry.createReader) {
+      const reader = entry.createReader();
+      const entries = await readAllEntries(reader);
+      for (const e of entries) {
+        await traverse(e, pathPrefix + entry.name + "/");
+      }
+    }
+  }
+
+  for (const item of items) {
+    const entry = (
+      item as DataTransferItem & {
+        webkitGetAsEntry?: () => FsEntry | null;
+      }
+    ).webkitGetAsEntry?.();
+    if (entry) {
+      await traverse(entry, "");
+    } else if (item.kind === "file") {
+      const f = item.getAsFile();
+      if (f) collected.push(f);
+    }
+  }
+  return collected;
 }
 
 function StepIndicator({
@@ -225,6 +319,12 @@ export function ResumeTool() {
   // 파일 객체 보관 (state에 넣으면 깊은 비교 비용 / 메모리 낭비)
   const fileMapRef = useRef<Record<number, File[]>>({});
 
+  // 폴더 업로드 시 매칭 안 된 파일들 — 사용자가 수동으로 행에 배정
+  type Unmatched = { id: string; file: File; folderName: string };
+  const [unmatched, setUnmatched] = useState<Unmatched[]>([]);
+  const [folderDragOver, setFolderDragOver] = useState(false);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
   // ── 행별 첨부 ─────────────────────────────────────────────
   const attachFiles = useCallback((rowIdx: number, files: File[]) => {
     const accepted: File[] = [];
@@ -264,6 +364,92 @@ export function ResumeTool() {
       ...(fileMapRef.current[rowIdx] ?? []),
       ...accepted,
     ];
+  }, []);
+
+  // 폴더 업로드 — 폴더명(=성명) 기준 자동 매칭, 미매칭은 별도 패널로
+  const handleFolderFiles = useCallback(
+    (files: File[]) => {
+      const accepted = files.filter((f) => isSupportedAttachment(f.name));
+      const dropped = files.length - accepted.length;
+      if (!accepted.length && !dropped) return;
+
+      // 행 인덱싱 (성명 NFC 정규화 후)
+      const indexByName = new Map<string, number>();
+      rowsRef.current.forEach((r, i) => {
+        const k = r.basic.name.trim().normalize("NFC");
+        if (k) indexByName.set(k, i);
+      });
+
+      const groupedByRow: Record<number, File[]> = {};
+      const newUnmatched: Unmatched[] = [];
+      for (const f of accepted) {
+        const folder = parentFolderOf(f);
+        const target = folder ? indexByName.get(folder) : undefined;
+        if (target !== undefined) {
+          if (!groupedByRow[target]) groupedByRow[target] = [];
+          groupedByRow[target].push(f);
+        } else {
+          newUnmatched.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            file: f,
+            folderName: folder || "(폴더명 없음)",
+          });
+        }
+      }
+
+      // 매칭된 파일은 기존 attachFiles 흐름으로 흘려보냄
+      const matchedTotal = Object.values(groupedByRow).reduce(
+        (s, arr) => s + arr.length,
+        0,
+      );
+      for (const [idx, fs] of Object.entries(groupedByRow)) {
+        attachFiles(Number(idx), fs);
+      }
+      if (newUnmatched.length) {
+        setUnmatched((prev) => [...prev, ...newUnmatched]);
+      }
+      const parts: string[] = [];
+      if (matchedTotal) parts.push(`매칭 ${matchedTotal}개`);
+      if (newUnmatched.length) parts.push(`미매칭 ${newUnmatched.length}개`);
+      if (dropped) parts.push(`형식 무시 ${dropped}개`);
+      if (parts.length) toast.success(parts.join(" / "));
+    },
+    // attachFiles, rowsRef는 안정 — rows.length 변화는 indexByName 재계산을 위해
+    // ref 스냅샷 시점에서만 의미 있음.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const handleFolderInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const fs = Array.from(e.target.files ?? []);
+      handleFolderFiles(fs);
+      e.target.value = "";
+    },
+    [handleFolderFiles],
+  );
+
+  const handleFolderDrop = useCallback(
+    async (dt: DataTransfer) => {
+      const fs = await extractFilesFromDataTransfer(dt);
+      handleFolderFiles(fs);
+    },
+    [handleFolderFiles],
+  );
+
+  // 미매칭 파일을 특정 행에 배정
+  const assignUnmatched = useCallback(
+    (id: string, rowIdx: number) => {
+      const item = unmatched.find((u) => u.id === id);
+      if (!item) return;
+      attachFiles(rowIdx, [item.file]);
+      setUnmatched((prev) => prev.filter((u) => u.id !== id));
+    },
+    [unmatched],
+  );
+
+  const dismissUnmatched = useCallback((id: string) => {
+    setUnmatched((prev) => prev.filter((u) => u.id !== id));
   }, []);
 
   const removeAttachment = useCallback((rowIdx: number, attIdx: number) => {
@@ -679,6 +865,117 @@ export function ResumeTool() {
             </Card>
           )}
 
+          {/* 1-1.5) 폴더 통째 업로드 (자동 매칭) */}
+          {rows.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">2. 근거자료 폴더 업로드</CardTitle>
+                <CardDescription className="text-xs">
+                  성명별 하위 폴더(예: <code>__이력서_근거자료/곽현우/...hwp</code>)로 정리된 폴더를 통째로 올리면 폴더명(=성명)으로 행에 자동 매칭됩니다. 매칭 안 된 파일은 아래 「미매칭」 패널에서 직접 행을 골라주세요.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setFolderDragOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setFolderDragOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setFolderDragOver(false);
+                    void handleFolderDrop(e.dataTransfer);
+                  }}
+                  className={cn(
+                    "flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed bg-muted/20 px-4 py-6 transition-colors hover:border-primary hover:bg-muted/40",
+                    folderDragOver && "border-primary bg-muted/40",
+                  )}
+                >
+                  <FolderUp className="size-7 text-muted-foreground" />
+                  <p className="text-sm font-medium">
+                    폴더를 클릭하거나 드래그-드롭하세요
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    폴더명이 「성명」과 일치하면 그 행으로 자동 첨부 · 일치 안 하면 미매칭으로 분류
+                  </p>
+                </button>
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  // @ts-expect-error — webkitdirectory는 React 타입에 없음
+                  webkitdirectory=""
+                  directory=""
+                  onChange={handleFolderInputChange}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 1-1.6) 미매칭 패널 */}
+          {rows.length > 0 && unmatched.length > 0 && (
+            <Card className="border-amber-300/50 bg-amber-50/30 dark:bg-amber-950/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-amber-800 dark:text-amber-300">
+                  미매칭 파일 ({unmatched.length}개)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  폴더명이 행의 성명과 일치하지 않은 파일입니다. 어떤 행에 첨부할지 직접 골라주세요.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2 max-h-[40vh] overflow-y-auto">
+                {unmatched.map((u) => (
+                  <div
+                    key={u.id}
+                    className="flex flex-wrap items-center gap-2 rounded border bg-card p-2 text-xs"
+                  >
+                    <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate font-medium">{u.file.name}</span>
+                    <span className="text-muted-foreground">
+                      [폴더: {u.folderName}]
+                    </span>
+                    <span className="text-muted-foreground">
+                      ({(u.file.size / 1024).toFixed(0)}KB)
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                      <Select
+                        onValueChange={(v) => {
+                          const idx = Number(v);
+                          if (!Number.isNaN(idx)) assignUnmatched(u.id, idx);
+                        }}
+                      >
+                        <SelectTrigger size="sm" className="h-7 w-44 text-xs">
+                          <SelectValue placeholder="행 선택해 첨부" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {rows.map((r, i) => (
+                            <SelectItem key={i} value={String(i)}>
+                              #{i + 1} {r.basic.name} · {kindLabel(r.kind)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <button
+                        type="button"
+                        aria-label="버리기"
+                        className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => dismissUnmatched(u.id)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           {/* 1-2) 행별 첨부 카드들 */}
           {rows.length > 0 && (
             <Card>
@@ -686,14 +983,22 @@ export function ResumeTool() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <CardTitle className="text-base">
-                      2. 자료 첨부 ({rows.length}명, 첨부 {totalAttachments}개)
+                      3. 행별 확인 및 개별 첨부 ({rows.length}명, 첨부 {totalAttachments}개)
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      각 행에 hwp/hwpx/pdf/docx/pptx/xlsx 파일을 드래그-드롭하세요. 첨부가 없어도 진행 가능 (일반 자기소개로 작성됨).
+                      위 폴더 업로드로 자동 매칭된 결과를 행별로 확인하세요. 추가로 hwp/hwpx/pdf/docx/pptx/xlsx 파일을 개별 첨부할 수도 있습니다. 첨부가 없어도 진행 가능 (일반 자기소개로 작성됨).
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => { setRows([]); fileMapRef.current = {}; }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setRows([]);
+                        fileMapRef.current = {};
+                        setUnmatched([]);
+                      }}
+                    >
                       처음으로
                     </Button>
                     <Button
@@ -864,6 +1169,7 @@ export function ResumeTool() {
                 setRows([]);
                 setResultFiles([]);
                 fileMapRef.current = {};
+                setUnmatched([]);
               }}
             >
               처음으로
