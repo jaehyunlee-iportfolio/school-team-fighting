@@ -59,3 +59,4 @@ __pycache__/
 /scripts/polaris-datainsight/output/*
 !/scripts/polaris-datainsight/output/.gitkeep
 !/scripts/polaris-datainsight/.env.example
+tmp_test_output/

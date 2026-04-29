@@ -230,10 +230,10 @@ function buildStyles(cfg: MeetingOperationsLayoutSettings) {
       color: cfg.footer.labelColor,
       fontWeight: 700 as const,
     },
-    /* 빈 셀 표시 */
+    /* 빈 셀 표시 — italic 은 Pretendard 에 없어 에러 발생하므로 색상만 강조 */
     emptyAuthor: {
       color: cfg.placeholders.emptyAuthorColor,
-      fontStyle: "italic" as const,
+      fontWeight: 600 as const,
     },
     emptyField: {
       color: cfg.placeholders.emptyFieldColor,
@@ -499,13 +499,22 @@ function PhotoPage({
   styles: StylesT;
   cfg: MeetingOperationsLayoutSettings;
 }) {
-  const cols = cfg.photoPage.cols;
-  const rows = cfg.photoPage.rows;
+  const cols = Math.max(1, cfg.photoPage.cols);
+  const rows = Math.max(1, cfg.photoPage.rows);
   const max = cols * rows;
   const cells = photos.slice(0, max);
-  // 셀 크기는 페이지 가로 / cols 비율로 자동 계산 (간단히 % 사용)
-  const cellWidthPct = `${100 / cols - 2}%` as `${number}%`;
-  const cellAspect = 1.2; // 세로 비율
+
+  // A4 595.28pt - 좌우 패딩(mm→pt) - 셀 간격 → 셀 가로 → 1.2 가로세로비로 셀 세로
+  const A4_W_PT = 595.28;
+  const MM_TO_PT = 2.8346;
+  const usableW =
+    A4_W_PT -
+    cfg.page.paddingLeftMm * MM_TO_PT -
+    cfg.page.paddingRightMm * MM_TO_PT;
+  const cellGap = cfg.photoPage.cellGap;
+  const cellW = (usableW - cellGap * (cols - 1)) / cols;
+  const cellH = cellW / 1.2; // 가로:세로 = 1.2:1
+
   return (
     <Page size="A4" style={styles.page}>
       <HeaderLogo settings={settings} styles={styles} />
@@ -514,10 +523,7 @@ function PhotoPage({
         {cells.map((src, i) => (
           <View
             key={i}
-            style={[
-              styles.photoCell,
-              { width: cellWidthPct, aspectRatio: cellAspect },
-            ]}
+            style={[styles.photoCell, { width: cellW, height: cellH }]}
           >
             <Image src={src} style={styles.photoImg} />
           </View>
@@ -526,10 +532,7 @@ function PhotoPage({
         {Array.from({ length: Math.max(0, max - cells.length) }).map((_, i) => (
           <View
             key={`empty-${i}`}
-            style={[
-              styles.photoCell,
-              { width: cellWidthPct, aspectRatio: cellAspect },
-            ]}
+            style={[styles.photoCell, { width: cellW, height: cellH }]}
           />
         ))}
       </View>

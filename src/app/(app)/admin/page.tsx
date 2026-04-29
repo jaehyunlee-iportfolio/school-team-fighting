@@ -65,10 +65,12 @@ import { SomyeongDocument } from "@/components/pdf/somyeong-document";
 import { BusinessReturnDocument } from "@/components/pdf/business-return-document";
 import { SwRequestDocument } from "@/components/pdf/sw-request-document";
 import { ExpenseDocument } from "@/components/pdf/expense-document";
+import { MeetingOperationsDocument } from "@/components/pdf/meeting-operations-document";
 import type { TripRow } from "@/lib/csv/parseD4";
 import type { SomyeongRow } from "@/lib/csv/parseSomyeong";
 import type { ReturnRow } from "@/lib/csv/parseReturn";
 import type { SwRequestRow } from "@/lib/sw/types";
+import type { MeetingOperationsRow } from "@/lib/meeting/types";
 import type { ExpenseRow } from "@/lib/expense/types";
 import ReactCrop, { type PercentCrop, type PixelCrop, convertToPixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -845,27 +847,39 @@ export default function AdminPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="layout" className="space-y-4">
-              <MeetingOpLayoutSection
-                layout={meetingOpLayout}
-                onChange={setMeetingOpLayout}
-              />
-              <div className="flex items-center justify-between border-t pt-4">
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    setMeetingOpLayout(DEFAULT_MEETING_OP_LAYOUT);
-                    toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
-                  }}
-                >
-                  <RotateCcw className="size-4" />
-                  기본값 초기화
-                </Button>
-                <Button onClick={handleSaveMeetingOpLayout} disabled={savingMeetingOpLayout} className="gap-2">
-                  {savingMeetingOpLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-                  저장
-                </Button>
+            <TabsContent value="layout">
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <MeetingOpPreview
+                      layout={meetingOpLayout}
+                      settings={meetingOpSettings}
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <MeetingOpLayoutSection
+                    layout={meetingOpLayout}
+                    onChange={setMeetingOpLayout}
+                  />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setMeetingOpLayout(DEFAULT_MEETING_OP_LAYOUT);
+                        toast("기본값으로 초기화했어요.", { description: "저장을 눌러야 반영돼요." });
+                      }}
+                    >
+                      <RotateCcw className="size-4" />
+                      기본값 초기화
+                    </Button>
+                    <Button onClick={handleSaveMeetingOpLayout} disabled={savingMeetingOpLayout} className="gap-2">
+                      {savingMeetingOpLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                      저장
+                    </Button>
+                  </div>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -4619,6 +4633,182 @@ function MeetingOpLayoutSection({
           />
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/* ============================================================
+   운영회의록 PDF 미리보기 (mock 데이터)
+   ============================================================ */
+
+const MOCK_MEETING_OP_ROW: MeetingOperationsRow = {
+  rowIndex: 0,
+  evidenceNos: ["D-2-1"],
+  groupKey: "2025년7월28일|10:30~12:30|iportfolio사내회의실",
+  date: {
+    candidates: [{ evidenceNo: "D-2-1", value: "2025년 7월 28일" }],
+    selectedIndex: 0,
+    override: "",
+  },
+  time: {
+    candidates: [{ evidenceNo: "D-2-1", value: "10:30~12:30" }],
+    selectedIndex: 0,
+    override: "",
+  },
+  location: {
+    candidates: [{ evidenceNo: "D-2-1", value: "iPortfolio 사내 회의실" }],
+    selectedIndex: 0,
+    override: "",
+  },
+  author: {
+    candidates: [{ evidenceNo: "D-2-1", value: "채영지" }],
+    selectedIndex: 0,
+    override: "",
+  },
+  agenda: {
+    candidates: [
+      {
+        evidenceNo: "D-2-1",
+        value:
+          "· 플랫폼 운영 현황 및 강사풀 관리 점검 자문\n· 기술 지원 및 현장 대응 체계 보완 필요 확인 → 학교별 운영 협의 절차 정비 및 지원 체계 보강",
+      },
+    ],
+    selectedIndex: 0,
+    override: "",
+  },
+  content: {
+    candidates: [
+      {
+        evidenceNo: "D-2-1",
+        value:
+          "금일 회의는 현재 운영 중인 플랫폼의 전반적인 운영 현황을 점검하고, 강사풀 관리 실태에 대한 전문 자문을 수렴하기 위해 진행되었습니다. 플랫폼 운용 과정에서 기술 지원 및 현장 대응 체계의 일부 미비점이 확인되었으며, 학교별 운영 상황에 따른 유연한 협의 구조의 필요성이 제기되었습니다. 이에 따라 현행 지원 체계를 면밀히 재검토하고, 학교별 운영 협의 절차를 체계적으로 정비하는 한편, 현장 밀착형 지원 체계를 보강하는 방향으로 후속 조치를 추진하기로 합의하였습니다.",
+      },
+    ],
+    selectedIndex: 0,
+    override: "",
+  },
+  decisions: {
+    candidates: [
+      {
+        evidenceNo: "D-2-1",
+        value:
+          "플랫폼 운영 현황 점검 및 강사풀 관리 개선: 현재 등록된 강사풀 현황을 재정비하고, 강사 배정 기준 및 관리 절차의 표준화 방안 수립\n기술 지원 체계 보완: 현장에서 발생하는 기술적 문제에 신속하게 대응할 수 있도록 담당자 역할 분담 및 지원 매뉴얼 정비\n학교별 운영 협의 절차 정비: 학교별 운영 여건 차이를 반영한 맞춤형 협의 절차를 마련하고, 소통 창구 일원화를 통한 현장 혼선 방지 체계 구축",
+      },
+    ],
+    selectedIndex: 0,
+    override: "",
+  },
+  schedule: {
+    candidates: [
+      {
+        evidenceNo: "D-2-1",
+        value:
+          "현황 데이터를 기반으로 강사 등록 정보를 갱신하고 배정 기준안 확정. 기술 지원 매뉴얼 작성: 현장 대응 시나리오별 처리 절차를 문서화하여 담당자 공유. 학교별 협의 절차 가이드 배포: 운영 협의 표준 절차를 정리한 안내자료를 작성하여 참여 학교에 순차 배포.",
+      },
+    ],
+    selectedIndex: 0,
+    override: "",
+  },
+  attendees: {
+    candidates: [
+      {
+        evidenceNo: "D-2-1",
+        value:
+          "장인선, 채영지, 홍수민, 임성경, 안석진, 김유, 박지예, 박관석, 조연주, 이영규, 이창환, 이정은",
+      },
+    ],
+    selectedIndex: 0,
+    override: "",
+  },
+  dateY: "2025",
+  dateM: "7",
+  dateD: "28",
+  dateYymmdd: "250728",
+  photos: [],
+  hasEmpty: false,
+  fieldWarnings: [],
+};
+
+function MeetingOpPreview({
+  layout,
+  settings,
+}: {
+  layout: MeetingOperationsLayoutSettings;
+  settings: MeetingOperationsSettings;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const prevUrl = useRef<string | null>(null);
+  const generation = useRef(0);
+
+  useEffect(() => {
+    const gen = ++generation.current;
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        registerPdfFonts();
+        const blob = await pdf(
+          <MeetingOperationsDocument
+            row={MOCK_MEETING_OP_ROW}
+            settings={settings}
+            layout={layout}
+          />,
+        ).toBlob();
+        if (gen !== generation.current) return;
+        const newUrl = URL.createObjectURL(blob);
+        setUrl(newUrl);
+        if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+        prevUrl.current = newUrl;
+      } catch (e) {
+        if (gen !== generation.current) return;
+        setError(e instanceof Error ? e.message : "PDF 생성 실패");
+      } finally {
+        if (gen === generation.current) setLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [layout, settings]);
+
+  useEffect(() => {
+    return () => {
+      if (prevUrl.current) URL.revokeObjectURL(prevUrl.current);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <FileText className="size-4" />
+        미리보기 (목 데이터)
+      </div>
+      <div
+        className="relative overflow-hidden rounded-lg border bg-muted/30"
+        style={{ aspectRatio: "1 / 1.414" }}
+      >
+        {url && (
+          <iframe
+            src={url}
+            title="운영회의록 PDF 미리보기"
+            className="absolute inset-0 size-full"
+          />
+        )}
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {error && !loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <AlertCircle className="size-6 text-destructive" />
+            <p className="text-xs text-destructive">{error}</p>
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        설정 변경 후 0.8초 디바운스로 미리보기가 재생성돼요. 실제 데이터는 운영회의록 도구에서 확인.
+      </p>
     </div>
   );
 }
