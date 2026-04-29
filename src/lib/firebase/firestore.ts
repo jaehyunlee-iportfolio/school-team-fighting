@@ -1246,16 +1246,37 @@ export const DEFAULT_MEETING_OP_SETTINGS: MeetingOperationsSettings = {
 export async function getMeetingOperationsSettings(): Promise<MeetingOperationsSettings> {
   const snap = await getDoc(doc(getFirebaseDb(), "settings", "meetingOperations"));
   if (!snap.exists()) return DEFAULT_MEETING_OP_SETTINGS;
-  const data = snap.data() as Record<string, unknown>;
+  return mergeMeetingOpLoadedData(snap.data() as Record<string, unknown>);
+}
+
+/** 운영회의록 settings → Firestore 저장용 plain 페이로드.
+ *  footerLogos[3] 배열을 footerLogo1/2/3 개별 top-level 필드로 분리.
+ *  테스트에서 import 가능하도록 export.
+ */
+export function buildMeetingOpSavePayload(
+  settings: MeetingOperationsSettings,
+): Record<string, unknown> {
+  const { footerLogos, ...rest } = settings;
+  const sanitize = (v: MeetingFooterLogo): Record<string, unknown> =>
+    JSON.parse(JSON.stringify(v));
+  return {
+    ...JSON.parse(JSON.stringify(rest)),
+    footerLogo1: sanitize(footerLogos[0]),
+    footerLogo2: sanitize(footerLogos[1]),
+    footerLogo3: sanitize(footerLogos[2]),
+  };
+}
+
+/** Firestore 에서 읽어온 raw 데이터 → MeetingOperationsSettings.
+ *  신규 footerLogo1/2/3 개별 필드를 다시 배열로 합침. 옛 footerLogos 배열도 fallback.
+ */
+export function mergeMeetingOpLoadedData(
+  data: Record<string, unknown>,
+): MeetingOperationsSettings {
   const merged = deepMerge(
     DEFAULT_MEETING_OP_SETTINGS as unknown as Record<string, unknown>,
     data,
   ) as unknown as MeetingOperationsSettings;
-
-  // footerLogos: array-of-maps 가 Firestore 에서 'invalid nested entity' 로 거부되는
-  // 케이스가 있어, 저장 시 footerLogo1/2/3 개별 top-level 필드로 분리해서 저장한다.
-  // 로드 시 두 형태 모두 지원: 신규(footerLogo1/2/3) → 배열로 합치고, 옛 footerLogos
-  // 가 있으면 그것을 fallback 으로 사용.
   const splitLogos: Partial<MeetingFooterLogo>[] = [
     (data.footerLogo1 as Partial<MeetingFooterLogo>) ?? null,
     (data.footerLogo2 as Partial<MeetingFooterLogo>) ?? null,
@@ -1273,17 +1294,7 @@ export async function getMeetingOperationsSettings(): Promise<MeetingOperationsS
 export async function saveMeetingOperationsSettings(
   settings: MeetingOperationsSettings,
 ): Promise<void> {
-  // footerLogos 배열을 footerLogo1/2/3 개별 top-level 필드로 분리해서 저장.
-  // (Firestore 가 base64 데이터가 들어간 array-of-maps 에 'invalid nested entity'
-  // 를 던지는 케이스 우회.)
-  const { footerLogos, ...rest } = settings;
-  const sanitize = (v: MeetingFooterLogo) => JSON.parse(JSON.stringify(v));
-  const payload = {
-    ...JSON.parse(JSON.stringify(rest)),
-    footerLogo1: sanitize(footerLogos[0]),
-    footerLogo2: sanitize(footerLogos[1]),
-    footerLogo3: sanitize(footerLogos[2]),
-  };
+  const payload = buildMeetingOpSavePayload(settings);
   await setDoc(doc(getFirebaseDb(), "settings", "meetingOperations"), payload);
 }
 
