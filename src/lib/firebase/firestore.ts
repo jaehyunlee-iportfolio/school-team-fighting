@@ -1308,8 +1308,12 @@ export type MeetingOperationsLayoutSettings = {
   };
   signature: {
     titleFontSize: number;
+    titleMarginTop: number;
+    titleMarginBottom: number;
     noticeFontSize: number;
     noticeColor: string;
+    noticeMarginTop: number;
+    noticeMarginBottom: number;
     headerHeight: number;
     rowHeight: number;
     headerFontSize: number;
@@ -1378,8 +1382,12 @@ export const DEFAULT_MEETING_OP_LAYOUT: MeetingOperationsLayoutSettings = {
   },
   signature: {
     titleFontSize: 28,
+    titleMarginTop: 8,
+    titleMarginBottom: 12,
     noticeFontSize: 9,
     noticeColor: "#333333",
+    noticeMarginTop: 4,
+    noticeMarginBottom: 18,
     headerHeight: 26,
     rowHeight: 24,
     headerFontSize: 11,

@@ -95,12 +95,11 @@ function buildStyles(cfg: MeetingOperationsLayoutSettings) {
     topValueText: {
       fontSize: cfg.topInfoTable.valueFontSize,
     },
-    /* 페이지1: 본문 표 */
+    /* 페이지1: 본문 표 — flexGrow 빼서 마지막 행 아래로 좌측 벽이 늘어지지 않게 */
     bodyTable: {
       borderTopWidth: b,
       borderLeftWidth: b,
       borderColor: BC,
-      flexGrow: 1,
     },
     bodyRow: {
       flexDirection: "row" as const,
@@ -138,19 +137,26 @@ function buildStyles(cfg: MeetingOperationsLayoutSettings) {
       fontSize: cfg.signature.titleFontSize,
       fontWeight: 700 as const,
       textAlign: "center" as const,
-      marginTop: 4,
-      marginBottom: 12,
+      marginTop: cfg.signature.titleMarginTop,
+      marginBottom: cfg.signature.titleMarginBottom,
     },
     sigNotice: {
       fontSize: cfg.signature.noticeFontSize,
       color: cfg.signature.noticeColor,
       textAlign: "center" as const,
-      marginBottom: 12,
+      marginTop: cfg.signature.noticeMarginTop,
+      marginBottom: cfg.signature.noticeMarginBottom,
     },
+    /* 표 너비를 셀 합계로 고정해 빈 4번째 컬럼 방지 */
     sigTable: {
+      width:
+        cfg.signature.colNoWidth +
+        cfg.signature.colNameWidth +
+        cfg.signature.colSignWidth,
       borderTopWidth: b,
       borderLeftWidth: b,
       borderColor: BC,
+      alignSelf: "center" as const,
     },
     sigHeaderRow: {
       flexDirection: "row" as const,
@@ -427,20 +433,22 @@ function SignaturePages({
   cfg: MeetingOperationsLayoutSettings;
 }) {
   const perPage = Math.max(1, settings.signatureRowsPerPage || 20);
-  // 참석자 수 ≤ perPage 면 perPage 만큼 빈 행 패딩, 초과면 다음 페이지
-  const totalRows = Math.max(perPage, attendees.length);
-  const pageCount = Math.ceil(totalRows / perPage);
+  // 참석자 명단 수 만큼만 행 생성. perPage 초과 시 다음 페이지로 분할.
+  const totalRows = attendees.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / perPage));
 
   const pages: Array<Array<{ no: number; name: string }>> = [];
   for (let p = 0; p < pageCount; p++) {
     const start = p * perPage;
+    const end = Math.min(start + perPage, totalRows);
     const slice: Array<{ no: number; name: string }> = [];
-    for (let i = 0; i < perPage; i++) {
-      const idx = start + i;
+    for (let idx = start; idx < end; idx++) {
       slice.push({ no: idx + 1, name: attendees[idx] ?? "" });
     }
     pages.push(slice);
   }
+  // 참석자가 0명이면 서명부 페이지 자체를 생략
+  if (totalRows === 0) return null;
 
   return (
     <>

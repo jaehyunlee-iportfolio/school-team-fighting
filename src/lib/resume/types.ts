@@ -1,110 +1,103 @@
-// 코디네이터 지원서 (이력서) 데이터 타입
+// 이력서(코디네이터/강사 지원서) 데이터 타입 — narrow CSV 모드.
 //
-// 사용자 입력은 한국어 키 JSON으로 받지만, 내부 처리는 영문 키로 통일.
-// 변환은 parseResume.ts 에서 수행.
+// 입력 CSV 헤더(권장):
+//   구분, 성명, 주민등록번호, 성별, 생년월일, 소속, 직위/직책,
+//   지원 동기 및 포부 생성을 위해 필요한 자료, 연락처
+//
+// `구분` 칸이 "코디네이터"면 코디 양식, 그 외(빈칸 포함)는 강사 양식으로 라우팅.
+
+export type ResumeKind = "coordinator" | "instructor";
 
 export type ResumeBasic = {
   name: string;          // 성명
+  rrn: string;           // 주민등록번호 (마스킹/표시 X — 양식 빈칸이 정상)
   gender: string;        // 성별
   birth: string;         // 생년월일
   organization: string;  // 소속
   position: string;      // 직위/직책
-  subject: string;       // 담당교과
+  subject: string;       // 담당교과 (CSV에 없음 → 빈칸)
 };
 
-export type ResumeCareer = {
-  teacherYears: string;       // 교사경력 - 근속연수
-  teacherDuties: string[];    // 교사경력 - 담당업무 (최대 5개)
-  seniorYears: string;        // 수석교사 - 근속연수
-  seniorDuties: string[];     // 수석교사 - 담당업무 (선택, 최대 5개)
+export type ResumeAttachmentStatus =
+  | "pending"
+  | "extracting"
+  | "ok"
+  | "failed"
+  | "skipped";
+
+export type ResumeAttachment = {
+  filename: string;
+  size: number;
+  status: ResumeAttachmentStatus;
+  text?: string;       // 추출된 텍스트
+  error?: string;      // 실패 시 사람이 읽을 사유
 };
 
-export type TrainingItem = {
-  name: string;        // 연수명
-  period: string;      // 기간/차시
-  organizer: string;   // 운영기관
-};
-
-export type ResumeTrainings = {
-  digital: TrainingItem[]; // 디지털 관련 연수 이수 (최대 5개)
-  others: TrainingItem[];  // 기타 연수 이수 (최대 5개)
-};
-
-export type CertificateItem = {
-  name: string;        // 자격증명
-  date: string;        // 취득일자
-  issuer: string;      // 발행기관
-};
-
-export type LectureItem = {
-  name: string;        // 연수명
-  period: string;      // 기간/차시
-  role: string;        // 역할
-  organizer: string;   // 연수 운영기관
-};
-
-export type ProjectItem = {
-  name: string;        // 사업명
-  period: string;      // 사업기간
-  role: string;        // 역할
-  organization: string; // 기관
-};
+export type MotivationStatus =
+  | "idle"        // 아직 생성 시도 X
+  | "generating"  // 진행 중
+  | "ok"          // 성공
+  | "failed";     // 실패
 
 export type ResumeRow = {
   rowIndex: number;
+  kind: ResumeKind;
+  gubun: string;          // 원본 「구분」 텍스트 (디버그/표시용)
   basic: ResumeBasic;
-  career: ResumeCareer;
-  trainings: ResumeTrainings;
-  certificates: CertificateItem[];   // 최대 5개
-  lectures: LectureItem[];           // 최대 5개
-  projects: ProjectItem[];           // 최대 5개
-  motivation: string;                // 지원 동기 및 포부
+  contact: string;        // 연락처
+  attachmentHint: string; // CSV의 「자료」 칸 원문 (파일명/링크/빈칸)
+  attachments: ResumeAttachment[];
+  motivation: string;     // AI 또는 사용자 직접 작성
+  motivationStatus: MotivationStatus;
+  motivationError?: string;
   hasEmpty: boolean;
   fieldWarnings: string[];
 };
 
-export const MAX_TEACHER_DUTIES = 5;
-export const MAX_TRAININGS = 5;     // 각 카테고리별
-export const MAX_CERTIFICATES = 5;
-export const MAX_LECTURES = 5;
-export const MAX_PROJECTS = 5;
+export function kindFromGubun(gubun: string): ResumeKind {
+  return gubun.trim() === "코디네이터" ? "coordinator" : "instructor";
+}
 
-export function emptyTraining(): TrainingItem {
-  return { name: "", period: "", organizer: "" };
+export function kindLabel(kind: ResumeKind): "코디" | "강사" {
+  return kind === "coordinator" ? "코디" : "강사";
 }
-export function emptyCertificate(): CertificateItem {
-  return { name: "", date: "", issuer: "" };
-}
-export function emptyLecture(): LectureItem {
-  return { name: "", period: "", role: "", organizer: "" };
-}
-export function emptyProject(): ProjectItem {
-  return { name: "", period: "", role: "", organization: "" };
+
+export function emptyAttachment(filename: string, size: number): ResumeAttachment {
+  return { filename, size, status: "pending" };
 }
 
 export function emptyRow(rowIndex: number): ResumeRow {
   return {
     rowIndex,
-    basic: { name: "", gender: "", birth: "", organization: "", position: "", subject: "" },
-    career: { teacherYears: "", teacherDuties: [], seniorYears: "", seniorDuties: [] },
-    trainings: { digital: [], others: [] },
-    certificates: [],
-    lectures: [],
-    projects: [],
+    kind: "instructor",
+    gubun: "",
+    basic: {
+      name: "",
+      rrn: "",
+      gender: "",
+      birth: "",
+      organization: "",
+      position: "",
+      subject: "",
+    },
+    contact: "",
+    attachmentHint: "",
+    attachments: [],
     motivation: "",
+    motivationStatus: "idle",
     hasEmpty: false,
     fieldWarnings: [],
   };
 }
 
-export function recomputeWarnings(r: Omit<ResumeRow, "hasEmpty" | "fieldWarnings">): ResumeRow {
+export function recomputeWarnings(
+  r: Omit<ResumeRow, "hasEmpty" | "fieldWarnings">,
+): ResumeRow {
   const w: string[] = [];
-  if (!r.basic.name.trim()) w.push("「성명」이 비어 있어요");
-  if (!r.basic.organization.trim()) w.push("「소속」이 비어 있어요");
-  if (!r.basic.position.trim()) w.push("「직위/직책」이 비어 있어요");
-  if (!r.career.teacherYears.trim() && !r.career.seniorYears.trim()) {
-    w.push("「교사경력」 또는 「수석교사」 근속연수가 모두 비어 있어요");
-  }
-  if (!r.motivation.trim()) w.push("「지원 동기 및 포부」가 비어 있어요");
+  if (!r.basic.name.trim()) w.push("성명 누락");
+  if (!r.basic.organization.trim()) w.push("소속 누락");
+  if (!r.basic.position.trim()) w.push("직위/직책 누락");
+  if (!r.contact.trim()) w.push("연락처 누락");
+  if (!r.motivation.trim()) w.push("지원 동기 미작성");
   return { ...r, hasEmpty: w.length > 0, fieldWarnings: w };
 }

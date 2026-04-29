@@ -1,178 +1,87 @@
-// CSV(wide format) → ResumeRow[]
+// narrow format CSV → ResumeRow[]
 //
-// 한 행 = 한 사람. 반복 필드는 "디지털연수_1_연수명" 식으로 인덱스 접미.
+// 한 행 = 한 사람. 헤더 매칭은 느슨하게(공백/특수문자 무시) 처리.
 
 import Papa from "papaparse";
 import {
   type ResumeRow,
-  type CertificateItem,
-  type LectureItem,
-  type ProjectItem,
-  type TrainingItem,
   emptyRow,
+  kindFromGubun,
   recomputeWarnings,
-  MAX_TEACHER_DUTIES,
-  MAX_TRAININGS,
-  MAX_CERTIFICATES,
-  MAX_LECTURES,
-  MAX_PROJECTS,
 } from "@/lib/resume/types";
 
-function findColIdx(header: string[], patterns: RegExp[]): number {
-  for (const re of patterns) {
-    const i = header.findIndex((c) => re.test(c.trim()));
+function norm(s: string): string {
+  return (s || "").replace(/\s+/g, "").replace(/[·:/]/g, "");
+}
+
+function findIdx(header: string[], patterns: string[]): number {
+  const normalized = header.map((h) => norm(h));
+  for (const p of patterns) {
+    const np = norm(p);
+    const i = normalized.findIndex((h) => h === np || h.includes(np));
     if (i !== -1) return i;
   }
   return -1;
 }
 
-function findIndexedCols(header: string[], pattern: (i: number) => RegExp[], max: number): number[] {
-  const out: number[] = [];
-  for (let i = 1; i <= max; i++) {
-    out.push(findColIdx(header, pattern(i)));
-  }
-  return out;
-}
-
-function getStr(row: string[], idx: number): string {
+function get(row: string[], idx: number): string {
   if (idx < 0 || idx >= row.length) return "";
   return (row[idx] ?? "").trim();
 }
 
-function nonEmptyTraining(t: TrainingItem): boolean {
-  return !!(t.name || t.period || t.organizer);
-}
-function nonEmptyCert(c: CertificateItem): boolean {
-  return !!(c.name || c.date || c.issuer);
-}
-function nonEmptyLecture(l: LectureItem): boolean {
-  return !!(l.name || l.period || l.role || l.organizer);
-}
-function nonEmptyProject(p: ProjectItem): boolean {
-  return !!(p.name || p.period || p.role || p.organization);
-}
-
 export function parseResumeCsv(text: string): ResumeRow[] {
-  const result = Papa.parse<string[]>(text, { skipEmptyLines: false });
-  const raw = (result.data as string[][]).filter((r) => r && r.length > 0);
-  if (!raw.length) return [];
+  const result = Papa.parse<string[]>(text, {
+    skipEmptyLines: true,
+    transform: (v) => (typeof v === "string" ? v : String(v ?? "")),
+  });
+  const rows = result.data ?? [];
+  if (!rows.length) return [];
 
-  // 헤더 행 찾기 (성명/이름 컬럼이 들어있는 첫 행, 최대 10행 안에서)
-  let headerIdx = -1;
-  for (let i = 0; i < Math.min(raw.length, 10); i++) {
-    if (raw[i].some((c) => /^(성명|이름|name)$/i.test(c.trim()))) {
-      headerIdx = i;
-      break;
-    }
-  }
-  if (headerIdx === -1) return [];
-
-  const header = raw[headerIdx];
-
-  // 컬럼 인덱스 매핑
-  const cols = {
-    name: findColIdx(header, [/^성명$/, /^이름$/, /^name$/i]),
-    gender: findColIdx(header, [/^성별$/, /^gender$/i]),
-    birth: findColIdx(header, [/^생년월일$/, /^birth$/i]),
-    org: findColIdx(header, [/^소속$/, /^organization$/i]),
-    position: findColIdx(header, [/직위.*직책/, /^직위$/, /^position$/i]),
-    subject: findColIdx(header, [/^담당교과$/, /^subject$/i]),
-    teacherYears: findColIdx(header, [/교사경력.*근속연수/, /교사.*근속/]),
-    seniorYears: findColIdx(header, [/수석교사.*근속연수/, /수석.*근속/]),
-    motivation: findColIdx(header, [/^지원동기/, /^motivation$/i, /지원\s*동기/]),
+  const header = rows[0] ?? [];
+  const idx = {
+    gubun: findIdx(header, ["구분"]),
+    name: findIdx(header, ["성명", "이름"]),
+    rrn: findIdx(header, ["주민등록번호", "주민번호"]),
+    gender: findIdx(header, ["성별"]),
+    birth: findIdx(header, ["생년월일"]),
+    organization: findIdx(header, ["소속"]),
+    position: findIdx(header, ["직위직책", "직위/직책", "직책", "직위"]),
+    attachmentHint: findIdx(header, [
+      "지원 동기 및 포부 생성을 위해 필요한 자료",
+      "지원동기및포부생성을위해필요한자료",
+      "자료",
+      "참고자료",
+      "필요한 자료",
+    ]),
+    contact: findIdx(header, ["연락처", "전화", "전화번호"]),
   };
-  // 정확 일치 위해 ^...$ anchor 사용
-  const exact = (s: string) => new RegExp(`^${s}$`);
-  const teacherDuties = findIndexedCols(
-    header,
-    (i) => [exact(`교사경력_담당업무_${i}`)],
-    MAX_TEACHER_DUTIES
-  );
-  const seniorDuties = findIndexedCols(
-    header,
-    (i) => [exact(`수석교사_담당업무_${i}`)],
-    MAX_TEACHER_DUTIES
-  );
-  const digitalCols = Array.from({ length: MAX_TRAININGS }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [exact(`디지털연수_${i}_연수명`)]),
-    period: findColIdx(header, [exact(`디지털연수_${i}_기간차시`), exact(`디지털연수_${i}_기간`)]),
-    organizer: findColIdx(header, [exact(`디지털연수_${i}_기관`)]),
-  }));
-  const otherCols = Array.from({ length: MAX_TRAININGS }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [exact(`기타연수_${i}_연수명`)]),
-    period: findColIdx(header, [exact(`기타연수_${i}_기간차시`), exact(`기타연수_${i}_기간`)]),
-    organizer: findColIdx(header, [exact(`기타연수_${i}_기관`)]),
-  }));
-  const certCols = Array.from({ length: MAX_CERTIFICATES }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [exact(`자격증_${i}_자격증명`), exact(`자격증_${i}_명`)]),
-    date: findColIdx(header, [exact(`자격증_${i}_취득일자`), exact(`자격증_${i}_일자`)]),
-    issuer: findColIdx(header, [exact(`자격증_${i}_발행기관`), exact(`자격증_${i}_기관`)]),
-  }));
-  const lectureCols = Array.from({ length: MAX_LECTURES }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [exact(`강의경험_${i}_연수명`), exact(`강의경험_${i}_명`)]),
-    period: findColIdx(header, [exact(`강의경험_${i}_기간차시`), exact(`강의경험_${i}_기간`)]),
-    role: findColIdx(header, [exact(`강의경험_${i}_역할`)]),
-    organizer: findColIdx(header, [exact(`강의경험_${i}_기관`)]),
-  }));
-  const projectCols = Array.from({ length: MAX_PROJECTS }, (_, i) => i + 1).map((i) => ({
-    name: findColIdx(header, [exact(`정부사업_${i}_사업명`), exact(`정부사업_${i}_명`)]),
-    period: findColIdx(header, [exact(`정부사업_${i}_기간`)]),
-    role: findColIdx(header, [exact(`정부사업_${i}_역할`)]),
-    organization: findColIdx(header, [exact(`정부사업_${i}_기관`)]),
-  }));
 
-  const rows: ResumeRow[] = [];
-  for (let i = headerIdx + 1; i < raw.length; i++) {
-    const r = raw[i];
-    const name = getStr(r, cols.name);
-    const org = getStr(r, cols.org);
-    if (!name && !org) continue; // 완전 빈 행은 스킵
+  const out: ResumeRow[] = [];
+  for (let r = 1; r < rows.length; r++) {
+    const cols = rows[r] ?? [];
+    const name = get(cols, idx.name);
+    // 성명이 비어있으면 건너뜀 (빈 행)
+    if (!name) continue;
 
-    const row = emptyRow(i - headerIdx - 1);
-    row.basic = {
-      name,
-      gender: getStr(r, cols.gender),
-      birth: getStr(r, cols.birth),
-      organization: org,
-      position: getStr(r, cols.position),
-      subject: getStr(r, cols.subject),
+    const gubun = get(cols, idx.gubun);
+    const base = emptyRow(out.length);
+    const rowDraft = {
+      ...base,
+      gubun,
+      kind: kindFromGubun(gubun),
+      basic: {
+        name,
+        rrn: get(cols, idx.rrn),
+        gender: get(cols, idx.gender),
+        birth: get(cols, idx.birth),
+        organization: get(cols, idx.organization),
+        position: get(cols, idx.position),
+        subject: "",
+      },
+      contact: get(cols, idx.contact),
+      attachmentHint: get(cols, idx.attachmentHint),
     };
-    row.career = {
-      teacherYears: getStr(r, cols.teacherYears),
-      teacherDuties: teacherDuties.map((idx) => getStr(r, idx)).filter(Boolean),
-      seniorYears: getStr(r, cols.seniorYears),
-      seniorDuties: seniorDuties.map((idx) => getStr(r, idx)).filter(Boolean),
-    };
-    row.trainings = {
-      digital: digitalCols
-        .map((c) => ({ name: getStr(r, c.name), period: getStr(r, c.period), organizer: getStr(r, c.organizer) }))
-        .filter(nonEmptyTraining),
-      others: otherCols
-        .map((c) => ({ name: getStr(r, c.name), period: getStr(r, c.period), organizer: getStr(r, c.organizer) }))
-        .filter(nonEmptyTraining),
-    };
-    row.certificates = certCols
-      .map((c) => ({ name: getStr(r, c.name), date: getStr(r, c.date), issuer: getStr(r, c.issuer) }))
-      .filter(nonEmptyCert);
-    row.lectures = lectureCols
-      .map((c) => ({
-        name: getStr(r, c.name),
-        period: getStr(r, c.period),
-        role: getStr(r, c.role),
-        organizer: getStr(r, c.organizer),
-      }))
-      .filter(nonEmptyLecture);
-    row.projects = projectCols
-      .map((c) => ({
-        name: getStr(r, c.name),
-        period: getStr(r, c.period),
-        role: getStr(r, c.role),
-        organization: getStr(r, c.organization),
-      }))
-      .filter(nonEmptyProject);
-    row.motivation = getStr(r, cols.motivation);
-    rows.push(recomputeWarnings(row));
+    out.push(recomputeWarnings(rowDraft));
   }
-
-  return rows;
+  return out;
 }

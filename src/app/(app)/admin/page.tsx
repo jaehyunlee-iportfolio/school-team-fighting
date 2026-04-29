@@ -4618,6 +4618,16 @@ function MeetingOpLayoutSection({
             onChange={(v) => set("signature", { titleFontSize: v })}
           />
           <NumField
+            label="제목 위 여백"
+            value={layout.signature.titleMarginTop}
+            onChange={(v) => set("signature", { titleMarginTop: v })}
+          />
+          <NumField
+            label="제목 아래 여백"
+            value={layout.signature.titleMarginBottom}
+            onChange={(v) => set("signature", { titleMarginBottom: v })}
+          />
+          <NumField
             label="안내 문구 크기"
             value={layout.signature.noticeFontSize}
             onChange={(v) => set("signature", { noticeFontSize: v })}
@@ -4626,6 +4636,16 @@ function MeetingOpLayoutSection({
             label="안내 문구 색"
             value={layout.signature.noticeColor}
             onChange={(v) => set("signature", { noticeColor: v })}
+          />
+          <NumField
+            label="안내 위 여백"
+            value={layout.signature.noticeMarginTop}
+            onChange={(v) => set("signature", { noticeMarginTop: v })}
+          />
+          <NumField
+            label="안내 아래 여백"
+            value={layout.signature.noticeMarginBottom}
+            onChange={(v) => set("signature", { noticeMarginBottom: v })}
           />
           <NumField
             label="헤더 행 높이"
