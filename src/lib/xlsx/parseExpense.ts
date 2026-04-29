@@ -70,14 +70,31 @@ function findColumnIndex(headerRows: Row[], aliases: readonly string[]): number 
   return -1;
 }
 
-/** Excel 직렬 날짜 (1900 epoch) → "YYYY-MM-DD" */
+/**
+ * Date 객체를 가까운 자정으로 반올림한 뒤 "YYYY. MM. DD" 출력.
+ *
+ * 배경: Numbers/일부 도구로 만든 xlsx의 날짜 셀이 부동소수점 오차로
+ * 정확히 자정이 아니라 23:59:08 같이 미세하게 어긋나 있는 경우가 있음.
+ * Excel은 셀 포맷으로 반올림해 다음 날짜를 표시하지만 JS Date는 그대로
+ * 가져와서 getDate()가 -1된 날을 반환해 PDF에 잘못 출력되는 문제 발생.
+ * 자정에 가까운 시각이면(절반 이상) 다음 날로 정렬해 Excel 표시와 일치시킴.
+ */
+function formatDateKRRounded(v: Date): string {
+  const dayMs = 86400000;
+  const midnight = new Date(v.getFullYear(), v.getMonth(), v.getDate()).getTime();
+  const offset = v.getTime() - midnight;
+  const adjusted = offset > dayMs / 2 ? new Date(midnight + dayMs) : new Date(midnight);
+  return formatDateKR(adjusted);
+}
+
+/** Excel 직렬 날짜 (1900 epoch) → "YYYY. MM. DD" (자정 근처 반올림 포함) */
 function excelSerialToDateString(v: Cell): string {
   if (typeof v === "number" && v > 25569) {
     // 25569 = 1970-01-01 in Excel
     const d = new Date((v - 25569) * 86400 * 1000);
-    if (!Number.isNaN(d.getTime())) return formatDateKR(d);
+    if (!Number.isNaN(d.getTime())) return formatDateKRRounded(d);
   }
-  if (v instanceof Date) return formatDateKR(v);
+  if (v instanceof Date) return formatDateKRRounded(v);
   const str = s(v);
   const parsed = parseLooseDate(str);
   return parsed ? formatDateKR(parsed) : str;
