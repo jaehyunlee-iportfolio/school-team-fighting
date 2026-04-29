@@ -24,6 +24,26 @@ function findIdx(header: string[], patterns: string[]): number {
   return -1;
 }
 
+// 「지원 동기 및 포부 (본문)」 컬럼 찾기 — 「~ 생성을 위해 필요한 자료」 컬럼과 혼동 방지.
+function findMotivationIdx(header: string[], excludeIdx: number): number {
+  const normalized = header.map((h) => norm(h));
+  for (let i = 0; i < normalized.length; i++) {
+    if (i === excludeIdx) continue;
+    const h = normalized[i];
+    // 「자료/필요/생성」을 포함하면 attachmentHint 계열이라 제외
+    if (h.includes("자료") || h.includes("필요") || h.includes("생성")) continue;
+    if (
+      h === "지원동기및포부" ||
+      h === "지원동기" ||
+      h === "포부" ||
+      (h.includes("지원동기") && h.includes("포부"))
+    ) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function get(row: string[], idx: number): string {
   if (idx < 0 || idx >= row.length) return "";
   return (row[idx] ?? "").trim();
@@ -55,6 +75,8 @@ export function parseResumeCsv(text: string): ResumeRow[] {
     ]),
     contact: findIdx(header, ["연락처", "전화", "전화번호"]),
   };
+  // 사전 입력된 「지원 동기 및 포부」 본문 컬럼 — 있으면 AI 호출 없이 그대로 사용.
+  const motivationIdx = findMotivationIdx(header, idx.attachmentHint);
 
   const out: ResumeRow[] = [];
   for (let r = 1; r < rows.length; r++) {
@@ -64,6 +86,7 @@ export function parseResumeCsv(text: string): ResumeRow[] {
     if (!name) continue;
 
     const gubun = get(cols, idx.gubun);
+    const preMotivation = get(cols, motivationIdx);
     const base = emptyRow(out.length);
     const rowDraft = {
       ...base,
@@ -80,6 +103,9 @@ export function parseResumeCsv(text: string): ResumeRow[] {
       },
       contact: get(cols, idx.contact),
       attachmentHint: get(cols, idx.attachmentHint),
+      // 사전 입력본이 있으면 motivation 채우고 status=ok 로 — generateOneRow 가 건너뜀.
+      motivation: preMotivation,
+      motivationStatus: preMotivation ? ("ok" as const) : ("idle" as const),
     };
     out.push(recomputeWarnings(rowDraft));
   }

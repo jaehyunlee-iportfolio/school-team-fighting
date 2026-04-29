@@ -117,8 +117,15 @@ export async function extractWithPolaris(
     throw new Error(`Polaris 미지원 확장자: ${filename}`);
   }
 
+  // Polaris는 한국어/긴 파일명에서 multipart filename 헤더가 너무 길면 400 반환.
+  // 추출 결과는 파일명에 의존하지 않으므로 확장자만 유지한 짧은 이름으로 변환.
+  const ext = filename.slice(filename.lastIndexOf(".")).toLowerCase();
+  const shortName = `doc${Date.now().toString(36)}${Math.random()
+    .toString(36)
+    .slice(2, 6)}${ext}`;
+
   const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(buf)]), filename);
+  form.append("file", new Blob([new Uint8Array(buf)]), shortName);
 
   const res = await fetch(API_URL, {
     method: "POST",

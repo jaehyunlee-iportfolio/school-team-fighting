@@ -1,23 +1,80 @@
 /**
- * 이력서 첨부 자료 텍스트 추출 API.
+ * 이력서 첨부 자료 텍스트 추출 API — 두 가지 입력 방식 지원.
  *
- * POST /api/resume/extract
- *   body: multipart/form-data with field `file`
- *   200 : { text: string, filename: string, bytes: number }
- *   400 : { error: string }
- *   500 : { error: string }
+ * 1) multipart/form-data with `file` 필드 (작은 파일 — Vercel 4.5MB 제한 안)
+ *    POST /api/resume/extract
+ *      body: FormData { file }
  *
- * 지원: hwp/hwpx/docx/pptx/xlsx (Polaris) + pdf (pdfjs)
- * 환경변수: POLARIS_DATAINSIGHT_API_KEY (hwp/docx 등에 필요)
+ * 2) application/json with blob URL (큰 파일 — Vercel Blob 직접 업로드 후 URL 전달)
+ *    POST /api/resume/extract
+ *      body: { url: string, filename: string }
+ *      서버가 url에서 받아 처리하고, 처리 후 blob을 삭제(임시 파일 정리).
+ *
+ *   200 : { text, filename, bytes }
+ *   400 : { error }
+ *   500 : { error }
+ *
+ * 지원: hwp/hwpx/docx/pptx/xlsx (Polaris) + pdf (pdf-parse)
+ * 환경변수: POLARIS_DATAINSIGHT_API_KEY, BLOB_READ_WRITE_TOKEN(blob URL 모드 시)
  */
 
 import { NextResponse } from "next/server";
 import { extractText } from "@/lib/extract/dispatch";
+import { del } from "@vercel/blob";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
+  const ct = req.headers.get("content-type") ?? "";
+
+  // ──── 1) JSON: { url, filename } — Vercel Blob 경유 ────
+  if (ct.includes("application/json")) {
+    let body: { url?: string; filename?: string };
+    try {
+      body = (await req.json()) as { url?: string; filename?: string };
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const url = (body.url ?? "").trim();
+    const filename = (body.filename ?? "").trim();
+    if (!url || !filename) {
+      return NextResponse.json(
+        { error: "url, filename 필수" },
+        { status: 400 },
+      );
+    }
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        return NextResponse.json(
+          { error: `blob fetch ${resp.status}`, filename, bytes: 0 },
+          { status: 502 },
+        );
+      }
+      const buf = Buffer.from(await resp.arrayBuffer());
+      const bytes = buf.byteLength;
+      const { text } = await extractText(buf, filename);
+      // 추출이 끝났으니 임시 blob 삭제 (best-effort)
+      try {
+        await del(url);
+      } catch {
+        // 삭제 실패는 무시 — 데이터 노출 영향 없음 (파일 자체는 단명 사용)
+      }
+      return NextResponse.json({ text, filename, bytes });
+    } catch (e) {
+      return NextResponse.json(
+        {
+          error: String((e as Error).message ?? e),
+          filename,
+          bytes: 0,
+        },
+        { status: 500 },
+      );
+    }
+  }
+
+  // ──── 2) multipart/form-data — 기존 방식 (~4.5MB 한정) ────
   let form: FormData;
   try {
     form = await req.formData();

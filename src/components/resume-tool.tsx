@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { upload as blobUpload } from "@vercel/blob/client";
 import { ResumeCoordinatorDocument } from "@/components/pdf/resume-coordinator-document";
 import { ResumeInstructorDocument } from "@/components/pdf/resume-instructor-document";
 import { registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
@@ -523,10 +524,21 @@ export function ResumeTool() {
   );
 
   // ── 한 행에 대해 첨부 추출 + AI 생성 ────────────────────────
+  // CSV에 사전 입력된 「지원 동기 및 포부」 본문이 있으면 (motivationStatus === "ok"
+  // 인 채로 들어옴) AI 호출 없이 그대로 사용 — 첨부 추출도 건너뜀.
   const generateOneRow = useCallback(
-    async (rowIdx: number): Promise<ResumeRow> => {
+    async (rowIdx: number, opts?: { force?: boolean }): Promise<ResumeRow> => {
       const row = rowsRef.current[rowIdx];
       if (!row) throw new Error("row missing");
+
+      // 사전 입력본 존재 시 건너뜀 (force === true 면 무시하고 재생성)
+      if (
+        !opts?.force &&
+        row.motivationStatus === "ok" &&
+        row.motivation.trim()
+      ) {
+        return row;
+      }
 
       // 1) 각 첨부에 대해 텍스트 추출
       const files = fileMapRef.current[rowIdx] ?? [];
@@ -551,6 +563,19 @@ export function ResumeTool() {
           };
           continue;
         }
+        // Polaris/pdfjs 한계 — 25MB 초과는 client-side 차단 (Vercel Blob도 25MB 한계)
+        if (f.size > 25 * 1024 * 1024) {
+          updatedAttachments[ai] = {
+            ...meta,
+            status: "skipped",
+            error: `25MB 초과 (${(f.size / 1024 / 1024).toFixed(1)}MB) — 처리 불가`,
+          };
+          setRowAtIndex(rowIdx, (r) => ({
+            ...r,
+            attachments: updatedAttachments,
+          }));
+          continue;
+        }
         // 추출 시도
         updatedAttachments[ai] = { ...meta, status: "extracting" };
         // UI 즉각 반영
@@ -559,12 +584,28 @@ export function ResumeTool() {
           attachments: updatedAttachments,
         }));
         try {
-          const fd = new FormData();
-          fd.append("file", f, f.name);
-          const r = await fetch("/api/resume/extract", {
-            method: "POST",
-            body: fd,
-          });
+          // 4MB 미만: Vercel 함수 body 한계 안 → 직접 multipart
+          // 4MB 이상: Vercel Blob 직접 업로드 → URL만 서버에 전달
+          const useBlob = f.size >= 4 * 1024 * 1024;
+          let r: Response;
+          if (useBlob) {
+            const blob = await blobUpload(f.name, f, {
+              access: "public",
+              handleUploadUrl: "/api/resume/blob-upload",
+            });
+            r = await fetch("/api/resume/extract", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ url: blob.url, filename: f.name }),
+            });
+          } else {
+            const fd = new FormData();
+            fd.append("file", f, f.name);
+            r = await fetch("/api/resume/extract", {
+              method: "POST",
+              body: fd,
+            });
+          }
           const data = (await r.json()) as {
             text?: string;
             error?: string;
@@ -610,6 +651,8 @@ export function ResumeTool() {
             kind: row.kind,
             basic: row.basic,
             attachedText,
+            rowIndex: rowIdx,
+            totalRows: rowsRef.current.length,
           }),
         });
         const data = (await r.json()) as { output?: string; error?: string };
@@ -665,19 +708,40 @@ export function ResumeTool() {
     [],
   );
 
+  // CSV 사전 입력본이 채워진 행 수 — UI 표시 + 진행 시 건너뛸 행
+  const preFilledCount = useMemo(
+    () =>
+      rows.filter(
+        (r) => r.motivationStatus === "ok" && r.motivation.trim().length > 0,
+      ).length,
+    [rows],
+  );
+
   const runGeneration = useCallback(async () => {
     if (!rows.length) return;
     setGenPending(true);
     setGenProgress({ current: 0, total: rows.length });
+    let aiCalled = 0;
+    let skipped = 0;
     try {
       // 순차 실행 (병렬 호출하면 Polaris/Anthropic 레이트 리미트 위험)
       for (let i = 0; i < rows.length; i++) {
         setGenProgress({ current: i, total: rows.length });
+        const before = rowsRef.current[i];
+        const wasPreFilled =
+          before?.motivationStatus === "ok" &&
+          before.motivation.trim().length > 0;
         await generateOneRow(i);
+        if (wasPreFilled) skipped++;
+        else aiCalled++;
       }
       setGenProgress({ current: rows.length, total: rows.length });
       setStep("validate");
-      toast.success("AI 생성 완료. 검토 단계로 이동합니다.");
+      const summary =
+        skipped > 0
+          ? `완료 — AI ${aiCalled}건 / 사전 입력 그대로 ${skipped}건. 검토 단계로 이동합니다.`
+          : "AI 생성 완료. 검토 단계로 이동합니다.";
+      toast.success(summary);
     } catch (e) {
       toast.error("일부 행에서 실패했지만 검토 단계로 이동합니다.");
       console.error(e);
@@ -691,7 +755,7 @@ export function ResumeTool() {
   const regenerateRow = useCallback(
     async (rowIdx: number) => {
       try {
-        await generateOneRow(rowIdx);
+        await generateOneRow(rowIdx, { force: true });
         await onPreviewIndex(rowIdx);
         toast.success(`#${rowIdx + 1}번 행 재생성 완료`);
       } catch (e) {
@@ -990,6 +1054,14 @@ export function ResumeTool() {
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {preFilledCount > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="border-emerald-300 text-[11px] text-emerald-700 dark:text-emerald-400"
+                      >
+                        사전 입력 {preFilledCount}건 건너뜀
+                      </Badge>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1000,6 +1072,17 @@ export function ResumeTool() {
                       }}
                     >
                       처음으로
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={genPending}
+                      onClick={() => {
+                        setStep("validate");
+                        toast.success("검토 단계로 이동합니다.");
+                      }}
+                    >
+                      검토로 바로 가기
                     </Button>
                     <Button
                       size="sm"

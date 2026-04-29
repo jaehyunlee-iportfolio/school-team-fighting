@@ -2,7 +2,8 @@
  * 이력서 「지원 동기 및 포부」 생성 API.
  *
  * POST /api/resume/motivate
- *   body: { kind: "coordinator" | "instructor", basic: ResumeBasic, attachedText: string }
+ *   body: { kind, basic, attachedText, rowIndex, totalRows }
+ *     - rowIndex/totalRows: 다양화 컨텍스트 (#N/M번째 응시자) — 응시자별 톤 회전에 사용
  *   200 : { output: string }
  *   400 : { error: string }
  *   500 : { error: string }
@@ -21,6 +22,8 @@ type Body = {
   kind?: ResumeKind;
   basic?: ResumeBasic;
   attachedText?: string;
+  rowIndex?: number;
+  totalRows?: number;
 };
 
 export async function POST(req: Request) {
@@ -43,6 +46,10 @@ export async function POST(req: Request) {
     subject: "",
   };
   const attachedText = (body.attachedText ?? "").trim();
+  const rowIndex = Number.isFinite(body.rowIndex) ? Number(body.rowIndex) : 0;
+  const totalRows = Number.isFinite(body.totalRows)
+    ? Math.max(1, Number(body.totalRows))
+    : 1;
 
   if (!basic.name?.trim()) {
     return NextResponse.json(
@@ -60,7 +67,13 @@ export async function POST(req: Request) {
   }
   const model = process.env.CLAUDE_RESUME_MODEL || "claude-sonnet-4-6";
 
-  const prompt = buildMotivationPrompt({ kind, basic, attachedText });
+  const prompt = buildMotivationPrompt({
+    kind,
+    basic,
+    attachedText,
+    rowIndex,
+    totalRows,
+  });
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
