@@ -9,10 +9,19 @@ import errno
 import json
 import re
 import shutil
+import unicodedata
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterable, Literal
+
+
+def _nfc(s: str) -> str:
+    """macOS / Google Drive Stream은 한글 파일명을 NFD(분리형)로 저장하지만
+    Python 소스의 한글 리터럴은 보통 NFC(결합형). 정규식 매칭 전 양쪽을
+    동일한 NFC로 정규화해서 자모 분리 문제를 회피.
+    """
+    return unicodedata.normalize("NFC", s) if s else s
 
 SUPPORTED_EXTS = (".pdf", ".hwp", ".hwpx")
 PREFIX_RE = re.compile(
@@ -37,9 +46,9 @@ def expense_stable_key(filename: str) -> tuple[str, str] | None:
     """지출결의서 파일이면 (날짜까지 prefix, 확장자) 반환. 아니면 None.
 
     같은 날에 만든 같은 비목·증빙번호 지출결의서는 일련번호(R0125 등)가
-    달라도 동일 문서로 간주하기 위함.
+    달라도 동일 문서로 간주하기 위함. 입력 filename은 NFC로 정규화 후 매칭.
     """
-    m = EXPENSE_SERIAL_RE.match(filename)
+    m = EXPENSE_SERIAL_RE.match(_nfc(filename))
     if not m:
         return None
     return m.group(1), m.group(2)
@@ -50,6 +59,7 @@ def find_existing_expense_match(target_folder: Path, filename: str) -> Path | No
 
     파일이 지출결의서가 아니거나 매칭이 없으면 None.
     동일 이름 파일은 매칭 결과로 우선 반환 (정확 일치).
+    Drive Stream(NFD) vs 코드(NFC) 정규화 차이를 _nfc 헬퍼로 흡수.
     """
     key = expense_stable_key(filename)
     if key is None:
