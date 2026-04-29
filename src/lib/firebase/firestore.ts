@@ -9,6 +9,12 @@ import {
   type DocumentData,
 } from "firebase/firestore";
 import { getFirebaseDb } from "./config";
+import {
+  DEFAULT_RESUME_COMMON,
+  DEFAULT_INSTRUCTOR_EXTRA,
+  type ResumeLayoutCommon,
+  type ResumeInstructorExtra,
+} from "@/components/pdf/resume-shared-styles";
 
 /* ---------- Admin emails ---------- */
 
@@ -1257,7 +1263,10 @@ export async function getMeetingOperationsSettings(): Promise<MeetingOperationsS
 export async function saveMeetingOperationsSettings(
   settings: MeetingOperationsSettings,
 ): Promise<void> {
-  await setDoc(doc(getFirebaseDb(), "settings", "meetingOperations"), settings);
+  // Firestore 호환을 위해 plain JSON 으로 강제 변환:
+  // 클래스 인스턴스/getter/undefined/Symbol/함수 등이 섞여있을 가능성 차단.
+  const plain = JSON.parse(JSON.stringify(settings)) as MeetingOperationsSettings;
+  await setDoc(doc(getFirebaseDb(), "settings", "meetingOperations"), plain);
 }
 
 export type MeetingOperationsLayoutSettings = {
@@ -1415,4 +1424,59 @@ export async function saveMeetingOperationsLayoutSettings(
   settings: MeetingOperationsLayoutSettings,
 ): Promise<void> {
   await setDoc(doc(getFirebaseDb(), "settings", "meetingOperationsLayout"), settings);
+}
+
+/* ---------- 이력서(코디네이터/강사) layout settings ---------- */
+
+export type ResumeCoordinatorLayoutSettings = ResumeLayoutCommon;
+export type ResumeInstructorLayoutSettings = ResumeLayoutCommon & {
+  instructor: ResumeInstructorExtra;
+};
+
+export const DEFAULT_RESUME_COORDINATOR_LAYOUT: ResumeCoordinatorLayoutSettings =
+  DEFAULT_RESUME_COMMON;
+
+export const DEFAULT_RESUME_INSTRUCTOR_LAYOUT: ResumeInstructorLayoutSettings = {
+  ...DEFAULT_RESUME_COMMON,
+  instructor: DEFAULT_INSTRUCTOR_EXTRA,
+};
+
+export async function getResumeCoordinatorLayoutSettings(): Promise<ResumeCoordinatorLayoutSettings> {
+  const snap = await getDoc(
+    doc(getFirebaseDb(), "settings", "resumeCoordinatorLayout"),
+  );
+  if (!snap.exists()) return DEFAULT_RESUME_COORDINATOR_LAYOUT;
+  return deepMerge(
+    DEFAULT_RESUME_COORDINATOR_LAYOUT as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as ResumeCoordinatorLayoutSettings;
+}
+
+export async function saveResumeCoordinatorLayoutSettings(
+  settings: ResumeCoordinatorLayoutSettings,
+): Promise<void> {
+  await setDoc(
+    doc(getFirebaseDb(), "settings", "resumeCoordinatorLayout"),
+    settings,
+  );
+}
+
+export async function getResumeInstructorLayoutSettings(): Promise<ResumeInstructorLayoutSettings> {
+  const snap = await getDoc(
+    doc(getFirebaseDb(), "settings", "resumeInstructorLayout"),
+  );
+  if (!snap.exists()) return DEFAULT_RESUME_INSTRUCTOR_LAYOUT;
+  return deepMerge(
+    DEFAULT_RESUME_INSTRUCTOR_LAYOUT as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as ResumeInstructorLayoutSettings;
+}
+
+export async function saveResumeInstructorLayoutSettings(
+  settings: ResumeInstructorLayoutSettings,
+): Promise<void> {
+  await setDoc(
+    doc(getFirebaseDb(), "settings", "resumeInstructorLayout"),
+    settings,
+  );
 }

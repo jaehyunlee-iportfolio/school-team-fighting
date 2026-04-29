@@ -41,6 +41,12 @@ import {
   DEFAULT_EXPENSE_LAYOUT,
   DEFAULT_MEETING_OP_SETTINGS,
   DEFAULT_MEETING_OP_LAYOUT,
+  DEFAULT_RESUME_COORDINATOR_LAYOUT,
+  DEFAULT_RESUME_INSTRUCTOR_LAYOUT,
+  getResumeCoordinatorLayoutSettings,
+  saveResumeCoordinatorLayoutSettings,
+  getResumeInstructorLayoutSettings,
+  saveResumeInstructorLayoutSettings,
   SEOMOK_LIST,
   type ApprovalSettings,
   type GroupSettings,
@@ -56,6 +62,8 @@ import {
   type ExpenseLayoutSettings,
   type MeetingOperationsSettings,
   type MeetingOperationsLayoutSettings,
+  type ResumeCoordinatorLayoutSettings,
+  type ResumeInstructorLayoutSettings,
 } from "@/lib/firebase/firestore";
 import { PDF_FONT_FAMILIES, registerPdfFonts } from "@/lib/pdf/register-pdf-fonts";
 import { resolveHardcodedPdfLogoSrc } from "@/lib/pdf/group-logos";
@@ -66,6 +74,12 @@ import { BusinessReturnDocument } from "@/components/pdf/business-return-documen
 import { SwRequestDocument } from "@/components/pdf/sw-request-document";
 import { ExpenseDocument } from "@/components/pdf/expense-document";
 import { MeetingOperationsDocument } from "@/components/pdf/meeting-operations-document";
+import { ResumeCoordinatorDocument } from "@/components/pdf/resume-coordinator-document";
+import { ResumeInstructorDocument } from "@/components/pdf/resume-instructor-document";
+import {
+  emptyRow as emptyResumeRow,
+  recomputeWarnings as recomputeResumeWarnings,
+} from "@/lib/resume/types";
 import type { TripRow } from "@/lib/csv/parseD4";
 import type { SomyeongRow } from "@/lib/csv/parseSomyeong";
 import type { ReturnRow } from "@/lib/csv/parseReturn";
@@ -148,7 +162,7 @@ export default function AdminPage() {
   const [savingPdf, setSavingPdf] = useState(false);
   const [savingSomyeong, setSavingSomyeong] = useState(false);
   const [savingSomyeongLayout, setSavingSomyeongLayout] = useState(false);
-  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "swRequest" | "expense" | "meetingOp" | "common">("trip");
+  const [activeGroup, setActiveGroup] = useState<"trip" | "somyeong" | "return" | "swRequest" | "expense" | "meetingOp" | "resume" | "common">("trip");
   const [tripSub, setTripSub] = useState<"signApproval" | "layout">("signApproval");
   const [somyeongSub, setSomyeongSub] = useState<"info" | "layout">("info");
   const [returnSub, setReturnSub] = useState<"approval" | "layout">("approval");
@@ -159,6 +173,11 @@ export default function AdminPage() {
   const [meetingOpLayout, setMeetingOpLayout] = useState<MeetingOperationsLayoutSettings | null>(null);
   const [savingMeetingOp, setSavingMeetingOp] = useState(false);
   const [savingMeetingOpLayout, setSavingMeetingOpLayout] = useState(false);
+  const [resumeSub, setResumeSub] = useState<"coordinator" | "instructor">("coordinator");
+  const [resumeCoordLayout, setResumeCoordLayout] = useState<ResumeCoordinatorLayoutSettings | null>(null);
+  const [resumeInstLayout, setResumeInstLayout] = useState<ResumeInstructorLayoutSettings | null>(null);
+  const [savingResumeCoord, setSavingResumeCoord] = useState(false);
+  const [savingResumeInst, setSavingResumeInst] = useState(false);
   const [returnSettings, setReturnSettings] = useState<ReturnSettings | null>(null);
   const [returnLayout, setReturnLayout] = useState<ReturnLayoutSettings | null>(null);
   const [savingReturn, setSavingReturn] = useState(false);
@@ -204,7 +223,7 @@ export default function AdminPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay, swReq, swReqLay, exp, expLay, mop, mopLay] = await Promise.all([
+      const [s, emails, pdf, somyeong, somyeongLay, ret, retLay, swReq, swReqLay, exp, expLay, mop, mopLay, rcLay, riLay] = await Promise.all([
         getApprovalSettings(),
         getAdminEmails(),
         getPdfLayoutSettings(),
@@ -218,6 +237,8 @@ export default function AdminPage() {
         getExpenseLayoutSettings(),
         getMeetingOperationsSettings(),
         getMeetingOperationsLayoutSettings(),
+        getResumeCoordinatorLayoutSettings(),
+        getResumeInstructorLayoutSettings(),
       ]);
       setSettings(s);
       setAdminEmails(emails);
@@ -232,6 +253,8 @@ export default function AdminPage() {
       setExpenseLayout(expLay);
       setMeetingOpSettings(mop);
       setMeetingOpLayout(mopLay);
+      setResumeCoordLayout(rcLay);
+      setResumeInstLayout(riLay);
     } catch (err) {
       toast.error("설정을 불러오는 데 실패했어요.");
       console.error(err);
@@ -264,7 +287,7 @@ export default function AdminPage() {
     );
   }
 
-  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout || !swRequestSettings || !swRequestLayout || !expenseSettings || !expenseLayout || !meetingOpSettings || !meetingOpLayout) return null;
+  if (!settings || !pdfLayout || !somyeongSettings || !somyeongLayout || !returnSettings || !returnLayout || !swRequestSettings || !swRequestLayout || !expenseSettings || !expenseLayout || !meetingOpSettings || !meetingOpLayout || !resumeCoordLayout || !resumeInstLayout) return null;
 
   const handleSaveReturn = async () => {
     setSavingReturn(true);
@@ -348,8 +371,9 @@ export default function AdminPage() {
       await saveMeetingOperationsSettings(meetingOpSettings);
       toast.success("운영회의록 설정 저장 완료");
     } catch (e) {
+      console.error("[운영회의록 저장 실패] settings:", meetingOpSettings, "error:", e);
       const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`저장 실패: ${msg.slice(0, 200)}`);
+      toast.error(`저장 실패: ${msg.slice(0, 240)}`);
     } finally {
       setSavingMeetingOp(false);
     }
@@ -361,10 +385,37 @@ export default function AdminPage() {
       await saveMeetingOperationsLayoutSettings(meetingOpLayout);
       toast.success("운영회의록 레이아웃 저장 완료");
     } catch (e) {
+      console.error("[운영회의록 레이아웃 저장 실패] error:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`저장 실패: ${msg.slice(0, 240)}`);
+    } finally {
+      setSavingMeetingOpLayout(false);
+    }
+  };
+
+  const handleSaveResumeCoord = async () => {
+    setSavingResumeCoord(true);
+    try {
+      await saveResumeCoordinatorLayoutSettings(resumeCoordLayout);
+      toast.success("코디네이터 이력서 레이아웃 저장 완료");
+    } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(`저장 실패: ${msg.slice(0, 200)}`);
     } finally {
-      setSavingMeetingOpLayout(false);
+      setSavingResumeCoord(false);
+    }
+  };
+
+  const handleSaveResumeInst = async () => {
+    setSavingResumeInst(true);
+    try {
+      await saveResumeInstructorLayoutSettings(resumeInstLayout);
+      toast.success("강사 이력서 레이아웃 저장 완료");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`저장 실패: ${msg.slice(0, 200)}`);
+    } finally {
+      setSavingResumeInst(false);
     }
   };
 
@@ -421,7 +472,8 @@ export default function AdminPage() {
     (activeGroup === "somyeong" && somyeongSub === "layout") ||
     (activeGroup === "return" && returnSub === "layout") ||
     (activeGroup === "swRequest" && swRequestSub === "layout") ||
-    (activeGroup === "expense" && expenseSub === "layout");
+    (activeGroup === "expense" && expenseSub === "layout") ||
+    activeGroup === "resume";
 
   return (
     <div
@@ -443,16 +495,17 @@ export default function AdminPage() {
       {/* 1단계: 도구 그룹 */}
       <Tabs
         value={activeGroup}
-        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "swRequest" | "expense" | "meetingOp" | "common")}
+        onValueChange={(v) => setActiveGroup(v as "trip" | "somyeong" | "return" | "swRequest" | "expense" | "meetingOp" | "resume" | "common")}
         className="flex flex-col space-y-4"
       >
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="trip">출장신청서</TabsTrigger>
           <TabsTrigger value="somyeong">소명서</TabsTrigger>
           <TabsTrigger value="return">출장복명서</TabsTrigger>
           <TabsTrigger value="swRequest">SW 요청서</TabsTrigger>
           <TabsTrigger value="expense">지출결의서</TabsTrigger>
           <TabsTrigger value="meetingOp">운영회의록</TabsTrigger>
+          <TabsTrigger value="resume">이력서</TabsTrigger>
           <TabsTrigger value="common">공통</TabsTrigger>
         </TabsList>
 
@@ -877,6 +930,84 @@ export default function AdminPage() {
                     <Button onClick={handleSaveMeetingOpLayout} disabled={savingMeetingOpLayout} className="gap-2">
                       {savingMeetingOpLayout ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                       저장
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        {/* ── 이력서 ── */}
+        <TabsContent value="resume" className="space-y-4">
+          <Tabs
+            value={resumeSub}
+            onValueChange={(v) => setResumeSub(v as "coordinator" | "instructor")}
+            className="flex flex-col space-y-4"
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="coordinator">코디네이터</TabsTrigger>
+              <TabsTrigger value="instructor">강사</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="coordinator">
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <ResumePreview kind="coordinator" layout={resumeCoordLayout} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <ResumeLayoutSection
+                    layout={resumeCoordLayout}
+                    onChange={setResumeCoordLayout as (l: ResumeCoordinatorLayoutSettings) => void}
+                  />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setResumeCoordLayout(DEFAULT_RESUME_COORDINATOR_LAYOUT);
+                        toast("코디네이터 이력서 기본값으로 초기화");
+                      }}
+                    >
+                      <RotateCcw /> 기본값
+                    </Button>
+                    <Button onClick={handleSaveResumeCoord} disabled={savingResumeCoord}>
+                      {savingResumeCoord ? <Loader2 className="animate-spin" /> : <Save />} 저장
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="instructor">
+              <div className="flex flex-col gap-6 lg:flex-row">
+                <div className="w-full shrink-0 lg:w-[420px]">
+                  <div className="sticky top-4">
+                    <ResumePreview kind="instructor" layout={resumeInstLayout} />
+                  </div>
+                </div>
+                <div className="min-w-0 flex-1 space-y-4">
+                  <ResumeLayoutSection
+                    layout={resumeInstLayout}
+                    onChange={(l) => setResumeInstLayout({ ...resumeInstLayout, ...l })}
+                  />
+                  <ResumeInstructorExtraSection
+                    layout={resumeInstLayout}
+                    onChange={setResumeInstLayout}
+                  />
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setResumeInstLayout(DEFAULT_RESUME_INSTRUCTOR_LAYOUT);
+                        toast("강사 이력서 기본값으로 초기화");
+                      }}
+                    >
+                      <RotateCcw /> 기본값
+                    </Button>
+                    <Button onClick={handleSaveResumeInst} disabled={savingResumeInst}>
+                      {savingResumeInst ? <Loader2 className="animate-spin" /> : <Save />} 저장
                     </Button>
                   </div>
                 </div>
@@ -4810,5 +4941,402 @@ function MeetingOpPreview({
         설정 변경 후 0.8초 디바운스로 미리보기가 재생성돼요. 실제 데이터는 운영회의록 도구에서 확인.
       </p>
     </div>
+  );
+}
+
+/* ===================================================================
+   이력서 — Preview / Layout sections
+   =================================================================== */
+
+const MOCK_RESUME_NAME = "홍길동";
+
+function buildMockResumeRow(kind: "coordinator" | "instructor") {
+  const r = emptyResumeRow(0);
+  return recomputeResumeWarnings({
+    ...r,
+    kind,
+    gubun: kind === "coordinator" ? "코디네이터" : "강사",
+    basic: {
+      ...r.basic,
+      name: MOCK_RESUME_NAME,
+      gender: "여",
+      birth: "1985. 03. 21",
+      organization: "○○초등학교",
+      position: "교사",
+    },
+    contact: "010-0000-0000",
+    motivation:
+      "디지털 대전환기에 학생들의 창의적 사고와 협업 역량을 키우기 위해 본 사업에 지원합니다. 학교 현장에서 에듀테크와 AI 도구를 수업에 통합한 경험을 바탕으로, 교사 연수 운영과 콘텐츠 개발에 기여하고자 합니다. 앞으로도 디지털 교육의 안정적 정착을 위해 학교 현장과 정책의 가교 역할을 수행하겠습니다.",
+  });
+}
+
+function ResumePreview({
+  kind,
+  layout,
+}: {
+  kind: "coordinator" | "instructor";
+  layout: ResumeCoordinatorLayoutSettings | ResumeInstructorLayoutSettings;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const debouncedLayout = useDebouncedValue(layout, 800);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        registerPdfFonts();
+        const row = buildMockResumeRow(kind);
+        let blob: Blob;
+        if (kind === "coordinator") {
+          blob = await pdf(
+            <ResumeCoordinatorDocument
+              row={row}
+              layout={debouncedLayout as ResumeCoordinatorLayoutSettings}
+            />,
+          ).toBlob();
+        } else {
+          const inst = debouncedLayout as ResumeInstructorLayoutSettings;
+          const { instructor, ...common } = inst;
+          blob = await pdf(
+            <ResumeInstructorDocument row={row} layout={common} extra={instructor} />,
+          ).toBlob();
+        }
+        if (cancelled) return;
+        setUrl((old) => {
+          if (old) URL.revokeObjectURL(old);
+          return URL.createObjectURL(blob);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, debouncedLayout]);
+  useEffect(
+    () => () => {
+      if (url) URL.revokeObjectURL(url);
+    },
+    [url],
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-muted-foreground">미리보기</div>
+      <div className="aspect-[1/1.4] w-full overflow-hidden rounded-md border bg-muted/30">
+        {url ? (
+          <iframe src={url} className="size-full" title="이력서 미리보기" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-muted-foreground">
+            <Loader2 className="size-6 animate-spin" />
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        설정 변경 후 0.8초 디바운스로 미리보기가 재생성됩니다.
+      </p>
+    </div>
+  );
+}
+
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+function ResumeLayoutSection({
+  layout,
+  onChange,
+}: {
+  layout: ResumeCoordinatorLayoutSettings | ResumeInstructorLayoutSettings;
+  onChange: (l: ResumeCoordinatorLayoutSettings | ResumeInstructorLayoutSettings) => void;
+}) {
+  const set = <K extends keyof ResumeCoordinatorLayoutSettings>(
+    key: K,
+    patch: Partial<ResumeCoordinatorLayoutSettings[K]>,
+  ) => {
+    onChange({ ...layout, [key]: { ...(layout[key] as object), ...patch } });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">페이지·여백·기본 폰트</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <NumField
+            label="페이지 폰트 크기"
+            value={layout.page.fontSize}
+            onChange={(v) => set("page", { fontSize: v })}
+            unit="pt"
+          />
+          <NumField
+            label="줄 간격"
+            value={layout.page.lineHeight}
+            step={0.1}
+            onChange={(v) => set("page", { lineHeight: v })}
+          />
+          <NumField
+            label="상단 여백"
+            value={layout.page.paddingTop}
+            onChange={(v) => set("page", { paddingTop: v })}
+            unit="pt"
+          />
+          <NumField
+            label="하단 여백"
+            value={layout.page.paddingBottom}
+            onChange={(v) => set("page", { paddingBottom: v })}
+            unit="pt"
+          />
+          <NumField
+            label="좌우 여백"
+            value={layout.page.paddingHorizontal}
+            onChange={(v) => set("page", { paddingHorizontal: v })}
+            unit="pt"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">테두리·색상</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <NumField
+            label="테두리 두께"
+            value={layout.border.width}
+            step={0.1}
+            onChange={(v) => set("border", { width: v })}
+            unit="pt"
+          />
+          <ColorField
+            label="테두리 색"
+            value={layout.border.color}
+            onChange={(v) => set("border", { color: v })}
+          />
+          <ColorField
+            label="제목 배경"
+            value={layout.colors.titleBg}
+            onChange={(v) => set("colors", { titleBg: v })}
+          />
+          <ColorField
+            label="섹션 배경"
+            value={layout.colors.sectionBg}
+            onChange={(v) => set("colors", { sectionBg: v })}
+          />
+          <ColorField
+            label="라벨 글자색"
+            value={layout.colors.labelText}
+            onChange={(v) => set("colors", { labelText: v })}
+          />
+          <ColorField
+            label="빈칸 글자색"
+            value={layout.colors.empty}
+            onChange={(v) => set("colors", { empty: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">제목·섹션 헤더</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <NumField
+            label="제목 폰트 크기"
+            value={layout.title.fontSize}
+            onChange={(v) => set("title", { fontSize: v })}
+            unit="pt"
+          />
+          <NumField
+            label="제목 셀 패딩(상하)"
+            value={layout.title.paddingV}
+            onChange={(v) => set("title", { paddingV: v })}
+            unit="pt"
+          />
+          <NumField
+            label="섹션 헤더 폰트"
+            value={layout.sectionHeader.fontSize}
+            onChange={(v) => set("sectionHeader", { fontSize: v })}
+            unit="pt"
+          />
+          <NumField
+            label="섹션 헤더 패딩(상하)"
+            value={layout.sectionHeader.paddingV}
+            onChange={(v) => set("sectionHeader", { paddingV: v })}
+            unit="pt"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">표 셀·텍스트 크기</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <NumField
+            label="셀 패딩(상하)"
+            value={layout.cell.paddingV}
+            onChange={(v) => set("cell", { paddingV: v })}
+            unit="pt"
+          />
+          <NumField
+            label="셀 패딩(좌우)"
+            value={layout.cell.paddingH}
+            onChange={(v) => set("cell", { paddingH: v })}
+            unit="pt"
+          />
+          <NumField
+            label="셀 최소 높이"
+            value={layout.cell.minHeight}
+            onChange={(v) => set("cell", { minHeight: v })}
+            unit="pt"
+          />
+          <NumField
+            label="기본 텍스트 크기"
+            value={layout.text.fontSize}
+            onChange={(v) => set("text", { fontSize: v })}
+            unit="pt"
+          />
+          <NumField
+            label="작은 텍스트 크기"
+            value={layout.text.fontSizeSm}
+            step={0.5}
+            onChange={(v) => set("text", { fontSizeSm: v })}
+            unit="pt"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">빈 row 갯수 (시각적 부담 조절)</CardTitle>
+          <CardDescription className="text-xs">
+            narrow CSV에는 연수·자격증·강의·사업 정보가 없으므로 모두 빈칸. 여기서 row 수를 줄이세요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <NumField
+            label="연수 이수 (그룹별)"
+            value={layout.emptyRows.training}
+            min={1}
+            onChange={(v) => set("emptyRows", { training: v })}
+          />
+          <NumField
+            label="자격증"
+            value={layout.emptyRows.certificate}
+            min={1}
+            onChange={(v) => set("emptyRows", { certificate: v })}
+          />
+          <NumField
+            label="강의 경험"
+            value={layout.emptyRows.lecture}
+            min={1}
+            onChange={(v) => set("emptyRows", { lecture: v })}
+          />
+          <NumField
+            label="정부사업"
+            value={layout.emptyRows.project}
+            min={1}
+            onChange={(v) => set("emptyRows", { project: v })}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">「지원 동기 및 포부」 박스</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <NumField
+            label="최소 높이"
+            value={layout.motivation.minHeight}
+            onChange={(v) => set("motivation", { minHeight: v })}
+            unit="pt"
+          />
+          <NumField
+            label="패딩(상하)"
+            value={layout.motivation.paddingV}
+            onChange={(v) => set("motivation", { paddingV: v })}
+            unit="pt"
+          />
+          <NumField
+            label="폰트 크기"
+            value={layout.motivation.fontSize}
+            onChange={(v) => set("motivation", { fontSize: v })}
+            unit="pt"
+          />
+          <NumField
+            label="줄 간격"
+            value={layout.motivation.lineHeight}
+            step={0.1}
+            onChange={(v) => set("motivation", { lineHeight: v })}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ResumeInstructorExtraSection({
+  layout,
+  onChange,
+}: {
+  layout: ResumeInstructorLayoutSettings;
+  onChange: (l: ResumeInstructorLayoutSettings) => void;
+}) {
+  const set = (patch: Partial<ResumeInstructorLayoutSettings["instructor"]["practiceBox"]>) => {
+    onChange({
+      ...layout,
+      instructor: {
+        ...layout.instructor,
+        practiceBox: { ...layout.instructor.practiceBox, ...patch },
+      },
+    });
+  };
+  const p = layout.instructor.practiceBox;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">「수업실행 경험」 박스 (강사 전용)</CardTitle>
+      </CardHeader>
+      <CardContent className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <NumField
+          label="최소 높이"
+          value={p.minHeight}
+          onChange={(v) => set({ minHeight: v })}
+          unit="pt"
+        />
+        <NumField
+          label="패딩(상하)"
+          value={p.paddingV}
+          onChange={(v) => set({ paddingV: v })}
+          unit="pt"
+        />
+        <NumField
+          label="패딩(좌우)"
+          value={p.paddingH}
+          onChange={(v) => set({ paddingH: v })}
+          unit="pt"
+        />
+        <NumField
+          label="폰트 크기"
+          value={p.fontSize}
+          onChange={(v) => set({ fontSize: v })}
+          unit="pt"
+        />
+        <NumField
+          label="줄 간격"
+          value={p.lineHeight}
+          step={0.1}
+          onChange={(v) => set({ lineHeight: v })}
+        />
+      </CardContent>
+    </Card>
   );
 }
