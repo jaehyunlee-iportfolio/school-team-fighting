@@ -260,16 +260,18 @@ export async function parseExpenseXlsx(
       continue;
     }
 
-    // 헤더 위치 동적 검출 — "사용일자" 가 있는 행을 메인 헤더로 잡고 다음 행을 서브 헤더로.
+    // 헤더 위치 동적 검출 — "사용일자" 가 있는 행을 메인 헤더로.
+    // 부모 헤더(병합된 상위 라벨, 예: 「사용내역(수령인)」 이 col 11 에 머지) 도 스캔에 포함.
+    // → 메인 헤더에는 빈칸이지만 부모에만 라벨이 있는 컬럼도 인식 가능.
     const headerRowIdx = findHeaderRowIdx(sheetRows);
     if (headerRowIdx < 0) {
       skippedTabs.push({ name: sheetName, reason: "헤더 행(사용일자) 못 찾음" });
       continue;
     }
-    const headerRows = [
-      sheetRows[headerRowIdx] ?? [],
-      sheetRows[headerRowIdx + 1] ?? [],
-    ];
+    const headerRows: Row[] = [];
+    if (headerRowIdx >= 1) headerRows.push(sheetRows[headerRowIdx - 1] ?? []);
+    headerRows.push(sheetRows[headerRowIdx] ?? []);
+    headerRows.push(sheetRows[headerRowIdx + 1] ?? []);
     const dataStartIdx = headerRowIdx + 2;
 
     const cols = {
