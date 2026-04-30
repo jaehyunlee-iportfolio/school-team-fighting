@@ -563,6 +563,7 @@ export function AuditExpenseTool() {
                   return (
                     <details
                       key={c}
+                      open
                       className={cn(
                         "rounded border bg-muted/10 px-2 py-1 transition-colors",
                         enabled ? "border-border" : "border-dashed opacity-60",
