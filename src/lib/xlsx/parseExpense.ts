@@ -1,13 +1,13 @@
 // 지출결의서용 xlsx 파일 → ExpenseRow[] 변환.
 //
 // 각 비목 탭은 1행 = 비목 제목, 행3·4 = 헤더 (공급가액·부가세 등이 행4에서 등장),
-// 행5부터 데이터. SKIP_TABS와 TAB_TO_ACCOUNT에 없는 탭은 자동 스킵.
+// 행5부터 데이터. SKIP_TABS와 getAccountForTab() 매핑이 없는 탭은 자동 스킵.
 
 import * as XLSX from "xlsx";
 import {
   COLUMN_ALIASES,
   SKIP_TABS,
-  TAB_TO_ACCOUNT,
+  getAccountForTab,
   recomputeWarnings,
   type ExpenseRow,
 } from "@/lib/expense/types";
@@ -131,7 +131,7 @@ export async function listExpenseTabs(buffer: ArrayBuffer): Promise<XlsxTabInfo[
       out.push({ name: sheetName, processable: false, reason: "고정 스킵" });
       continue;
     }
-    const account = TAB_TO_ACCOUNT[sheetName];
+    const account = getAccountForTab(sheetName);
     if (!account) {
       out.push({ name: sheetName, processable: false, reason: "세목 매핑 없음" });
       continue;
@@ -180,7 +180,7 @@ export async function parseExpenseXlsx(
       skippedTabs.push({ name: sheetName, reason: "고정 스킵" });
       continue;
     }
-    const account = TAB_TO_ACCOUNT[sheetName];
+    const account = getAccountForTab(sheetName);
     if (!account) {
       skippedTabs.push({ name: sheetName, reason: "세목 매핑 없음" });
       continue;

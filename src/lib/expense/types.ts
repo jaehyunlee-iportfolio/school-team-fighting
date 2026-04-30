@@ -22,6 +22,23 @@ export const TAB_TO_ACCOUNT: Record<string, { semok: string; sesemok: string }> 
   "F-1.일반관리비": { semok: "-", sesemok: "-" },
 };
 
+/**
+ * 탭 이름 → 세목/세세목.
+ *
+ * 디미교연/건국대 등은 D-1 을 코디네이터/강사/외부 전문가로 쪼갠 D-1-1, D-1-2,
+ * D-1-3 시트로 제출함. exact 매핑이 없을 때 D-1-N 패턴을 D-1 매핑으로 fallback.
+ */
+export function getAccountForTab(
+  sheetName: string,
+): { semok: string; sesemok: string } | null {
+  const exact = TAB_TO_ACCOUNT[sheetName];
+  if (exact) return exact;
+  if (/^D-1-\d+\.\s*외부\s*전문가\s*기술\s*활용비/.test(sheetName)) {
+    return TAB_TO_ACCOUNT["D-1.외부 전문가 기술 활용비"] ?? null;
+  }
+  return null;
+}
+
 /** 데이터 행이 시작되기 전 무조건 스킵하는 탭들 */
 export const SKIP_TABS = new Set<string>([
   "대시보드",
