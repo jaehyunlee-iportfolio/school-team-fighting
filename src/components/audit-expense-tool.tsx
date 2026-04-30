@@ -387,6 +387,7 @@ export function AuditExpenseTool() {
                 {ALL_CATEGORIES.map((c) => (
                   <label
                     key={c}
+                    title={`내부코드: ${c}`}
                     className="flex cursor-pointer items-center gap-1.5 rounded border bg-muted/10 px-2 py-1 hover:bg-muted/30"
                   >
                     <input
@@ -399,7 +400,6 @@ export function AuditExpenseTool() {
                         }))
                       }
                     />
-                    <span className="font-mono text-[10px] opacity-60">{c}</span>
                     <span className="truncate">{CATEGORY_LABELS[c]}</span>
                   </label>
                 ))}
@@ -422,22 +422,25 @@ export function AuditExpenseTool() {
           <Card className="self-start">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">파일·시트</CardTitle>
-              <div className="space-y-0.5 pt-1 text-[10px] text-muted-foreground">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline" className="border-red-300 px-1 text-[9px] text-red-700">N</Badge>
-                  <span>에러</span>
-                  <Badge variant="outline" className="border-amber-300 px-1 text-[9px] text-amber-700">N</Badge>
-                  <span>경고</span>
-                  <Badge variant="outline" className="border-sky-300 px-1 text-[9px] text-sky-700">N</Badge>
-                  <span>정보</span>
+              <div className="space-y-1 pt-1 text-[10px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex items-center gap-1">
+                    <span className="size-2 rounded-full bg-emerald-500" /> 양호
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="size-2 rounded-full bg-amber-400" /> 검토
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="size-2 rounded-full bg-red-500" /> 수정필요
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="size-2 rounded-full bg-slate-400" /> 제출 X
+                  </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline" className="border-amber-300 px-1 text-[9px] text-amber-700">비표준</Badge>
-                  <span>= 제출 X (검수/원본/대시보드)</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline" className="border-slate-300 px-1 text-[9px] text-slate-600">숨김</Badge>
-                  <span>= Excel hidden — 제거 필요</span>
+                <div className="text-[9px]">
+                  카운트: <span className="text-red-700">에러</span> ·{" "}
+                  <span className="text-amber-700">경고</span> ·{" "}
+                  <span className="text-sky-700">정보</span>
                 </div>
               </div>
             </CardHeader>
@@ -471,6 +474,30 @@ export function AuditExpenseTool() {
                         const warn = s.issues.filter((i) => i.severity === "warning").length;
                         const info = s.issues.filter((i) => i.severity === "info").length;
                         const active = fi === activeFileIdx && s.name === activeSheetName;
+                        // 상태 점 색
+                        const dotColor = !s.isStandardData
+                          ? "bg-slate-400"
+                          : s.hidden
+                            ? "bg-slate-300"
+                            : err > 0
+                              ? "bg-red-500"
+                              : warn > 0
+                                ? "bg-amber-400"
+                                : "bg-emerald-500";
+                        const dotTitle = !s.isStandardData
+                          ? "제출 X (비제출용 시트)"
+                          : s.hidden
+                            ? "숨김 (Excel hidden)"
+                            : err > 0
+                              ? `수정 필요 — 에러 ${err}건`
+                              : warn > 0
+                                ? `검토 — 경고 ${warn}건`
+                                : "양호";
+                        const stateLabel = !s.isStandardData
+                          ? "제출 X"
+                          : s.hidden
+                            ? "숨김"
+                            : null;
                         return (
                           <button
                             key={s.name}
@@ -478,75 +505,50 @@ export function AuditExpenseTool() {
                               setActiveFileIdx(fi);
                               setActiveSheetName(s.name);
                             }}
-                            title={
-                              !s.isStandardData
-                                ? "비표준 시트 — 제출용 xlsx 에 포함되면 안 됨 (검수데이터/원본/매칭/대시보드 등)"
-                                : s.hidden
-                                  ? "숨겨진 시트 — 제출 전 가시화하거나 제거 필요"
-                                  : undefined
-                            }
+                            title={dotTitle}
                             className={cn(
                               "flex w-full items-center justify-between gap-1.5 rounded px-2 py-1 text-left text-[11px] hover:bg-muted/30",
                               active && "bg-primary/10",
-                              !s.isStandardData && "italic text-muted-foreground",
-                              s.hidden && "opacity-60",
                             )}
                           >
-                            <span className="flex min-w-0 items-center gap-1">
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className={cn("size-2 shrink-0 rounded-full", dotColor)} />
                               <span className="truncate">{s.name}</span>
-                              {!s.isStandardData && (
-                                <Badge
-                                  variant="outline"
-                                  className="shrink-0 border-amber-300 px-1 text-[9px] text-amber-700"
-                                >
-                                  비표준
-                                </Badge>
-                              )}
-                              {s.hidden && (
+                              {stateLabel && (
                                 <Badge
                                   variant="outline"
                                   className="shrink-0 border-slate-300 px-1 text-[9px] text-slate-600"
                                 >
-                                  숨김
+                                  {stateLabel}
                                 </Badge>
                               )}
                             </span>
-                            <span className="flex shrink-0 items-center gap-0.5">
-                              {err > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  title={`에러 ${err}건`}
-                                  className="border-red-300 px-1 text-[10px] text-red-700"
-                                >
-                                  {err}
-                                </Badge>
-                              )}
-                              {warn > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  title={`경고 ${warn}건`}
-                                  className="border-amber-300 px-1 text-[10px] text-amber-700"
-                                >
-                                  {warn}
-                                </Badge>
-                              )}
-                              {info > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  title={`정보 ${info}건`}
-                                  className="border-sky-300 px-1 text-[10px] text-sky-700"
-                                >
-                                  {info}
-                                </Badge>
+                            <span
+                              className="shrink-0 font-mono text-[10px] text-muted-foreground"
+                              title={`에러 ${err} · 경고 ${warn} · 정보 ${info}`}
+                            >
+                              {err > 0 && <span className="text-red-700">{err}</span>}
+                              {err > 0 && (warn > 0 || info > 0) && <span>·</span>}
+                              {warn > 0 && <span className="text-amber-700">{warn}</span>}
+                              {warn > 0 && info > 0 && <span>·</span>}
+                              {info > 0 && <span className="text-sky-700">{info}</span>}
+                              {err === 0 && warn === 0 && info === 0 && (
+                                <span className="text-emerald-600">✓</span>
                               )}
                             </span>
                           </button>
                         );
                       })}
                     </div>
-                    <div className="ml-4 flex items-center gap-2 text-[10px]">
-                      <span className="text-red-700">에러 {totalErr}</span>
-                      <span className="text-amber-700">· 경고 {totalWarn}</span>
+                    <div className="ml-4 mt-2 space-y-1 rounded border bg-muted/10 p-2 text-[10px]">
+                      <div className="flex justify-between font-medium">
+                        <span className="text-red-700">수정 필요</span>
+                        <span>{totalErr.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span className="text-amber-700">검토 권장</span>
+                        <span>{totalWarn.toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -574,18 +576,25 @@ export function AuditExpenseTool() {
                   </CardTitle>
                   <div className="flex items-center gap-2 text-xs">
                     <Filter className="size-3.5 text-muted-foreground" />
-                    {(["all", "error", "warning", "info"] as const).map((s) => (
+                    {(
+                      [
+                        ["all", "전체"],
+                        ["error", "에러"],
+                        ["warning", "경고"],
+                        ["info", "정보"],
+                      ] as const
+                    ).map(([k, ko]) => (
                       <button
-                        key={s}
-                        onClick={() => setSeverityFilter(s)}
+                        key={k}
+                        onClick={() => setSeverityFilter(k)}
                         className={cn(
                           "rounded border px-2 py-0.5",
-                          severityFilter === s
+                          severityFilter === k
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-border bg-background hover:bg-muted/30",
                         )}
                       >
-                        {s}
+                        {ko}
                       </button>
                     ))}
                   </div>
@@ -610,14 +619,22 @@ export function AuditExpenseTool() {
                         )}
                       >
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px]">
-                            {i.category}
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 text-[10px]"
+                            title={`내부코드: ${i.category}`}
+                          >
+                            {CATEGORY_LABELS[i.category]}
                           </Badge>
                           {i.cellAddress && (
-                            <span className="font-mono text-[10px] text-muted-foreground">{i.cellAddress}</span>
+                            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                              셀 {i.cellAddress}
+                            </span>
                           )}
                           {i.rowIndex && !i.cellAddress && (
-                            <span className="text-[10px] text-muted-foreground">Row {i.rowIndex}</span>
+                            <span className="shrink-0 text-[10px] text-muted-foreground">
+                              {i.rowIndex}행
+                            </span>
                           )}
                           <span className="flex-1 truncate">{i.message}</span>
                           {i.autofix && i.cellAddress && (
