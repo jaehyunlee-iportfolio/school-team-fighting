@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as XLSX from "xlsx";
 import JSZip from "jszip";
 import {
-  AlertTriangle,
   CheckCircle2,
   Download,
   FileSpreadsheet,
-  FileText,
   Filter,
   Loader2,
   RotateCcw,
@@ -21,7 +19,7 @@ import {
   CATEGORY_LABELS,
   type AuditOptions,
   type AuditWorkbook,
-  type IssueCategory,
+  type AuditSheet,
   type AuditCell,
   type Issue,
 } from "@/lib/audit/types";
@@ -105,6 +103,26 @@ function formatCellValue(v: AuditCell["current"]): string {
   return String(v);
 }
 
+function countIssueTypes(issues: Issue[]) {
+  let auto = 0;
+  let manual = 0;
+  for (const i of issues) {
+    if (i.autofix && i.cellAddress) auto++;
+    else manual++;
+  }
+  return { auto, manual };
+}
+
+function countEditedCells(sheet: AuditSheet) {
+  let n = 0;
+  for (const r of sheet.rows) {
+    for (const k of Object.keys(r.cells)) {
+      if (r.cells[k].editSource !== "none") n++;
+    }
+  }
+  return n;
+}
+
 export function AuditExpenseTool() {
   const [step, setStep] = useState<AppStep>("input");
   const [files, setFiles] = useState<File[]>([]);
@@ -114,6 +132,8 @@ export function AuditExpenseTool() {
   const [activeFileIdx, setActiveFileIdx] = useState(0);
   const [activeSheetName, setActiveSheetName] = useState<string>("");
   const [severityFilter, setSeverityFilter] = useState<"all" | "error" | "warning" | "info">("all");
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [showFullGrid, setShowFullGrid] = useState(false);
 
   // 어드민 설정 로드 → options 디폴트 반영
   useEffect(() => {
@@ -264,6 +284,64 @@ export function AuditExpenseTool() {
         }
       }
     }
+  };
+
+  const bulkAutofixSheet = (fileIdx: number, sheetName: string) => {
+    const lf = loaded[fileIdx];
+    if (!lf) return;
+    const sheet = lf.workbook.sheets.find((s) => s.name === sheetName);
+    if (!sheet) return;
+    const candidates = sheet.issues.filter((i) => i.autofix && i.cellAddress);
+    if (candidates.length === 0) {
+      toast.info("자동수정 가능한 이슈 없음");
+      return;
+    }
+    setLoaded((prev) => {
+      const nextLoaded = [...prev];
+      const lfn = nextLoaded[fileIdx];
+      if (!lfn) return prev;
+      const sn = lfn.workbook.sheets.find((s) => s.name === sheetName);
+      if (!sn) return prev;
+      for (const issue of candidates) {
+        for (const r of sn.rows) {
+          for (const k of Object.keys(r.cells)) {
+            if (r.cells[k].address === issue.cellAddress) {
+              r.cells[k] = applyAutofix(r.cells[k], issue);
+            }
+          }
+        }
+      }
+      return nextLoaded;
+    });
+    toast.success(`${candidates.length}건 자동수정 적용`);
+  };
+
+  const bulkRevertSheet = (fileIdx: number, sheetName: string) => {
+    const lf = loaded[fileIdx];
+    if (!lf) return;
+    const sheet = lf.workbook.sheets.find((s) => s.name === sheetName);
+    if (!sheet) return;
+    const edited = countEditedCells(sheet);
+    if (edited === 0) {
+      toast.info("원복할 셀 없음");
+      return;
+    }
+    setLoaded((prev) => {
+      const nextLoaded = [...prev];
+      const lfn = nextLoaded[fileIdx];
+      if (!lfn) return prev;
+      const sn = lfn.workbook.sheets.find((s) => s.name === sheetName);
+      if (!sn) return prev;
+      for (const r of sn.rows) {
+        for (const k of Object.keys(r.cells)) {
+          if (r.cells[k].editSource !== "none") {
+            r.cells[k] = revertCell(r.cells[k]);
+          }
+        }
+      }
+      return nextLoaded;
+    });
+    toast.success(`${edited}건 원복`);
   };
 
   const downloadAll = useCallback(async () => {
@@ -454,6 +532,14 @@ export function AuditExpenseTool() {
                   (a, s) => a + s.issues.filter((i) => i.severity === "warning").length,
                   0,
                 );
+                const totalAuto = lf.workbook.sheets.reduce(
+                  (a, s) => a + countIssueTypes(s.issues).auto,
+                  0,
+                );
+                const totalEdited = lf.workbook.sheets.reduce(
+                  (a, s) => a + countEditedCells(s),
+                  0,
+                );
                 return (
                   <div key={fi} className="space-y-1">
                     <div
@@ -474,6 +560,8 @@ export function AuditExpenseTool() {
                         const warn = s.issues.filter((i) => i.severity === "warning").length;
                         const info = s.issues.filter((i) => i.severity === "info").length;
                         const active = fi === activeFileIdx && s.name === activeSheetName;
+                        const { auto: aFix } = countIssueTypes(s.issues);
+                        const editedCells = countEditedCells(s);
                         // 상태 점 색
                         const dotColor = !s.isStandardData
                           ? "bg-slate-400"
@@ -504,6 +592,7 @@ export function AuditExpenseTool() {
                             onClick={() => {
                               setActiveFileIdx(fi);
                               setActiveSheetName(s.name);
+                              setSelectedIssueId(null);
                             }}
                             title={dotTitle}
                             className={cn(
@@ -520,6 +609,24 @@ export function AuditExpenseTool() {
                                   className="shrink-0 border-slate-300 px-1 text-[9px] text-slate-600"
                                 >
                                   {stateLabel}
+                                </Badge>
+                              )}
+                              {aFix > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 border-emerald-300 px-1 text-[9px] text-emerald-700"
+                                  title={`자동수정 가능 ${aFix}건`}
+                                >
+                                  자동 {aFix}
+                                </Badge>
+                              )}
+                              {editedCells > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 border-blue-300 px-1 text-[9px] text-blue-700"
+                                  title={`수정된 셀 ${editedCells}개`}
+                                >
+                                  편집 {editedCells}
                                 </Badge>
                               )}
                             </span>
@@ -548,6 +655,14 @@ export function AuditExpenseTool() {
                       <div className="flex justify-between font-medium">
                         <span className="text-amber-700">검토 권장</span>
                         <span>{totalWarn.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-emerald-700">자동수정 가능</span>
+                        <span>{totalAuto.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">수정한 셀</span>
+                        <span>{totalEdited.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>
@@ -601,89 +716,231 @@ export function AuditExpenseTool() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
+                {/* 일괄 작업 + 수정 추적 패널 */}
+                {(() => {
+                  const sheetCounts = countIssueTypes(activeSheet.issues);
+                  const editedN = countEditedCells(activeSheet);
+                  return (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded border bg-muted/20 p-2 text-[11px]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-muted-foreground">시트 이슈</span>
+                        <Badge variant="outline" className="border-emerald-300 text-[10px]">
+                          자동수정 {sheetCounts.auto}
+                        </Badge>
+                        <Badge variant="outline" className="border-slate-300 text-[10px]">
+                          수동검토 {sheetCounts.manual}
+                        </Badge>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="text-muted-foreground">수정한 셀</span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px]",
+                            editedN > 0 ? "border-blue-300 text-blue-700" : "border-slate-300 text-muted-foreground",
+                          )}
+                        >
+                          {editedN}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 px-2 text-[10px]"
+                          disabled={sheetCounts.auto === 0}
+                          onClick={() => bulkAutofixSheet(activeFileIdx, activeSheet.name)}
+                        >
+                          <Sparkles className="size-3" />
+                          자동수정 일괄적용 {sheetCounts.auto > 0 && `(${sheetCounts.auto})`}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 px-2 text-[10px]"
+                          disabled={editedN === 0}
+                          onClick={() => bulkRevertSheet(activeFileIdx, activeSheet.name)}
+                        >
+                          <RotateCcw className="size-3" />
+                          전체 원복 {editedN > 0 && `(${editedN})`}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* 이슈 리스트 */}
                 {filteredIssues.length === 0 ? (
                   <p className="rounded border border-dashed p-3 text-center text-xs text-muted-foreground">
-                    이슈 없음 · 양호
+                    {activeSheet.issues.length === 0
+                      ? activeSheet.rows.length === 0
+                        ? activeSheet.isStandardData
+                          ? "이 시트에는 데이터가 없어요 (정상 — 사용 안 한 비목)"
+                          : "비제출용 시트 — 검사 대상 아님"
+                        : "이 시트는 양호합니다 · 이슈 없음"
+                      : "필터 조건에 맞는 이슈 없음"}
                   </p>
                 ) : (
                   <ul className="max-h-[40vh] space-y-1 overflow-y-auto text-xs">
-                    {filteredIssues.map((i) => (
-                      <li
-                        key={i.id}
-                        className={cn(
-                          "rounded border p-2",
-                          i.severity === "error" && "border-red-300 bg-red-50/60",
-                          i.severity === "warning" && "border-amber-300 bg-amber-50/60",
-                          i.severity === "info" && "border-sky-300 bg-sky-50/60",
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className="shrink-0 text-[10px]"
-                            title={`내부코드: ${i.category}`}
-                          >
-                            {CATEGORY_LABELS[i.category]}
-                          </Badge>
-                          {i.cellAddress && (
-                            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                              셀 {i.cellAddress}
-                            </span>
+                    {filteredIssues.map((i) => {
+                      const isSelected = i.id === selectedIssueId;
+                      return (
+                        <li
+                          key={i.id}
+                          onClick={() =>
+                            setSelectedIssueId((cur) => (cur === i.id ? null : i.id))
+                          }
+                          className={cn(
+                            "cursor-pointer rounded border p-2 transition-colors",
+                            i.severity === "error" && "border-red-300 bg-red-50/60",
+                            i.severity === "warning" && "border-amber-300 bg-amber-50/60",
+                            i.severity === "info" && "border-sky-300 bg-sky-50/60",
+                            isSelected && "ring-2 ring-primary ring-offset-1",
+                            !isSelected && "hover:brightness-95",
                           )}
-                          {i.rowIndex && !i.cellAddress && (
-                            <span className="shrink-0 text-[10px] text-muted-foreground">
-                              {i.rowIndex}행
-                            </span>
-                          )}
-                          <span className="flex-1 truncate">{i.message}</span>
-                          {i.autofix && i.cellAddress && (
-                            <Button
-                              size="sm"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Badge
                               variant="outline"
-                              className="h-6 gap-1 px-2 text-[10px]"
-                              onClick={() => applyFix(activeFileIdx, activeSheet.name, i)}
+                              className="shrink-0 text-[10px]"
+                              title={`내부코드: ${i.category}`}
                             >
-                              <Sparkles className="size-3" /> 자동수정
-                            </Button>
-                          )}
-                          {i.cellAddress && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 gap-1 px-2 text-[10px]"
-                              onClick={() =>
-                                revertOne(activeFileIdx, activeSheet.name, i.cellAddress!)
-                              }
-                            >
-                              <RotateCcw className="size-3" />
-                              원복
-                            </Button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                              {CATEGORY_LABELS[i.category]}
+                            </Badge>
+                            {i.cellAddress && (
+                              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                                셀 {i.cellAddress}
+                              </span>
+                            )}
+                            {i.rowIndex && !i.cellAddress && (
+                              <span className="shrink-0 text-[10px] text-muted-foreground">
+                                {i.rowIndex}행
+                              </span>
+                            )}
+                            <span className="flex-1 truncate">{i.message}</span>
+                            {i.autofix && i.cellAddress && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 gap-1 px-2 text-[10px]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  applyFix(activeFileIdx, activeSheet.name, i);
+                                }}
+                              >
+                                <Sparkles className="size-3" /> 자동수정
+                              </Button>
+                            )}
+                            {i.cellAddress && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 gap-1 px-2 text-[10px]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  revertOne(activeFileIdx, activeSheet.name, i.cellAddress!);
+                                }}
+                              >
+                                <RotateCcw className="size-3" />
+                                원복
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </CardContent>
             </Card>
 
-            {/* 셀 그리드 */}
+            {/* 미니 컨텍스트 — 이슈 선택 시 해당 행 주변 미리보기 */}
+            {(() => {
+              const selectedIssue = activeSheet.issues.find((i) => i.id === selectedIssueId);
+              const selAddr = selectedIssue?.cellAddress ?? null;
+              if (!selAddr) return null;
+              const targetRow = activeSheet.rows.find((r) =>
+                Object.values(r.cells).some((c) => c.address === selAddr),
+              );
+              if (!targetRow) return null;
+              const rowI = activeSheet.rows.findIndex((r) => r === targetRow);
+              const start = Math.max(0, rowI - 2);
+              const end = Math.min(activeSheet.rows.length, rowI + 3);
+              const slice = activeSheet.rows.slice(start, end);
+              return (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm">
+                        선택된 셀 주변 ({targetRow.rowIndex}행 · 셀 {selAddr})
+                      </CardTitle>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => setSelectedIssueId(null)}
+                      >
+                        선택 해제
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="overflow-auto">
+                    <SheetGrid
+                      sheet={{ ...activeSheet, rows: slice }}
+                      selectedAddress={selAddr}
+                      onChange={(addr, next) =>
+                        updateCell(activeFileIdx, activeSheet.name, addr, next)
+                      }
+                      onRevert={(addr) => revertOne(activeFileIdx, activeSheet.name, addr)}
+                    />
+                  </CardContent>
+                </Card>
+              );
+            })()}
+
+            {/* 셀 그리드 — 토글 */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">데이터 ({activeSheet.rows.length} 행)</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">전체 데이터 ({activeSheet.rows.length} 행)</CardTitle>
+                  {activeSheet.rows.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 gap-1 px-2 text-[10px]"
+                      onClick={() => setShowFullGrid((v) => !v)}
+                    >
+                      {showFullGrid ? "그리드 접기" : "그리드 펼치기"}
+                    </Button>
+                  )}
+                </div>
                 <CardDescription className="text-xs">
-                  셀을 클릭하면 인라인 편집됩니다. 빨강=에러 / 노랑=경고 / 회색=정보. 우측 ↺ 버튼으로 원복.
+                  셀을 클릭하면 인라인 편집됩니다. 빨강=에러 / 노랑=경고 / 회색=정보 / 파랑 테두리=선택된 이슈.
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-auto">
-                <SheetGrid
-                  sheet={activeSheet}
-                  onChange={(addr, next) =>
-                    updateCell(activeFileIdx, activeSheet.name, addr, next)
-                  }
-                  onRevert={(addr) => revertOne(activeFileIdx, activeSheet.name, addr)}
-                />
+                {activeSheet.rows.length === 0 ? (
+                  <p className="rounded border border-dashed p-4 text-center text-xs text-muted-foreground">
+                    {activeSheet.isStandardData
+                      ? "데이터가 없는 시트입니다 (정상 — 사용 안 한 비목)"
+                      : "비제출용 시트 — 검사 대상 아님"}
+                  </p>
+                ) : showFullGrid ? (
+                  <SheetGrid
+                    sheet={activeSheet}
+                    selectedAddress={
+                      activeSheet.issues.find((i) => i.id === selectedIssueId)?.cellAddress ??
+                      null
+                    }
+                    onChange={(addr, next) =>
+                      updateCell(activeFileIdx, activeSheet.name, addr, next)
+                    }
+                    onRevert={(addr) => revertOne(activeFileIdx, activeSheet.name, addr)}
+                  />
+                ) : (
+                  <p className="rounded border border-dashed p-4 text-center text-xs text-muted-foreground">
+                    위 이슈 카드를 클릭하면 해당 행 주변 미니 그리드가 열립니다. 전체 데이터를 한눈에 보려면 우측 「그리드 펼치기」.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -724,10 +981,12 @@ export function AuditExpenseTool() {
 
 function SheetGrid({
   sheet,
+  selectedAddress,
   onChange,
   onRevert,
 }: {
   sheet: AuditWorkbook["sheets"][number];
+  selectedAddress?: string | null;
   onChange: (addr: string, next: Partial<AuditCell> & { current: AuditCell["current"] }) => void;
   onRevert: (addr: string) => void;
 }) {
@@ -739,6 +998,13 @@ function SheetGrid({
 
   // 가시 컬럼만 (숨겨진 컬럼은 흐리게)
   const cols = sheet.columns;
+  const selectedRef = useRef<HTMLTableCellElement | null>(null);
+  useEffect(() => {
+    if (selectedRef.current) {
+      selectedRef.current.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    }
+  }, [selectedAddress]);
+
   return (
     <div className="min-w-full">
       <table className="border-collapse text-xs">
@@ -776,11 +1042,14 @@ function SheetGrid({
                   );
                 }
                 const issue = issueByAddr.get(cell.address);
+                const isSelected = selectedAddress === cell.address;
                 return (
                   <CellInput
                     key={cell.address}
                     cell={cell}
                     issue={issue}
+                    isSelected={isSelected}
+                    cellRef={isSelected ? selectedRef : undefined}
                     onChange={(next) => onChange(cell.address, next)}
                     onRevert={() => onRevert(cell.address)}
                   />
@@ -797,11 +1066,15 @@ function SheetGrid({
 function CellInput({
   cell,
   issue,
+  isSelected,
+  cellRef,
   onChange,
   onRevert,
 }: {
   cell: AuditCell;
   issue?: Issue;
+  isSelected?: boolean;
+  cellRef?: RefObject<HTMLTableCellElement | null>;
   onChange: (next: Partial<AuditCell> & { current: AuditCell["current"] }) => void;
   onRevert: () => void;
 }) {
@@ -837,7 +1110,12 @@ function CellInput({
 
   return (
     <td
-      className={cn("relative border px-1 py-0.5", sevClass)}
+      ref={cellRef}
+      className={cn(
+        "relative border px-1 py-0.5",
+        sevClass,
+        isSelected && "outline outline-2 outline-blue-500 outline-offset-[-2px]",
+      )}
       title={issue ? `${issue.category}: ${issue.message}` : undefined}
     >
       {editing ? (
