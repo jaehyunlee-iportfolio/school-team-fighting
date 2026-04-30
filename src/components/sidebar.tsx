@@ -57,6 +57,11 @@ const NAV_ITEMS = [
     label: "운영회의록",
     icon: FileText,
   },
+  {
+    href: "/audit-expense",
+    label: "집행내역서 검증",
+    icon: FileText,
+  },
 ];
 
 const ADMIN_ITEM = {

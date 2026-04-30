@@ -1518,3 +1518,72 @@ export async function saveResumeInstructorLayoutSettings(
     settings,
   );
 }
+
+/* ===================================================================
+   집행내역서 검증기 (Audit Expense) 설정
+   =================================================================== */
+
+export type AuditExpenseSettings = {
+  projectPeriod: { start: string; end: string };
+  projectPeriodByOrg: {
+    iportfolio?: { start: string; end: string };
+    dimi?: { start: string; end: string };
+    konkuk?: { start: string; end: string };
+  };
+  vatRate: number;
+  paymentMethods: string[];
+  officialOrgNames: { iportfolio: string; dimi: string; konkuk: string };
+  defaultCategoryEnabled: Record<string, boolean>;
+  totalSheetMapping: {
+    iportfolio: Record<string, number>;
+    dimi: Record<string, number>;
+    konkuk: Record<string, number>;
+  };
+};
+
+export const DEFAULT_AUDIT_EXPENSE_SETTINGS: AuditExpenseSettings = {
+  projectPeriod: { start: "2025-06-01", end: "2026-05-31" },
+  projectPeriodByOrg: {},
+  vatRate: 10,
+  paymentMethods: ["카드", "계좌이체"],
+  officialOrgNames: {
+    iportfolio: "(주)아이포트폴리오",
+    dimi: "(사)디지털미디어교육콘텐츠 교사연구협회",
+    konkuk: "건국대학교 산학협력단",
+  },
+  defaultCategoryEnabled: {
+    A1: true, A2: true, A3: true, A4: true, A5: true,
+    B1: true, B2: true,
+    C1: true, C2: true,
+    D1: true, D2: true, D3: true,
+    E1: true, E2: true, E3: true,
+    F1: true, F2: true, F3: true, F4: true,
+    G1: true, G2: true, G3: true, G4: true,
+    H1: true, H2: true,
+    I1: true, I2: true,
+    J1: true,
+  },
+  totalSheetMapping: {
+    iportfolio: {},
+    dimi: {},
+    konkuk: {},
+  },
+};
+
+export async function getAuditExpenseSettings(): Promise<AuditExpenseSettings> {
+  const snap = await getDoc(doc(getFirebaseDb(), "settings", "auditExpense"));
+  if (!snap.exists()) return DEFAULT_AUDIT_EXPENSE_SETTINGS;
+  return deepMerge(
+    DEFAULT_AUDIT_EXPENSE_SETTINGS as unknown as Record<string, unknown>,
+    snap.data() as Record<string, unknown>,
+  ) as unknown as AuditExpenseSettings;
+}
+
+export async function saveAuditExpenseSettings(
+  settings: AuditExpenseSettings,
+): Promise<void> {
+  await setDoc(
+    doc(getFirebaseDb(), "settings", "auditExpense"),
+    JSON.parse(JSON.stringify(settings)),
+  );
+}
