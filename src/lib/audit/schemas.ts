@@ -104,12 +104,27 @@ export function findCoreColumn(
   return null;
 }
 
-/** 파일명에서 기관 추정 */
+/** 파일명에서 기관 추정. macOS HFS NFD 정규화 차이를 흡수하기 위해 NFC 로 정규화. */
 export function guessOrgFromFilename(name: string): OrgCode {
-  const n = name.replace(/\s+/g, "").toLowerCase();
-  if (/아.*아이포트폴리오|iportfolio/.test(n) || n.startsWith("아★")) return "iportfolio";
-  if (/디.*디지털미디어|dimi|디미교연/.test(n) || n.startsWith("디★")) return "dimi";
-  if (/건.*건국대|konkuk/.test(n) || n.startsWith("건★")) return "konkuk";
+  const n = name.normalize("NFC").replace(/\s+/g, "").toLowerCase();
+  if (
+    n.startsWith("아★") ||
+    n.startsWith("아2025") ||
+    /아이포트폴리오|iportfolio/.test(n)
+  )
+    return "iportfolio";
+  if (
+    n.startsWith("디★") ||
+    n.startsWith("디2025") ||
+    /디지털미디어|dimi|디미교연/.test(n)
+  )
+    return "dimi";
+  if (
+    n.startsWith("건★") ||
+    n.startsWith("건2025") ||
+    /건국대|konkuk/.test(n)
+  )
+    return "konkuk";
   return "unknown";
 }
 

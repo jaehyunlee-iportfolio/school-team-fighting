@@ -422,6 +422,24 @@ export function AuditExpenseTool() {
           <Card className="self-start">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">파일·시트</CardTitle>
+              <div className="space-y-0.5 pt-1 text-[10px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline" className="border-red-300 px-1 text-[9px] text-red-700">N</Badge>
+                  <span>에러</span>
+                  <Badge variant="outline" className="border-amber-300 px-1 text-[9px] text-amber-700">N</Badge>
+                  <span>경고</span>
+                  <Badge variant="outline" className="border-sky-300 px-1 text-[9px] text-sky-700">N</Badge>
+                  <span>정보</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline" className="border-amber-300 px-1 text-[9px] text-amber-700">비표준</Badge>
+                  <span>= 제출 X (검수/원본/대시보드)</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline" className="border-slate-300 px-1 text-[9px] text-slate-600">숨김</Badge>
+                  <span>= Excel hidden — 제거 필요</span>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
               {loaded.map((lf, fi) => {
@@ -460,6 +478,13 @@ export function AuditExpenseTool() {
                               setActiveFileIdx(fi);
                               setActiveSheetName(s.name);
                             }}
+                            title={
+                              !s.isStandardData
+                                ? "비표준 시트 — 제출용 xlsx 에 포함되면 안 됨 (검수데이터/원본/매칭/대시보드 등)"
+                                : s.hidden
+                                  ? "숨겨진 시트 — 제출 전 가시화하거나 제거 필요"
+                                  : undefined
+                            }
                             className={cn(
                               "flex w-full items-center justify-between gap-1.5 rounded px-2 py-1 text-left text-[11px] hover:bg-muted/30",
                               active && "bg-primary/10",
@@ -467,23 +492,50 @@ export function AuditExpenseTool() {
                               s.hidden && "opacity-60",
                             )}
                           >
-                            <span className="truncate">{s.name}</span>
+                            <span className="flex min-w-0 items-center gap-1">
+                              <span className="truncate">{s.name}</span>
+                              {!s.isStandardData && (
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 border-amber-300 px-1 text-[9px] text-amber-700"
+                                >
+                                  비표준
+                                </Badge>
+                              )}
+                              {s.hidden && (
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 border-slate-300 px-1 text-[9px] text-slate-600"
+                                >
+                                  숨김
+                                </Badge>
+                              )}
+                            </span>
                             <span className="flex shrink-0 items-center gap-0.5">
                               {err > 0 && (
-                                <Badge variant="outline" className="border-red-300 px-1 text-[10px] text-red-700">
+                                <Badge
+                                  variant="outline"
+                                  title={`에러 ${err}건`}
+                                  className="border-red-300 px-1 text-[10px] text-red-700"
+                                >
                                   {err}
                                 </Badge>
                               )}
                               {warn > 0 && (
                                 <Badge
                                   variant="outline"
+                                  title={`경고 ${warn}건`}
                                   className="border-amber-300 px-1 text-[10px] text-amber-700"
                                 >
                                   {warn}
                                 </Badge>
                               )}
                               {info > 0 && (
-                                <Badge variant="outline" className="border-sky-300 px-1 text-[10px] text-sky-700">
+                                <Badge
+                                  variant="outline"
+                                  title={`정보 ${info}건`}
+                                  className="border-sky-300 px-1 text-[10px] text-sky-700"
+                                >
                                   {info}
                                 </Badge>
                               )}
@@ -492,8 +544,9 @@ export function AuditExpenseTool() {
                         );
                       })}
                     </div>
-                    <div className="ml-4 text-[10px] text-muted-foreground">
-                      합 ⚠️{totalErr} / 🟡{totalWarn}
+                    <div className="ml-4 flex items-center gap-2 text-[10px]">
+                      <span className="text-red-700">에러 {totalErr}</span>
+                      <span className="text-amber-700">· 경고 {totalWarn}</span>
                     </div>
                   </div>
                 );
