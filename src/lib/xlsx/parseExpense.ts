@@ -1,7 +1,8 @@
 // 지출결의서용 xlsx 파일 → ExpenseRow[] 변환.
 //
-// 각 비목 탭은 1행 = 비목 제목, 행3·4 = 헤더 (공급가액·부가세 등이 행4에서 등장),
-// 행5부터 데이터. SKIP_TABS와 getAccountForTab() 매핑이 없는 탭은 자동 스킵.
+// 헤더 위치는 시트마다 다름 (D-4 는 3행, D-1-1 은 2행) → "사용일자" 셀을
+// 동적으로 찾아 메인 헤더로 사용. 그 다음 행이 서브 헤더(공급가액/세액/합계금액),
+// 그 다음부터 데이터. SKIP_TABS와 getAccountForTab() 매핑이 없는 탭은 자동 스킵.
 
 import * as XLSX from "xlsx";
 import {
@@ -40,6 +41,36 @@ function n(v: Cell, fallback: number = 0): number {
 /** 헤더 텍스트 정규화 — 공백/줄바꿈 제거해서 alias 매칭 */
 function normalizeHeader(s: string): string {
   return s.replace(/\s+/g, "").trim();
+}
+
+/**
+ * 헤더 행 위치를 동적으로 찾음 — "사용일자" 가 들어있는 첫 행을 메인 헤더로 간주.
+ *
+ * 시트마다 헤더 행 위치가 다름:
+ *  - D-4 출장비: 1행=타이틀, 2행=부모헤더, 3행=메인헤더, 4행=서브헤더, 5행+=데이터
+ *  - D-1-1 강사활용비: 1행=부모헤더, 2행=메인헤더, 3행=서브헤더, 4행+=데이터
+ *
+ * 정확히 「사용일자」 인 셀을 1순위로, 못 찾으면 substring 매칭으로 fallback.
+ */
+function findHeaderRowIdx(sheetRows: Row[]): number {
+  const maxScan = Math.min(sheetRows.length, 12);
+  // Pass 1: 완전 일치 ("사용일자")
+  for (let r = 0; r < maxScan; r++) {
+    const row = sheetRows[r];
+    if (!row) continue;
+    for (const cell of row) {
+      if (normalizeHeader(s(cell)) === "사용일자") return r;
+    }
+  }
+  // Pass 2: 부분 일치 ("사용일자(원본)" 같은 변형 흡수)
+  for (let r = 0; r < maxScan; r++) {
+    const row = sheetRows[r];
+    if (!row) continue;
+    for (const cell of row) {
+      if (normalizeHeader(s(cell)).includes("사용일자")) return r;
+    }
+  }
+  return -1;
 }
 
 /**
@@ -142,8 +173,10 @@ export async function listExpenseTabs(buffer: ArrayBuffer): Promise<XlsxTabInfo[
       const sheetRows = XLSX.utils.sheet_to_json<Row>(ws, {
         header: 1, defval: null, blankrows: false,
       });
-      // 행 5+ 가 데이터 행
-      estimatedRows = Math.max(0, sheetRows.length - 4);
+      // 헤더 위치 동적 검출 (D-1-1 은 2행, D-4 는 3행)
+      const headerIdx = findHeaderRowIdx(sheetRows);
+      const dataStart = headerIdx >= 0 ? headerIdx + 2 : 4;
+      estimatedRows = Math.max(0, sheetRows.length - dataStart);
     }
     out.push({
       name: sheetName,
@@ -207,8 +240,17 @@ export async function parseExpenseXlsx(
       continue;
     }
 
-    // 헤더는 통상 행 3·4 (1-indexed) → 0-index 2·3
-    const headerRows = [sheetRows[2] ?? [], sheetRows[3] ?? []];
+    // 헤더 위치 동적 검출 — "사용일자" 가 있는 행을 메인 헤더로 잡고 다음 행을 서브 헤더로.
+    const headerRowIdx = findHeaderRowIdx(sheetRows);
+    if (headerRowIdx < 0) {
+      skippedTabs.push({ name: sheetName, reason: "헤더 행(사용일자) 못 찾음" });
+      continue;
+    }
+    const headerRows = [
+      sheetRows[headerRowIdx] ?? [],
+      sheetRows[headerRowIdx + 1] ?? [],
+    ];
+    const dataStartIdx = headerRowIdx + 2;
 
     const cols = {
       executionDate: findColumnIndex(headerRows, COLUMN_ALIASES.executionDate),
@@ -226,8 +268,8 @@ export async function parseExpenseXlsx(
     const useDateIdx = findColumnIndex(headerRows, ["사용일자"]);
 
     let added = 0;
-    // 데이터는 행5부터 (0-index 4)
-    for (let i = 4; i < sheetRows.length; i++) {
+    // 데이터는 헤더 + 서브 다음부터
+    for (let i = dataStartIdx; i < sheetRows.length; i++) {
       const r = sheetRows[i] ?? [];
       // 완전 빈 행 스킵
       const evidenceNo = cols.evidenceNo >= 0 ? s(r[cols.evidenceNo]) : "";
