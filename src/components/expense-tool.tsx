@@ -28,6 +28,7 @@ import {
   type ExpenseRow,
   type ExpenseGroupCode,
   recomputeWarnings,
+  splitUseDetail,
 } from "@/lib/expense/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -292,6 +293,47 @@ export function ExpenseTool() {
       return next;
     });
   }, []);
+
+  /**
+   * 사용내역(수령인) 텍스트를 파싱해서 「-」 줄은 지출목적으로,
+   * 「*」 줄은 비고로 자동 채움. 전체 행에 일괄 적용.
+   *
+   * onlyEmpty=true 면 기존에 값이 있는 필드는 보존, false 면 무조건 덮어씀.
+   */
+  const bulkExtractFromUseDetail = useCallback(
+    (onlyEmpty: boolean) => {
+      if (rows.length === 0) return;
+      let touched = 0;
+      const next = rows.map((r) => {
+        const { purpose, note } = splitUseDetail(r.useDetail);
+        if (!purpose && !note) return r;
+        const newPurpose = onlyEmpty && r.purpose.trim() ? r.purpose : purpose;
+        const newNote = onlyEmpty && r.note.trim() ? r.note : note;
+        if (newPurpose === r.purpose && newNote === r.note) return r;
+        touched++;
+        return recomputeWarnings({ ...r, purpose: newPurpose, note: newNote });
+      });
+      if (touched === 0) {
+        toast.info("적용할 행 없음 (사용내역에 - / * 줄이 없거나 이미 채워져 있어요)");
+        return;
+      }
+      setRows(next);
+      const cur = next[previewI];
+      if (cur && groupSettings && layout) {
+        makeBlobFor(cur)
+          .then((blob) => {
+            setPreviewUrl((old) => {
+              if (old) URL.revokeObjectURL(old);
+              return URL.createObjectURL(blob);
+            });
+          })
+          .catch(console.error);
+      }
+      const mode = onlyEmpty ? "빈 필드만" : "전체 덮어쓰기";
+      toast.success(`사용내역에서 추출 — ${touched}건 갱신 (${mode})`);
+    },
+    [rows, previewI, groupSettings, layout, makeBlobFor],
+  );
 
   /** 사용내역(수령인) 토글을 전체 행에 일괄 적용 + 현재 미리보기 즉시 갱신 */
   const bulkSetUseDetailToggle = useCallback(
@@ -750,6 +792,32 @@ export function ExpenseTool() {
                       onClick={() => bulkSetUseDetailToggle("includeUseDetailInNote", false)}
                     >
                       모두 숨김
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-1.5">
+                    <span className="text-muted-foreground">
+                      사용내역에서 자동 추출 (<span className="font-mono">-</span> → 지출목적,{" "}
+                      <span className="font-mono">*</span> → 비고)
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => bulkExtractFromUseDetail(true)}
+                      title="기존에 값이 있는 지출목적/비고는 보존, 빈 필드만 채움"
+                    >
+                      빈 필드만
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => bulkExtractFromUseDetail(false)}
+                      title="기존 지출목적/비고를 모두 덮어쓰고 사용내역에서 새로 채움"
+                    >
+                      전체 덮어쓰기
                     </Button>
                   </div>
                 </div>

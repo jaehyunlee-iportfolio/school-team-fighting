@@ -113,6 +113,32 @@ export type ExpenseRow = {
   fieldWarnings: string[];
 };
 
+/**
+ * 사용내역(수령인) 텍스트를 「-」 줄(지출목적) 과 「*」 줄(비고) 로 분리.
+ *
+ * - 「1. 전문가명(...)」, 「2. 산출내역 및 활용내용」 같은 헤더 줄은 무시.
+ * - 「-」 로 시작하는 줄들 → 지출목적 (개별 지출 항목)
+ * - 「*」 로 시작하는 줄들 → 비고 (특이사항·메모)
+ * - 그 외 줄 (빈 줄·헤더) → 무시
+ *
+ * 각 줄은 trim 한 결과를 사용해 들여쓰기 깔끔하게 정리.
+ */
+export function splitUseDetail(text: string): { purpose: string; note: string } {
+  if (!text) return { purpose: "", note: "" };
+  const purposeLines: string[] = [];
+  const noteLines: string[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith("-")) purposeLines.push(trimmed);
+    else if (trimmed.startsWith("*")) noteLines.push(trimmed);
+  }
+  return {
+    purpose: purposeLines.join("\n"),
+    note: noteLines.join("\n"),
+  };
+}
+
 /** 한 행의 필수값 검증 */
 export function recomputeWarnings(
   r: Omit<ExpenseRow, "hasEmpty" | "fieldWarnings">
