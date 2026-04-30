@@ -18,6 +18,7 @@ import {
 import {
   ALL_CATEGORIES,
   CATEGORY_LABELS,
+  CATEGORY_DESCRIPTIONS,
   type AuditOptions,
   type AuditWorkbook,
   type AuditSheet,
@@ -517,27 +518,95 @@ export function AuditExpenseTool() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs">검증 카테고리 (총 {ALL_CATEGORIES.length}개)</Label>
-              <div className="grid grid-cols-2 gap-1 text-xs md:grid-cols-3 lg:grid-cols-4">
-                {ALL_CATEGORIES.map((c) => (
-                  <label
-                    key={c}
-                    title={`내부코드: ${c}`}
-                    className="flex cursor-pointer items-center gap-1.5 rounded border bg-muted/10 px-2 py-1 hover:bg-muted/30"
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">
+                  검증 카테고리 (총 {ALL_CATEGORIES.length}개 ·
+                  현재{" "}
+                  {ALL_CATEGORIES.filter(
+                    (c) => options.enabledCategories[c] !== false,
+                  ).length}
+                  개 켜짐)
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => {
+                      const next = { ...options.enabledCategories };
+                      for (const c of ALL_CATEGORIES) next[c] = true;
+                      setOptions((o) => ({ ...o, enabledCategories: next }));
+                    }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={options.enabledCategories[c] !== false}
-                      onChange={(e) =>
-                        setOptions((o) => ({
-                          ...o,
-                          enabledCategories: { ...o.enabledCategories, [c]: e.target.checked },
-                        }))
-                      }
-                    />
-                    <span className="truncate">{CATEGORY_LABELS[c]}</span>
-                  </label>
-                ))}
+                    모두 선택
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[10px]"
+                    onClick={() => {
+                      const next = { ...options.enabledCategories };
+                      for (const c of ALL_CATEGORIES) next[c] = false;
+                      setOptions((o) => ({ ...o, enabledCategories: next }));
+                    }}
+                  >
+                    모두 해제
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-1 text-xs md:grid-cols-2 lg:grid-cols-3">
+                {ALL_CATEGORIES.map((c) => {
+                  const enabled = options.enabledCategories[c] !== false;
+                  const desc = CATEGORY_DESCRIPTIONS[c];
+                  return (
+                    <details
+                      key={c}
+                      className={cn(
+                        "rounded border bg-muted/10 px-2 py-1 transition-colors",
+                        enabled ? "border-border" : "border-dashed opacity-60",
+                      )}
+                    >
+                      <summary className="flex cursor-pointer items-center gap-1.5 list-none">
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) =>
+                            setOptions((o) => ({
+                              ...o,
+                              enabledCategories: {
+                                ...o.enabledCategories,
+                                [c]: e.target.checked,
+                              },
+                            }))
+                          }
+                        />
+                        <span className="flex-1 truncate font-medium">
+                          {CATEGORY_LABELS[c]}
+                        </span>
+                        <span
+                          className="font-mono text-[9px] text-muted-foreground"
+                          title="내부코드 (디버그·이슈 추적용)"
+                        >
+                          {c}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">▾</span>
+                      </summary>
+                      <div className="mt-1.5 space-y-1 border-t pt-1.5 text-[10px] leading-relaxed">
+                        <p>
+                          <span className="font-semibold text-muted-foreground">검증: </span>
+                          {desc.what}
+                        </p>
+                        <p className="text-muted-foreground">
+                          <span className="font-semibold">예시: </span>
+                          {desc.example}
+                        </p>
+                      </div>
+                    </details>
+                  );
+                })}
               </div>
             </div>
 
