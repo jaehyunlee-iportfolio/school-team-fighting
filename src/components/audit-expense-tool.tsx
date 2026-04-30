@@ -6,6 +6,7 @@ import JSZip from "jszip";
 import {
   CheckCircle2,
   Download,
+  EyeOff,
   FileSpreadsheet,
   Filter,
   Loader2,
@@ -123,6 +124,11 @@ function countEditedCells(sheet: AuditSheet) {
   return n;
 }
 
+/** 재검증 후에도 안정적인 이슈 키 — 같은 셀+카테고리는 dismiss 유지 */
+function dismissKey(sheetName: string, i: Issue): string {
+  return `${sheetName}::${i.cellAddress ?? ""}::${i.category}::${i.rowIndex ?? ""}`;
+}
+
 export function AuditExpenseTool() {
   const [step, setStep] = useState<AppStep>("input");
   const [files, setFiles] = useState<File[]>([]);
@@ -134,6 +140,28 @@ export function AuditExpenseTool() {
   const [severityFilter, setSeverityFilter] = useState<"all" | "error" | "warning" | "info">("all");
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [showFullGrid, setShowFullGrid] = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [showDismissed, setShowDismissed] = useState(false);
+
+  const isDismissed = useCallback(
+    (sheetName: string, i: Issue) => dismissed.has(dismissKey(sheetName, i)),
+    [dismissed],
+  );
+  const dismissOne = (sheetName: string, i: Issue) => {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(dismissKey(sheetName, i));
+      return next;
+    });
+  };
+  const undismissOne = (sheetName: string, i: Issue) => {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.delete(dismissKey(sheetName, i));
+      return next;
+    });
+  };
+  const undismissAll = () => setDismissed(new Set());
 
   // 어드민 설정 로드 → options 디폴트 반영
   useEffect(() => {
@@ -188,6 +216,7 @@ export function AuditExpenseTool() {
       setLoaded(out);
       setActiveFileIdx(0);
       setActiveSheetName(out[0]?.workbook.sheets[0]?.name ?? "");
+      setDismissed(new Set());
       setStep("validate");
       const totalIssues = out.reduce(
         (acc, lf) =>
@@ -291,7 +320,9 @@ export function AuditExpenseTool() {
     if (!lf) return;
     const sheet = lf.workbook.sheets.find((s) => s.name === sheetName);
     if (!sheet) return;
-    const candidates = sheet.issues.filter((i) => i.autofix && i.cellAddress);
+    const candidates = sheet.issues.filter(
+      (i) => i.autofix && i.cellAddress && !dismissed.has(dismissKey(sheetName, i)),
+    );
     if (candidates.length === 0) {
       toast.info("자동수정 가능한 이슈 없음");
       return;
@@ -376,10 +407,19 @@ export function AuditExpenseTool() {
 
   const filteredIssues: Issue[] = useMemo(() => {
     if (!activeSheet) return [];
-    return activeSheet.issues.filter((i) =>
-      severityFilter === "all" ? true : i.severity === severityFilter,
-    );
-  }, [activeSheet, severityFilter]);
+    const sheetName = activeSheet.name;
+    return activeSheet.issues.filter((i) => {
+      if (severityFilter !== "all" && i.severity !== severityFilter) return false;
+      const isDis = dismissed.has(dismissKey(sheetName, i));
+      return showDismissed ? isDis : !isDis;
+    });
+  }, [activeSheet, severityFilter, dismissed, showDismissed]);
+
+  const dismissedInActiveSheet = useMemo(() => {
+    if (!activeSheet) return 0;
+    const sheetName = activeSheet.name;
+    return activeSheet.issues.filter((i) => dismissed.has(dismissKey(sheetName, i))).length;
+  }, [activeSheet, dismissed]);
 
   return (
     <div className="mx-auto max-w-[110rem] space-y-6 p-4 transition-[max-width] md:p-8">
@@ -524,16 +564,18 @@ export function AuditExpenseTool() {
             </CardHeader>
             <CardContent className="space-y-3">
               {loaded.map((lf, fi) => {
+                const visibleIssues = (s: AuditSheet) =>
+                  s.issues.filter((i) => !dismissed.has(dismissKey(s.name, i)));
                 const totalErr = lf.workbook.sheets.reduce(
-                  (a, s) => a + s.issues.filter((i) => i.severity === "error").length,
+                  (a, s) => a + visibleIssues(s).filter((i) => i.severity === "error").length,
                   0,
                 );
                 const totalWarn = lf.workbook.sheets.reduce(
-                  (a, s) => a + s.issues.filter((i) => i.severity === "warning").length,
+                  (a, s) => a + visibleIssues(s).filter((i) => i.severity === "warning").length,
                   0,
                 );
                 const totalAuto = lf.workbook.sheets.reduce(
-                  (a, s) => a + countIssueTypes(s.issues).auto,
+                  (a, s) => a + countIssueTypes(visibleIssues(s)).auto,
                   0,
                 );
                 const totalEdited = lf.workbook.sheets.reduce(
@@ -556,11 +598,14 @@ export function AuditExpenseTool() {
                     </div>
                     <div className="ml-4 space-y-0.5">
                       {lf.workbook.sheets.map((s) => {
-                        const err = s.issues.filter((i) => i.severity === "error").length;
-                        const warn = s.issues.filter((i) => i.severity === "warning").length;
-                        const info = s.issues.filter((i) => i.severity === "info").length;
+                        const visIssues = s.issues.filter(
+                          (i) => !dismissed.has(dismissKey(s.name, i)),
+                        );
+                        const err = visIssues.filter((i) => i.severity === "error").length;
+                        const warn = visIssues.filter((i) => i.severity === "warning").length;
+                        const info = visIssues.filter((i) => i.severity === "info").length;
                         const active = fi === activeFileIdx && s.name === activeSheetName;
-                        const { auto: aFix } = countIssueTypes(s.issues);
+                        const { auto: aFix } = countIssueTypes(visIssues);
                         const editedCells = countEditedCells(s);
                         // 상태 점 색
                         const dotColor = !s.isStandardData
@@ -718,7 +763,10 @@ export function AuditExpenseTool() {
               <CardContent className="space-y-2">
                 {/* 일괄 작업 + 수정 추적 패널 */}
                 {(() => {
-                  const sheetCounts = countIssueTypes(activeSheet.issues);
+                  const visibleSheetIssues = activeSheet.issues.filter(
+                    (i) => !dismissed.has(dismissKey(activeSheet.name, i)),
+                  );
+                  const sheetCounts = countIssueTypes(visibleSheetIssues);
                   const editedN = countEditedCells(activeSheet);
                   return (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded border bg-muted/20 p-2 text-[11px]">
@@ -741,6 +789,24 @@ export function AuditExpenseTool() {
                         >
                           {editedN}
                         </Badge>
+                        {dismissedInActiveSheet > 0 && (
+                          <>
+                            <span className="text-muted-foreground">·</span>
+                            <button
+                              onClick={() => setShowDismissed((v) => !v)}
+                              className={cn(
+                                "rounded border px-1.5 py-0.5 text-[10px]",
+                                showDismissed
+                                  ? "border-slate-500 bg-slate-200 text-slate-800"
+                                  : "border-slate-300 text-slate-600 hover:bg-slate-100",
+                              )}
+                              title="무시한 이슈 토글"
+                            >
+                              <EyeOff className="mr-1 inline size-3" />
+                              무시 {dismissedInActiveSheet}
+                            </button>
+                          </>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Button
@@ -763,6 +829,17 @@ export function AuditExpenseTool() {
                           <RotateCcw className="size-3" />
                           전체 원복 {editedN > 0 && `(${editedN})`}
                         </Button>
+                        {dismissed.size > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 gap-1 px-2 text-[10px] text-muted-foreground"
+                            onClick={undismissAll}
+                            title="모든 시트의 무시 해제"
+                          >
+                            전체 무시 해제 ({dismissed.size})
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );
@@ -842,6 +919,35 @@ export function AuditExpenseTool() {
                               >
                                 <RotateCcw className="size-3" />
                                 원복
+                              </Button>
+                            )}
+                            {showDismissed ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 gap-1 px-2 text-[10px] text-slate-700"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  undismissOne(activeSheet.name, i);
+                                }}
+                                title="이 이슈를 다시 표시"
+                              >
+                                복원
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 gap-1 px-2 text-[10px] text-slate-500"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  dismissOne(activeSheet.name, i);
+                                  if (selectedIssueId === i.id) setSelectedIssueId(null);
+                                }}
+                                title="이 이슈 무시 (검증 대상 아님)"
+                              >
+                                <EyeOff className="size-3" />
+                                무시
                               </Button>
                             )}
                           </div>

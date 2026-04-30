@@ -92,10 +92,21 @@ export function extractSheetRows(
       };
     }
     if (!nonEmpty) continue;
-    // 소계 행 스킵 (첫 셀에 "소계" / "합계" 단어)
     const firstCellVal = cells[cols[0]?.key]?.current;
     const firstStr = typeof firstCellVal === "string" ? firstCellVal : "";
+    // 소계 행 스킵 (첫 셀에 "소계" / "합계" 단어)
     if (/^(소\s*계|합\s*계|총\s*계)/.test(firstStr)) continue;
+    // 시트 하단 설명 섹션(<정의>, <주요내용>, <부당집행 기준> 등) 만나면 데이터 추출 종료.
+    // 모든 컬럼을 훑어 어떤 셀이라도 <...> 마커로 시작하면 절단 — 시트마다 마커 위치가 달라서.
+    let isSection = false;
+    for (const col of cols) {
+      const v = cells[col.key]?.current;
+      if (typeof v === "string" && /^\s*<[^>]{1,30}>\s*$/.test(v)) {
+        isSection = true;
+        break;
+      }
+    }
+    if (isSection) break;
     rows.push({ rowIndex: r0 + 1, cells });
   }
   return rows;
