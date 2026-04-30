@@ -293,6 +293,30 @@ export function ExpenseTool() {
     });
   }, []);
 
+  /** 사용내역(수령인) 토글을 전체 행에 일괄 적용 + 현재 미리보기 즉시 갱신 */
+  const bulkSetUseDetailToggle = useCallback(
+    (field: "includeUseDetail" | "includeUseDetailInNote", value: boolean) => {
+      if (rows.length === 0) return;
+      const next = rows.map((r) => recomputeWarnings({ ...r, [field]: value }));
+      setRows(next);
+      const cur = next[previewI];
+      if (cur && groupSettings && layout) {
+        makeBlobFor(cur)
+          .then((blob) => {
+            setPreviewUrl((old) => {
+              if (old) URL.revokeObjectURL(old);
+              return URL.createObjectURL(blob);
+            });
+          })
+          .catch(console.error);
+      }
+      const label =
+        field === "includeUseDetail" ? "PDF 지출 목적" : "비고";
+      toast.success(`${label}에 ${value ? "표시" : "숨김"} — 전체 ${next.length}건 적용`);
+    },
+    [rows, previewI, groupSettings, layout, makeBlobFor],
+  );
+
   const removeRow = useCallback((index: number) => {
     setRows((prev) => {
       const next = prev.filter((_, i) => i !== index);
@@ -668,6 +692,70 @@ export function ExpenseTool() {
                 </p>
               )}
             </div>
+
+            {/* 사용내역 일괄 적용 */}
+            {rows.length > 0 && (() => {
+              const purposeOn = rows.filter((r) => r.includeUseDetail).length;
+              const noteOn = rows.filter((r) => r.includeUseDetailInNote).length;
+              const total = rows.length;
+              return (
+                <div className="mb-2 space-y-1.5 rounded-lg border bg-muted/20 p-2 text-[11px]">
+                  <p className="font-medium text-muted-foreground">사용내역(수령인) 일괄 적용</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-muted-foreground">
+                      PDF 지출 목적{" "}
+                      <span className="font-mono">
+                        {purposeOn}/{total}
+                      </span>
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => bulkSetUseDetailToggle("includeUseDetail", true)}
+                    >
+                      모두 표시
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => bulkSetUseDetailToggle("includeUseDetail", false)}
+                    >
+                      모두 숨김
+                    </Button>
+                    <span className="mx-1 text-muted-foreground/50">·</span>
+                    <span className="text-muted-foreground">
+                      비고{" "}
+                      <span className="font-mono">
+                        {noteOn}/{total}
+                      </span>
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => bulkSetUseDetailToggle("includeUseDetailInNote", true)}
+                    >
+                      모두 표시
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      onClick={() => bulkSetUseDetailToggle("includeUseDetailInNote", false)}
+                    >
+                      모두 숨김
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="max-h-[min(80vh,56rem)] overflow-y-auto rounded-xl border p-2 lg:max-h-[calc(100vh-14rem)]">
               <div className="grid gap-2">
                 {rows.map((row, i) => (
