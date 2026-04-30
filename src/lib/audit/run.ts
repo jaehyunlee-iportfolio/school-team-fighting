@@ -32,10 +32,16 @@ function nextId(): string {
 function isNonInteger(v: CellValue): boolean {
   return typeof v === "number" && Number.isFinite(v) && Math.floor(v) !== v;
 }
+/** "해당없음", "-", "N/A" 등 비숫자 placeholder 는 null. 숫자만 추출된 경우에만 number. */
 function asNum(v: CellValue): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   if (typeof v === "string") {
-    const n = Number(v.replace(/[^\d.\-]/g, ""));
+    const trimmed = v.trim();
+    if (!trimmed) return null;
+    if (/^(해당\s*없음|해당없음|N\/?A|-+|·+)$/i.test(trimmed)) return null;
+    const cleaned = trimmed.replace(/[^\d.\-]/g, "");
+    if (!cleaned || cleaned === "-" || cleaned === ".") return null;
+    const n = Number(cleaned);
     return Number.isFinite(n) ? n : null;
   }
   return null;

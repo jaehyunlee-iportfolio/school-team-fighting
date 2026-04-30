@@ -73,7 +73,7 @@ export const COLUMN_ALIASES: Record<CoreColumn, string[]> = {
   supply: ["공급가액"],
   vat: ["부가세", "세액"],
   total: ["합계금액"],
-  bank: ["통장 금액", "통장지출금액", "통장 지출금액", "통장"],
+  bank: ["통장 금액", "통장지출금액", "통장 지출금액", "통장 출금액", "통장출금액"],
   detail: [
     "사용내역(수령인)",
     "사용내역",
@@ -97,9 +97,20 @@ export function findCoreColumn(
   target: CoreColumn,
 ): number | null {
   const aliases = COLUMN_ALIASES[target].map(norm);
+  // 1) 완전 일치 우선 — "통장 지출금액" 이 "통장사본" 보다 강하게 매칭되도록
   for (const c of cols) {
     const k = norm(c.key);
-    if (aliases.some((a) => k === a || k.includes(a))) return c.idx;
+    if (aliases.some((a) => k === a)) return c.idx;
+  }
+  // 2) 컬럼 키가 alias 로 시작 — "통장 지출금액(원)" 같은 변형 흡수
+  for (const c of cols) {
+    const k = norm(c.key);
+    if (aliases.some((a) => k.startsWith(a))) return c.idx;
+  }
+  // 3) 마지막으로 부분 일치 — 단, alias 길이가 3자 이상일 때만 (너무 짧은 alias 가 오인식 유발)
+  for (const c of cols) {
+    const k = norm(c.key);
+    if (aliases.some((a) => a.length >= 3 && k.includes(a))) return c.idx;
   }
   return null;
 }

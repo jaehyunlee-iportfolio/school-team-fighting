@@ -23,6 +23,7 @@ import {
   type AuditSheet,
   type AuditCell,
   type Issue,
+  type IssueCategory,
 } from "@/lib/audit/types";
 import {
   applyAutofix,
@@ -138,6 +139,7 @@ export function AuditExpenseTool() {
   const [activeFileIdx, setActiveFileIdx] = useState(0);
   const [activeSheetName, setActiveSheetName] = useState<string>("");
   const [severityFilter, setSeverityFilter] = useState<"all" | "error" | "warning" | "info">("all");
+  const [categoryFilter, setCategoryFilter] = useState<IssueCategory | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [showFullGrid, setShowFullGrid] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
@@ -410,9 +412,24 @@ export function AuditExpenseTool() {
     const sheetName = activeSheet.name;
     return activeSheet.issues.filter((i) => {
       if (severityFilter !== "all" && i.severity !== severityFilter) return false;
+      if (categoryFilter && i.category !== categoryFilter) return false;
       const isDis = dismissed.has(dismissKey(sheetName, i));
       return showDismissed ? isDis : !isDis;
     });
+  }, [activeSheet, severityFilter, categoryFilter, dismissed, showDismissed]);
+
+  /** 시트 안 카테고리별 카운트 (severity·dismiss 모두 반영) */
+  const categoryCounts = useMemo(() => {
+    if (!activeSheet) return new Map<IssueCategory, number>();
+    const sheetName = activeSheet.name;
+    const m = new Map<IssueCategory, number>();
+    for (const i of activeSheet.issues) {
+      if (severityFilter !== "all" && i.severity !== severityFilter) continue;
+      const isDis = dismissed.has(dismissKey(sheetName, i));
+      if (showDismissed ? !isDis : isDis) continue;
+      m.set(i.category, (m.get(i.category) ?? 0) + 1);
+    }
+    return m;
   }, [activeSheet, severityFilter, dismissed, showDismissed]);
 
   const dismissedInActiveSheet = useMemo(() => {
@@ -638,6 +655,7 @@ export function AuditExpenseTool() {
                               setActiveFileIdx(fi);
                               setActiveSheetName(s.name);
                               setSelectedIssueId(null);
+                              setCategoryFilter(null);
                             }}
                             title={dotTitle}
                             className={cn(
@@ -734,7 +752,7 @@ export function AuditExpenseTool() {
                       ({activeSheet.rows.length} 행 · {activeSheet.columns.length} 컬럼)
                     </span>
                   </CardTitle>
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
                     <Filter className="size-3.5 text-muted-foreground" />
                     {(
                       [
@@ -757,6 +775,16 @@ export function AuditExpenseTool() {
                         {ko}
                       </button>
                     ))}
+                    {categoryFilter && (
+                      <button
+                        onClick={() => setCategoryFilter(null)}
+                        className="flex items-center gap-1 rounded border border-blue-400 bg-blue-50 px-2 py-0.5 text-blue-800 hover:bg-blue-100"
+                        title="카테고리 필터 해제"
+                      >
+                        {CATEGORY_LABELS[categoryFilter]}
+                        <X className="size-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -845,6 +873,36 @@ export function AuditExpenseTool() {
                   );
                 })()}
 
+                {/* 카테고리 칩 — 클릭하면 그 유형만 필터 */}
+                {categoryCounts.size > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 rounded border bg-muted/10 p-2 text-[11px]">
+                    <span className="mr-1 text-muted-foreground">유형별:</span>
+                    {Array.from(categoryCounts.entries())
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cat, n]) => {
+                        const active = categoryFilter === cat;
+                        return (
+                          <button
+                            key={cat}
+                            onClick={() =>
+                              setCategoryFilter((cur) => (cur === cat ? null : cat))
+                            }
+                            title={`${CATEGORY_LABELS[cat]} ${n}건 — 클릭하면 이 유형만 보기`}
+                            className={cn(
+                              "rounded border px-2 py-0.5 transition-colors",
+                              active
+                                ? "border-blue-500 bg-blue-100 text-blue-900"
+                                : "border-border bg-background hover:bg-muted/30",
+                            )}
+                          >
+                            {CATEGORY_LABELS[cat]}
+                            <span className="ml-1 font-mono text-[10px] opacity-70">{n}</span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+
                 {/* 이슈 리스트 */}
                 {filteredIssues.length === 0 ? (
                   <p className="rounded border border-dashed p-3 text-center text-xs text-muted-foreground">
@@ -876,13 +934,18 @@ export function AuditExpenseTool() {
                           )}
                         >
                           <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className="shrink-0 text-[10px]"
-                              title={`내부코드: ${i.category}`}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCategoryFilter((cur) =>
+                                  cur === i.category ? null : i.category,
+                                );
+                              }}
+                              title={`이 유형만 보기 (${i.category})`}
+                              className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] hover:bg-muted/30"
                             >
                               {CATEGORY_LABELS[i.category]}
-                            </Badge>
+                            </button>
                             {i.cellAddress && (
                               <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
                                 셀 {i.cellAddress}
