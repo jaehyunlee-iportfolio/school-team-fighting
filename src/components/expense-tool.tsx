@@ -30,6 +30,10 @@ import {
   recomputeWarnings,
   splitUseDetail,
 } from "@/lib/expense/types";
+import {
+  DEFAULT_DATE_OFFSETS,
+  type DateOffsets,
+} from "@/lib/expense/dates";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -147,6 +151,8 @@ export function ExpenseTool() {
   const [skippedTabs, setSkippedTabs] = useState<{ name: string; reason: string }[]>([]);
   const [settings, setSettings] = useState<ExpenseSettings | null>(null);
   const [layout, setLayout] = useState<ExpenseLayoutSettings | null>(null);
+  // 작성·승인일 영업일 offset (검토 단계에서 사용자가 조정)
+  const [dateOffsets, setDateOffsets] = useState<DateOffsets>(DEFAULT_DATE_OFFSETS);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewStart = useRef(false);
@@ -227,7 +233,7 @@ export function ExpenseTool() {
     setParsePending(true);
     try {
       const gs = settings.groups[pendingGroup];
-      const result = await parseExpenseXlsx(pendingBuffer, gs.orgCode, gs.serialAlpha, selectedTabs);
+      const result = await parseExpenseXlsx(pendingBuffer, gs.orgCode, gs.serialAlpha, selectedTabs, dateOffsets);
       if (!result.rows.length) {
         toast.error("선택한 탭에서 유효한 지출 행을 찾지 못했어요.");
         setSkippedTabs(result.skippedTabs);
@@ -244,7 +250,7 @@ export function ExpenseTool() {
     } finally {
       setParsePending(false);
     }
-  }, [settings, pendingBuffer, pendingGroup, selectedTabs]);
+  }, [settings, pendingBuffer, pendingGroup, selectedTabs, dateOffsets]);
 
   const resetUpload = useCallback(() => {
     setPendingFile(null);
@@ -357,6 +363,30 @@ export function ExpenseTool() {
       toast.success(`${label}에 ${value ? "표시" : "숨김"} — 전체 ${next.length}건 적용`);
     },
     [rows, previewI, groupSettings, layout, makeBlobFor],
+  );
+
+  /** D-N offset 변경 → 모든 행의 작성·승인일 재계산 + 미리보기 갱신 (일련번호는 보존) */
+  const applyDateOffsets = useCallback(
+    (next: DateOffsets) => {
+      setDateOffsets(next);
+      if (rows.length === 0 || !groupSettings) return;
+      const updated = rows.map((r) =>
+        recomputeRowAutoFields(r, groupSettings.orgCode, groupSettings.serialAlpha, true, next),
+      );
+      setRows(updated);
+      const cur = updated[previewI];
+      if (cur && layout) {
+        makeBlobFor(cur)
+          .then((blob) => {
+            setPreviewUrl((old) => {
+              if (old) URL.revokeObjectURL(old);
+              return URL.createObjectURL(blob);
+            });
+          })
+          .catch(console.error);
+      }
+    },
+    [rows, groupSettings, layout, previewI, makeBlobFor],
   );
 
   const removeRow = useCallback((index: number) => {
@@ -735,6 +765,15 @@ export function ExpenseTool() {
               )}
             </div>
 
+            {/* 작성·승인일 D-N 설정 */}
+            {rows.length > 0 && (
+              <DateOffsetsControl
+                value={dateOffsets}
+                onChange={applyDateOffsets}
+                sampleRow={rows[previewI] ?? rows[0]}
+              />
+            )}
+
             {/* 사용내역 일괄 적용 */}
             {rows.length > 0 && (() => {
               const purposeOn = rows.filter((r) => r.includeUseDetail).length;
@@ -923,6 +962,7 @@ export function ExpenseTool() {
           index={editingRowIdx}
           orgCode={groupSettings.orgCode}
           serialAlpha={groupSettings.serialAlpha}
+          dateOffsets={dateOffsets}
           open
           onOpenChange={(v) => { if (!v) setEditingRowIdx(null); }}
           onSave={(updated) => {
@@ -1017,6 +1057,7 @@ function ExpenseRowEditDialog({
   index,
   orgCode,
   serialAlpha,
+  dateOffsets,
   open,
   onOpenChange,
   onSave,
@@ -1025,6 +1066,7 @@ function ExpenseRowEditDialog({
   index: number;
   orgCode: string;
   serialAlpha: string;
+  dateOffsets: DateOffsets;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSave: (updated: ExpenseRow) => void;
@@ -1036,8 +1078,8 @@ function ExpenseRowEditDialog({
   }, [open, row]);
 
   const handleSave = () => {
-    // 집행일자가 변경됐으면 자동 필드 재계산 (일련번호는 유지)
-    const recomputed = recomputeRowAutoFields(draft, orgCode, serialAlpha, true);
+    // 집행일자가 변경됐으면 자동 필드 재계산 (일련번호는 유지, 사용자 offset 적용)
+    const recomputed = recomputeRowAutoFields(draft, orgCode, serialAlpha, true, dateOffsets);
     onSave(recomputed);
     onOpenChange(false);
     toast.success(`#${index + 1}번 행을 수정했어요`);
@@ -1167,6 +1209,102 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="space-y-1.5">
       <Label className="text-xs">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+/**
+ * 작성·승인일 D-N(영업일) 설정 컨트롤.
+ * 변경 즉시 onChange로 전체 행 재계산을 트리거한다.
+ *
+ * sampleRow는 현재 미리보기 중인 행 — 사용자가 입력한 N이 실제 어떤 날짜로 변환되는지
+ * 작은 미리보기로 보여줘서 영업일·공휴일 효과를 즉시 확인할 수 있게 함.
+ */
+function DateOffsetsControl({
+  value,
+  onChange,
+  sampleRow,
+}: {
+  value: DateOffsets;
+  onChange: (next: DateOffsets) => void;
+  sampleRow: ExpenseRow | undefined;
+}) {
+  const setKey = (key: keyof DateOffsets) => (raw: string) => {
+    // 빈 문자열은 0으로 처리. 음수·소수는 차단.
+    const n = raw === "" ? 0 : Math.max(0, Math.floor(Number(raw)));
+    if (!Number.isFinite(n)) return;
+    if (n === value[key]) return;
+    onChange({ ...value, [key]: n });
+  };
+
+  return (
+    <div className="mb-2 space-y-1.5 rounded-lg border bg-muted/20 p-2 text-[11px]">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-medium text-muted-foreground">
+          작성·승인일 자동 계산 (집행일자 기준 D-N 영업일)
+        </p>
+        {sampleRow?.executionDate ? (
+          <span className="text-[10px] text-muted-foreground/70">
+            기준: {sampleRow.executionDate}
+          </span>
+        ) : null}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <OffsetField
+          label="작성일자"
+          value={value.writer}
+          onChange={setKey("writer")}
+          resultDate={sampleRow?.writerDate}
+        />
+        <OffsetField
+          label="담당자 승인일"
+          value={value.handler}
+          onChange={setKey("handler")}
+          resultDate={sampleRow?.handlerApprovalDate}
+        />
+        <OffsetField
+          label="결재권자 승인일"
+          value={value.approver}
+          onChange={setKey("approver")}
+          resultDate={sampleRow?.approverApprovalDate}
+        />
+      </div>
+      <p className="text-[10px] text-muted-foreground/70">
+        주말·공휴일을 건너뛰는 영업일 기준. 0 입력 시 집행일자 당일(또는 가장 가까운 과거 영업일).
+      </p>
+    </div>
+  );
+}
+
+function OffsetField({
+  label,
+  value,
+  onChange,
+  resultDate,
+}: {
+  label: string;
+  value: number;
+  onChange: (raw: string) => void;
+  resultDate: string | undefined;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[10px] text-muted-foreground">{label}</Label>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] text-muted-foreground">D-</span>
+        <Input
+          type="number"
+          min={0}
+          max={30}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-7 w-14 px-2 text-xs"
+        />
+      </div>
+      <p className="font-mono text-[10px] text-muted-foreground/80">
+        {resultDate || "—"}
+      </p>
     </div>
   );
 }

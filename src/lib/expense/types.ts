@@ -139,10 +139,32 @@ export function splitUseDetail(text: string): { purpose: string; note: string } 
   };
 }
 
-/** 한 행의 필수값 검증 */
+/**
+ * 사용내역에 "소득세 발생" 표현이 있으면 비고에 자동으로 추가하는 마커 문구.
+ * 인적용역(전문가활용비 등)에서 월별 합산 시 8.8% 원천징수가 발생하는 경우 PDF 비고에
+ * 표시되어야 하는 표준 안내 문구.
+ */
+export const INCOME_TAX_MARKER = "*월별 지급 총액 합산 시 소득세 발생 건(8.8% 공제)";
+const INCOME_TAX_KEYWORD = "소득세 발생";
+
+/**
+ * 사용내역에 "소득세 발생" 키워드가 있으면 비고에 마커 줄을 추가.
+ * 이미 마커가 포함되어 있으면 중복 추가하지 않음 (idempotent).
+ *
+ * Why: 인적용역 8.8% 원천징수 안내 문구는 사용내역 본문에는 들어가 있지만 PDF의
+ * 비고 셀에는 별도로 노출되어야 함. 사용자가 매번 손으로 옮겨 적던 작업을 자동화.
+ */
+function ensureIncomeTaxMarker(useDetail: string, note: string): string {
+  if (!useDetail || !useDetail.includes(INCOME_TAX_KEYWORD)) return note;
+  if (note.includes(INCOME_TAX_MARKER)) return note;
+  return note.trim() ? `${note}\n${INCOME_TAX_MARKER}` : INCOME_TAX_MARKER;
+}
+
+/** 한 행의 필수값 검증 + 자동 후처리 (소득세 마커) */
 export function recomputeWarnings(
   r: Omit<ExpenseRow, "hasEmpty" | "fieldWarnings">
 ): ExpenseRow {
+  const note = ensureIncomeTaxMarker(r.useDetail, r.note);
   const w: string[] = [];
   if (!r.evidenceNo.trim()) w.push("「증빙번호(PK)」가 비어 있어요");
   if (!r.executionDate.trim()) w.push("「집행일자」가 비어 있어요");
@@ -151,5 +173,5 @@ export function recomputeWarnings(
   if (!Number.isFinite(r.supply) || r.supply < 0) w.push("「공급가액」이 비정상");
   if (!r.purpose.trim()) w.push("「지출목적」이 비어 있어요");
   if (!r.payment.trim()) w.push("「지급방법」이 비어 있어요");
-  return { ...r, hasEmpty: w.length > 0, fieldWarnings: w };
+  return { ...r, note, hasEmpty: w.length > 0, fieldWarnings: w };
 }
