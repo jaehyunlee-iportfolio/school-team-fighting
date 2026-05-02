@@ -19,8 +19,8 @@ export const TAB_TO_ACCOUNT: Record<string, { semok: string; sesemok: string }> 
   "E-3.우편요금∙택배비": { semok: "기타운영비", sesemok: "우편요금∙택배비" },
   "E-4.일용직활용비": { semok: "기타운영비", sesemok: "일용직활용비" },
   "E-5.기타경비": { semok: "기타운영비", sesemok: "기타경비" },
-  "F.일반관리비": { semok: "-", sesemok: "-" },
-  "F-1.일반관리비": { semok: "-", sesemok: "-" },
+  "F.일반관리비": { semok: "일반관리비(간접비)", sesemok: "" },
+  "F-1.일반관리비": { semok: "일반관리비(간접비)", sesemok: "" },
 };
 
 /**
