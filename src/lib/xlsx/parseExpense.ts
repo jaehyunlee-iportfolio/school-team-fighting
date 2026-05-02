@@ -12,7 +12,7 @@ import {
   recomputeWarnings,
   type ExpenseRow,
 } from "@/lib/expense/types";
-import { computeAutoDatesFromString } from "@/lib/expense/dates";
+import { computeAutoDatesFromString, type DateOffsets } from "@/lib/expense/dates";
 import { generateSerialFromString } from "@/lib/expense/serial";
 import { formatDateKR, parseLooseDate } from "@/lib/expense/holidays";
 
@@ -214,12 +214,14 @@ export async function listExpenseTabs(buffer: ArrayBuffer): Promise<XlsxTabInfo[
  * @param orgCode 일련번호 prefix (예: "IPF")
  * @param serialAlpha 일련번호 알파벳 (예: "R")
  * @param selectedTabs (선택) 특정 탭들만 처리. undefined면 처리 가능한 모든 탭.
+ * @param offsets (선택) 작성·승인일 영업일 offset. 미지정 시 DEFAULT_DATE_OFFSETS.
  */
 export async function parseExpenseXlsx(
   buffer: ArrayBuffer,
   orgCode: string,
   serialAlpha: string,
-  selectedTabs?: Set<string>
+  selectedTabs?: Set<string>,
+  offsets?: DateOffsets,
 ): Promise<ParseExpenseResult> {
   const wb = XLSX.read(buffer, { type: "array", cellDates: true });
   const rows: ExpenseRow[] = [];
@@ -316,7 +318,7 @@ export async function parseExpenseXlsx(
       }
 
       const serial = generateSerialFromString(orgCode, serialAlpha, executionDate);
-      const auto = computeAutoDatesFromString(executionDate);
+      const auto = computeAutoDatesFromString(executionDate, offsets);
 
       const built: Omit<ExpenseRow, "hasEmpty" | "fieldWarnings"> = {
         rowIndex: globalIndex++,
@@ -370,9 +372,10 @@ export function recomputeRowAutoFields(
   row: ExpenseRow,
   orgCode: string,
   serialAlpha: string,
-  preserveSerial: boolean = false
+  preserveSerial: boolean = false,
+  offsets?: DateOffsets,
 ): ExpenseRow {
-  const auto = computeAutoDatesFromString(row.executionDate);
+  const auto = computeAutoDatesFromString(row.executionDate, offsets);
   const serial = preserveSerial && row.serial
     ? row.serial
     : generateSerialFromString(orgCode, serialAlpha, row.executionDate);
