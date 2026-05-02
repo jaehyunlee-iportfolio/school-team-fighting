@@ -7,8 +7,8 @@
 //   - 결재권자 승인일 = 집행일자 - 1 영업일 (approver)
 //
 // 검토 단계에서 사용자가 D-N 값을 자유롭게 변경할 수 있음 (DateOffsets 인자).
-// 시간 흐름 제약: 작성 ≥ 승인 ≥ 0 (커야 자연스러움). 0 입력 시 집행일자 당일에서
-// 가장 가까운 과거 영업일이 됨 (subtractBusinessDays(_, 0) 동작).
+// 0 입력 시 집행일자와 무조건 동일 (영업일 후퇴 없음 — 휴일이어도 그대로).
+// N≥1 입력 시 영업일 기준으로 N 영업일 후퇴.
 
 import {
   formatDateKR,
@@ -43,14 +43,30 @@ function clamp(n: number): number {
   return Math.max(0, Math.floor(n));
 }
 
+/**
+ * 집행일자에서 N 영업일 후퇴한 날짜.
+ * N=0 이면 집행일자 그대로 (휴일이어도 후퇴 없음 — 사용자가 명시적으로 같은 날을 원하는 경우).
+ */
+function offsetFromExecution(executionDate: Date, n: number): Date {
+  const clamped = clamp(n);
+  if (clamped === 0) {
+    return new Date(
+      executionDate.getFullYear(),
+      executionDate.getMonth(),
+      executionDate.getDate(),
+    );
+  }
+  return subtractBusinessDays(executionDate, clamped);
+}
+
 /** Date 객체로부터 자동 일자 3개 계산. */
 export function computeAutoDates(
   executionDate: Date,
   offsets: DateOffsets = DEFAULT_DATE_OFFSETS,
 ): AutoDates {
-  const writer = subtractBusinessDays(executionDate, clamp(offsets.writer));
-  const handler = subtractBusinessDays(executionDate, clamp(offsets.handler));
-  const approver = subtractBusinessDays(executionDate, clamp(offsets.approver));
+  const writer = offsetFromExecution(executionDate, offsets.writer);
+  const handler = offsetFromExecution(executionDate, offsets.handler);
+  const approver = offsetFromExecution(executionDate, offsets.approver);
   return {
     writerDate: formatDateKR(writer),
     handlerApprovalDate: formatDateKR(handler),

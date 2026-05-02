@@ -1270,7 +1270,7 @@ function DateOffsetsControl({
         />
       </div>
       <p className="text-[10px] text-muted-foreground/70">
-        주말·공휴일을 건너뛰는 영업일 기준. 0 입력 시 집행일자 당일(또는 가장 가까운 과거 영업일).
+        주말·공휴일을 건너뛰는 영업일 기준. 0 입력 시 집행일자와 동일 (휴일이어도 그대로).
       </p>
     </div>
   );
