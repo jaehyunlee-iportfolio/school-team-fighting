@@ -25,6 +25,18 @@ import { del } from "@vercel/blob";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+function isVercelBlobUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return (
+      u.protocol === "https:" &&
+      u.hostname.endsWith(".blob.vercel-storage.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: Request) {
   const ct = req.headers.get("content-type") ?? "";
 
@@ -41,6 +53,13 @@ export async function POST(req: Request) {
     if (!url || !filename) {
       return NextResponse.json(
         { error: "url, filename 필수" },
+        { status: 400 },
+      );
+    }
+    // Vercel Blob 주소만 허용 (임의 URL fetch 차단)
+    if (!isVercelBlobUrl(url)) {
+      return NextResponse.json(
+        { error: "Vercel Blob URL만 허용" },
         { status: 400 },
       );
     }
